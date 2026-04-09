@@ -1,0 +1,83 @@
+---
+- name: Ensure reports directory exists
+  ansible.builtin.file:
+    path: "{{ playbook_dir }}/reports"
+    state: directory
+    mode: "0755"
+  delegate_to: localhost
+  run_once: true
+
+- name: Build consolidated maintenance summary
+  ansible.builtin.set_fact:
+    smart_os_health_check_summary:
+      servers_checked: "{{ ansible_play_hosts_all | length }}"
+      auto_fixed_count: >-
+        {{
+          ansible_play_hosts_all
+          | map('extract', hostvars, 'smart_os_health_check_auto_fixed_count')
+          | map('default', 0)
+          | map('int')
+          | sum
+        }}
+      critical_error_count: >-
+        {{
+          ansible_play_hosts_all
+          | map('extract', hostvars, 'smart_os_health_check_result')
+          | selectattr('final_status', 'equalto', 'Fail')
+          | list
+          | length
+        }}
+      snippet: >-
+        {{
+          (
+            ansible_play_hosts_all | length | string
+          ) ~ ' Servers Checked, '
+          ~ (
+            ansible_play_hosts_all
+            | map('extract', hostvars, 'smart_os_health_check_auto_fixed_count')
+            | map('default', 0)
+            | map('int')
+            | sum
+            | string
+          ) ~ ' Auto-Fixed, '
+          ~ (
+            ansible_play_hosts_all
+            | map('extract', hostvars, 'smart_os_health_check_result')
+            | selectattr('final_status', 'equalto', 'Fail')
+            | list
+            | length
+            | string
+          ) ~ ' Critical '
+          ~ (
+            'Errors' if (
+              ansible_play_hosts_all
+              | map('extract', hostvars, 'smart_os_health_check_result')
+              | selectattr('final_status', 'equalto', 'Fail')
+              | list
+              | length
+            ) != 1 else 'Error'
+          )
+        }}
+  delegate_to: localhost
+  run_once: true
+
+- name: Generate consolidated HTML dashboard
+  ansible.builtin.template:
+    src: report.html.j2
+    dest: "{{ smart_os_health_check_output_path }}"
+    mode: "0644"
+  delegate_to: localhost
+  run_once: true
+
+- name: Send Slack maintenance summary
+  ansible.builtin.uri:
+    url: "{{ smart_os_health_check_effective_slack_webhook_url }}"
+    method: POST
+    body_format: json
+    body:
+      text: "{{ lookup('ansible.builtin.template', 'slack_message.txt.j2') }}"
+    status_code: 200
+    return_content: true
+  delegate_to: localhost
+  run_once: true
+  when: smart_os_health_check_effective_slack_webhook_url | length > 0

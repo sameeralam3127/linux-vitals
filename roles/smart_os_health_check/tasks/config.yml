@@ -1,0 +1,22 @@
+---
+- name: Load Slack webhook from local .env when present
+  ansible.builtin.set_fact:
+    smart_os_health_check_dotenv_slack_webhook_url: >-
+      {{
+        (
+          lookup('ansible.builtin.file', playbook_dir ~ '/.env', errors='ignore')
+          | regex_findall("(?m)^SLACK_WEBHOOK_URL=[\"']?([^\"'\\n#]+)[\"']?$")
+          | first
+        ) | default('', true) | trim
+      }}
+
+- name: Finalize effective Slack webhook configuration
+  ansible.builtin.set_fact:
+    smart_os_health_check_effective_slack_webhook_url: >-
+      {{
+        (
+          smart_os_health_check_slack_webhook_url | default('', true) | trim
+        ) if (
+          smart_os_health_check_slack_webhook_url | default('', true) | trim | length > 0
+        ) else smart_os_health_check_dotenv_slack_webhook_url
+      }}

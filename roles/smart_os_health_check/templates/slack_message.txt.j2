@@ -1,13 +1,11 @@
 {{ smart_os_health_check_slack_message_header }}
-Servers Checked: {{ smart_os_health_check_summary.servers_checked }}
-Auto-Fixed: {{ smart_os_health_check_summary.auto_fixed_count }}
-Critical Errors: {{ smart_os_health_check_summary.critical_error_count }}
-Final Result: {{ 'PASS' if smart_os_health_check_summary.critical_error_count | int == 0 else 'FAIL' }}
+Overall Status: {{ 'PASS' if smart_os_health_check_summary.critical_error_count | int == 0 else 'FAIL' }}
+Servers Checked: {{ smart_os_health_check_summary.servers_checked }} | Auto-Fixed: {{ smart_os_health_check_summary.auto_fixed_count }} | Critical Errors: {{ smart_os_health_check_summary.critical_error_count }}
 Summary: {{ smart_os_health_check_summary.snippet }}
 {% if smart_os_health_check_slack_include_host_breakdown %}
-Hosts:
+Host Breakdown:
 {% for host in ansible_play_hosts_all %}
-- {{ hostvars[host]['smart_os_health_check_result'].hostname }}: {{ hostvars[host]['smart_os_health_check_result'].final_status }} | RAM {{ hostvars[host]['smart_os_health_check_result'].ram_status }} | Logs {{ hostvars[host]['smart_os_health_check_result'].log_errors }} | Healed {{ hostvars[host]['smart_os_health_check_result'].services_healed | length }}
+- {{ hostvars[host]['smart_os_health_check_result'].hostname }} ({{ hostvars[host]['smart_os_health_check_result'].ip_address }}) | Status: {{ hostvars[host]['smart_os_health_check_result'].final_status }} | Type: {{ hostvars[host]['smart_os_health_check_result'].platform_type }} | Uptime: {{ hostvars[host]['smart_os_health_check_result'].uptime }} | Kernel: {{ hostvars[host]['smart_os_health_check_result'].running_kernel }}{% if not hostvars[host]['smart_os_health_check_result'].latest_kernel_selected %} (latest installed not active){% endif %} | Reboot: {{ 'Required' if hostvars[host]['smart_os_health_check_result'].reboot_required else 'No' }} | Boot: {{ hostvars[host]['smart_os_health_check_result'].boot_space_status }} | Failed Logins: {{ hostvars[host]['smart_os_health_check_result'].failed_login_count }}
 {% endfor %}
 {% endif %}
 {% if smart_os_health_check_slack_message_footer | trim %}

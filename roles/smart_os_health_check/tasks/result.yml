@@ -1,0 +1,95 @@
+---
+- name: Build host health findings
+  ansible.builtin.set_fact:
+    smart_os_health_check_findings: >-
+      {%- set findings = [] -%}
+      {%- if smart_os_health_check_ram_status == 'Critical' -%}
+      {%- set _ = findings.append('RAM usage is critical') -%}
+      {%- endif -%}
+      {%- if smart_os_health_check_log_errors | int > 0 -%}
+      {%- set _ = findings.append('Recent logs contain error or failed entries') -%}
+      {%- endif -%}
+      {%- if smart_os_health_check_service_status.sssd.state != 'running' -%}
+      {%- set _ = findings.append('sssd is not active') -%}
+      {%- endif -%}
+      {%- if smart_os_health_check_service_status.systemd_journald.state != 'running' -%}
+      {%- set _ = findings.append('systemd-journald is not active') -%}
+      {%- endif -%}
+      {%- if smart_os_health_check_service_status.time_sync.service_name == 'absent' -%}
+      {%- set _ = findings.append('chronyd or ntp is not installed') -%}
+      {%- elif smart_os_health_check_service_status.time_sync.state != 'running' -%}
+      {%- set _ = findings.append('Time synchronization service is not active') -%}
+      {%- endif -%}
+      {%- if smart_os_health_check_reboot_required -%}
+      {%- set _ = findings.append('System reboot is required') -%}
+      {%- endif -%}
+      {%- if not smart_os_health_check_latest_kernel_selected -%}
+      {%- set _ = findings.append('Latest installed kernel is not currently running') -%}
+      {%- endif -%}
+      {%- if smart_os_health_check_boot_space_status == 'Low' -%}
+      {%- set _ = findings.append('Boot partition free space is low') -%}
+      {%- endif -%}
+      {%- if smart_os_health_check_kernel_install_failures | int > 0 -%}
+      {%- set _ = findings.append('Kernel installation or bootloader related failures found in logs') -%}
+      {%- endif -%}
+      {%- if smart_os_health_check_failed_login_attempts | length > 0 -%}
+      {%- set _ = findings.append('Recent failed login attempts detected') -%}
+      {%- endif -%}
+      {%- if smart_os_health_check_selinux_status not in ['Enforcing', 'Permissive'] and ansible_facts['os_family'] == 'RedHat' -%}
+      {%- set _ = findings.append('SELinux is disabled or unavailable') -%}
+      {%- endif -%}
+      {%- if ansible_facts['os_family'] == 'Debian' and smart_os_health_check_apparmor_status != 'enabled' -%}
+      {%- set _ = findings.append('AppArmor is disabled or unavailable') -%}
+      {%- endif -%}
+      {%- for item in smart_os_health_check_healing_results | default([]) -%}
+      {%- if item.result != 'Fixed' -%}
+      {%- set _ = findings.append(item.service ~ ' requires manual follow-up') -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{ findings }}
+
+- name: Build per-host report object
+  ansible.builtin.set_fact:
+    smart_os_health_check_result:
+      hostname: "{{ ansible_facts.hostname | default(inventory_hostname) }}"
+      ip_address: >-
+        {{
+          ansible_facts['default_ipv4']['address']
+          | default(ansible_host | default('unavailable'), true)
+        }}
+      os: "{{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}"
+      os_family: "{{ ansible_facts['os_family'] }}"
+      package_manager: "{{ smart_os_health_check_pkg_manager }}"
+      log_source: "{{ smart_os_health_check_log_source }}"
+      platform_type: "{{ smart_os_health_check_platform_type }}"
+      virtualization_type: "{{ smart_os_health_check_virtualization_type }}"
+      uptime: "{{ smart_os_health_check_uptime_readable }}"
+      last_reboot: "{{ smart_os_health_check_last_reboot }}"
+      running_kernel: "{{ smart_os_health_check_running_kernel }}"
+      latest_installed_kernel: "{{ smart_os_health_check_latest_installed_kernel }}"
+      latest_kernel_updated_at: "{{ smart_os_health_check_latest_kernel_updated_at }}"
+      latest_kernel_selected: "{{ smart_os_health_check_latest_kernel_selected }}"
+      reboot_required: "{{ smart_os_health_check_reboot_required }}"
+      selinux_status: "{{ smart_os_health_check_selinux_status }}"
+      apparmor_status: "{{ smart_os_health_check_apparmor_status }}"
+      boot_mount: "{{ smart_os_health_check_boot_mount_point }}"
+      boot_free_mb: "{{ smart_os_health_check_boot_free_mb }}"
+      boot_total_mb: "{{ smart_os_health_check_boot_total_mb }}"
+      boot_free_pct: "{{ smart_os_health_check_boot_free_pct }}"
+      boot_space_status: "{{ smart_os_health_check_boot_space_status }}"
+      rescue_image_available: "{{ smart_os_health_check_rescue_image_available }}"
+      rescue_image_paths: "{{ smart_os_health_check_rescue_image_paths }}"
+      last_failed_login: "{{ smart_os_health_check_last_failed_login }}"
+      failed_login_count: "{{ smart_os_health_check_failed_login_attempts | length }}"
+      kernel_install_failures: "{{ smart_os_health_check_kernel_install_failures }}"
+      kernel_install_failure_excerpt: "{{ smart_os_health_check_kernel_install_failure_excerpt }}"
+      ram_status: "{{ smart_os_health_check_ram_status }}"
+      ram_used_pct: "{{ smart_os_health_check_ram_used_pct }}"
+      ram_used_mb: "{{ smart_os_health_check_memory_used_mb | round(1) }}"
+      ram_total_mb: "{{ smart_os_health_check_memory_total_mb | round(1) }}"
+      log_errors: "{{ smart_os_health_check_log_errors }}"
+      log_excerpt: "{{ smart_os_health_check_log_excerpt }}"
+      services_healed: "{{ smart_os_health_check_services_healed }}"
+      healing_results: "{{ smart_os_health_check_healing_results }}"
+      final_status: "{{ 'Pass' if smart_os_health_check_findings | length == 0 else 'Fail' }}"
+      findings: "{{ smart_os_health_check_findings }}"

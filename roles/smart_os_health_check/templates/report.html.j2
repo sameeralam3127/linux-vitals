@@ -145,6 +145,46 @@
       padding-left: 18px;
     }
 
+    .details {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 18px;
+      margin-top: 24px;
+    }
+
+    .detail-card {
+      background: var(--panel);
+      border-radius: 18px;
+      padding: 20px;
+      box-shadow: var(--shadow);
+      border: 1px solid rgba(214, 222, 235, 0.7);
+    }
+
+    .detail-card h2 {
+      margin: 0 0 16px;
+      font-size: 18px;
+    }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+
+    .detail-item {
+      border-top: 1px solid var(--line);
+      padding-top: 10px;
+    }
+
+    .detail-item strong {
+      display: block;
+      font-size: 12px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
     @media (max-width: 900px) {
       body {
         padding: 20px 12px 36px;
@@ -200,6 +240,7 @@
         <tr>
           <td>
             <strong>{{ result.hostname }}</strong><br>
+            <span class="muted">{{ result.ip_address }}</span><br>
             <span class="muted">{{ result.os_family }} / {{ result.package_manager }}</span>
           </td>
           <td>{{ result.os }}</td>
@@ -248,6 +289,82 @@
         {% endfor %}
       </tbody>
     </table>
+
+    <section class="details">
+      {% for host in ansible_play_hosts_all %}
+      {% set result = hostvars[host]['smart_os_health_check_result'] %}
+      <article class="detail-card">
+        <h2>{{ result.hostname }}</h2>
+        <div class="detail-grid">
+          <div class="detail-item">
+            <strong>IP Address</strong>
+            <span>{{ result.ip_address }}</span>
+          </div>
+          <div class="detail-item">
+            <strong>Platform</strong>
+            <span>{{ result.platform_type }} / {{ result.virtualization_type }}</span>
+          </div>
+          <div class="detail-item">
+            <strong>Uptime</strong>
+            <span>{{ result.uptime }}</span>
+          </div>
+          <div class="detail-item">
+            <strong>Last Reboot</strong>
+            <span>{{ result.last_reboot }}</span>
+          </div>
+          <div class="detail-item">
+            <strong>Kernel</strong>
+            <span>Running: {{ result.running_kernel }}</span><br>
+            <span>Latest Installed: {{ result.latest_installed_kernel }}</span><br>
+            <span>Updated: {{ result.latest_kernel_updated_at }}</span><br>
+            <span>Latest Selected: {{ 'Yes' if result.latest_kernel_selected else 'No' }}</span>
+          </div>
+          <div class="detail-item">
+            <strong>Reboot Requirement</strong>
+            <span>{{ 'Required' if result.reboot_required else 'Not Required' }}</span>
+          </div>
+          <div class="detail-item">
+            <strong>Security Controls</strong>
+            <span>SELinux: {{ result.selinux_status }}</span><br>
+            <span>AppArmor: {{ result.apparmor_status }}</span>
+          </div>
+          <div class="detail-item">
+            <strong>Boot Space</strong>
+            <span>Mount: {{ result.boot_mount }}</span><br>
+            <span>Status: {{ result.boot_space_status }}</span><br>
+            <span>Free: {{ result.boot_free_mb }} MB / {{ result.boot_total_mb }} MB ({{ result.boot_free_pct }}%)</span>
+          </div>
+          <div class="detail-item">
+            <strong>Rescue Image</strong>
+            <span>{{ 'Available' if result.rescue_image_available else 'Not Available' }}</span>
+            {% if result.rescue_image_paths %}
+            <ul class="list">
+              {% for item in result.rescue_image_paths %}
+              <li>{{ item }}</li>
+              {% endfor %}
+            </ul>
+            {% endif %}
+          </div>
+          <div class="detail-item">
+            <strong>Failed Logins</strong>
+            <span>Count: {{ result.failed_login_count }}</span><br>
+            <span>Last Seen: {{ result.last_failed_login }}</span>
+          </div>
+          <div class="detail-item">
+            <strong>Kernel Install Failures</strong>
+            <span>{{ result.kernel_install_failures }}</span>
+            {% if result.kernel_install_failure_excerpt %}
+            <ul class="list">
+              {% for item in result.kernel_install_failure_excerpt %}
+              <li>{{ item }}</li>
+              {% endfor %}
+            </ul>
+            {% endif %}
+          </div>
+        </div>
+      </article>
+      {% endfor %}
+    </section>
   </div>
 </body>
 </html>

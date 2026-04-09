@@ -1,0 +1,402 @@
+---
+- name: Refresh platform facts for health evaluation
+  ansible.builtin.setup:
+    gather_subset:
+      - min
+      - hardware
+      - network
+      - virtual
+
+- name: Collect service facts
+  ansible.builtin.service_facts:
+
+- name: Define distro-aware health check context
+  ansible.builtin.set_fact:
+    smart_os_health_check_service_names: "{{ ansible_facts.services.keys() | list }}"
+    smart_os_health_check_pkg_manager: >-
+      {{ 'apt' if ansible_facts['os_family'] == 'Debian' else
+         'zypper' if ansible_facts['os_family'] == 'Suse' else
+         'dnf' }}
+    smart_os_health_check_log_source: >-
+      {{ 'journald' if ansible_facts['service_mgr'] == 'systemd' else 'system logs' }}
+    smart_os_health_check_time_sync_candidates:
+      - chronyd.service
+      - chronyd
+      - ntpd.service
+      - ntpd
+      - ntp.service
+      - ntp
+
+- name: Resolve time synchronization service
+  ansible.builtin.set_fact:
+    smart_os_health_check_time_sync_service: >-
+      {{
+        (
+          smart_os_health_check_time_sync_candidates
+          | intersect(smart_os_health_check_service_names)
+          | first
+        ) | default('absent', true)
+      }}
+
+- name: Collect recent systemd log errors
+  ansible.builtin.command:
+    argv:
+      - journalctl
+      - --since
+      - "{{ smart_os_health_check_log_window }}"
+      - --no-pager
+      - --output=short-iso
+  register: smart_os_health_check_journalctl
+  changed_when: false
+  failed_when: false
+  when: ansible_facts['service_mgr'] == "systemd"
+
+- name: Collect recent failed login attempts
+  ansible.builtin.command:
+    argv:
+      - sh
+      - -c
+      - "lastb -n 5 2>/dev/null"
+  register: smart_os_health_check_failed_login_attempts_cmd
+  changed_when: false
+  failed_when: false
+
+- name: Collect last reboot information
+  ansible.builtin.command:
+    argv:
+      - who
+      - -b
+  register: smart_os_health_check_last_reboot_cmd
+  changed_when: false
+  failed_when: false
+
+- name: Collect latest installed kernel version
+  ansible.builtin.command:
+    argv:
+      - sh
+      - -c
+      - "ls -1 /lib/modules 2>/dev/null | sort -V | tail -n 1"
+  register: smart_os_health_check_latest_kernel_cmd
+  changed_when: false
+  failed_when: false
+
+- name: Collect latest installed kernel timestamp
+  ansible.builtin.command:
+    argv:
+      - sh
+      - -c
+      - "latest=$(ls -1 /lib/modules 2>/dev/null | sort -V | tail -n 1); test -n \"$latest\" && stat -c '%y' \"/lib/modules/$latest\""
+  register: smart_os_health_check_latest_kernel_timestamp_cmd
+  changed_when: false
+  failed_when: false
+
+- name: Check if reboot is required on Debian family
+  ansible.builtin.stat:
+    path: /var/run/reboot-required
+  register: smart_os_health_check_reboot_required_file
+  when: ansible_facts['os_family'] == 'Debian'
+
+- name: Check if reboot is recommended on RedHat family
+  ansible.builtin.command:
+    argv:
+      - needs-restarting
+      - -r
+  register: smart_os_health_check_needs_restarting_cmd
+  changed_when: false
+  failed_when: false
+  when: ansible_facts['os_family'] == 'RedHat'
+
+- name: Check if reboot is recommended on SUSE family
+  ansible.builtin.stat:
+    path: /var/run/reboot-needed
+  register: smart_os_health_check_suse_reboot_file
+  when: ansible_facts['os_family'] == 'Suse'
+
+- name: Collect SELinux mode
+  ansible.builtin.command:
+    argv:
+      - getenforce
+  register: smart_os_health_check_selinux_cmd
+  changed_when: false
+  failed_when: false
+
+- name: Collect AppArmor status
+  ansible.builtin.command:
+    argv:
+      - aa-status
+      - --enabled
+  register: smart_os_health_check_apparmor_cmd
+  changed_when: false
+  failed_when: false
+
+- name: Collect rescue image presence
+  ansible.builtin.command:
+    argv:
+      - sh
+      - -c
+      - "find /boot -maxdepth 1 \\( -name '*rescue*' -o -name 'initramfs-*rescue*' \\) 2>/dev/null | head -n 5"
+  register: smart_os_health_check_rescue_image_cmd
+  changed_when: false
+  failed_when: false
+
+- name: Collect kernel install failures from logs
+  ansible.builtin.command:
+    argv:
+      - journalctl
+      - --since
+      - "{{ smart_os_health_check_audit_log_window }}"
+      - --no-pager
+      - --output=short-iso
+  register: smart_os_health_check_audit_journalctl
+  changed_when: false
+  failed_when: false
+  when: ansible_facts['service_mgr'] == "systemd"
+
+- name: Evaluate base memory and log health
+  ansible.builtin.set_fact:
+    smart_os_health_check_memory_total_mb: "{{ ansible_facts.memtotal_mb | float }}"
+    smart_os_health_check_memory_available_mb: >-
+      {{ ansible_facts.memavailable_mb | default(ansible_facts.memfree_mb, true) | float }}
+    smart_os_health_check_memory_used_mb: >-
+      {{
+        (ansible_facts.memtotal_mb | float)
+        - (ansible_facts.memavailable_mb | default(ansible_facts.memfree_mb, true) | float)
+      }}
+    smart_os_health_check_ram_used_pct: >-
+      {{
+        (
+          (
+            (ansible_facts.memtotal_mb | float)
+            - (ansible_facts.memavailable_mb | default(ansible_facts.memfree_mb, true) | float)
+          ) / (ansible_facts.memtotal_mb | float)
+        ) * 100
+        | round(1)
+      }}
+    smart_os_health_check_log_matches: >-
+      {{
+        (
+          smart_os_health_check_journalctl.stdout
+          | default('')
+          | regex_findall('(?im)^.*(?:error|failed).*$')
+        )
+      }}
+    smart_os_health_check_kernel_failure_matches: >-
+      {{
+        (
+          smart_os_health_check_audit_journalctl.stdout
+          | default('')
+          | regex_findall('(?im)^.*(?:kernel|grub|dracut|initramfs).*(?:fail|error).*$')
+        )
+      }}
+
+- name: Finalize extended discovery facts
+  ansible.builtin.set_fact:
+    smart_os_health_check_log_errors: "{{ smart_os_health_check_log_matches | length }}"
+    smart_os_health_check_log_excerpt: "{{ smart_os_health_check_log_matches[:5] }}"
+    smart_os_health_check_ram_status: >-
+      {{
+        'Critical'
+        if smart_os_health_check_ram_used_pct | float
+        >= smart_os_health_check_ram_critical_threshold | float
+        else 'Warning'
+        if smart_os_health_check_ram_used_pct | float
+        >= smart_os_health_check_ram_warning_threshold | float
+        else 'OK'
+      }}
+    smart_os_health_check_virtualization_type: "{{ ansible_facts['virtualization_type'] | default('unknown') }}"
+    smart_os_health_check_platform_type: >-
+      {{
+        'Virtual Machine'
+        if ansible_facts['virtualization_role'] | default('NA') == 'guest'
+        else 'Physical'
+        if ansible_facts['virtualization_type'] | default('') in ['NA', '', 'none']
+        else 'Hypervisor'
+      }}
+    smart_os_health_check_uptime_seconds: "{{ ansible_facts['uptime_seconds'] | default(0) | int }}"
+    smart_os_health_check_uptime_readable: >-
+      {{
+        (
+          (ansible_facts['uptime_seconds'] | default(0) | int // 86400) | string
+        ) ~ 'd '
+        ~ (
+          ((ansible_facts['uptime_seconds'] | default(0) | int % 86400) // 3600) | string
+        ) ~ 'h '
+        ~ (
+          (((ansible_facts['uptime_seconds'] | default(0) | int % 3600) // 60)) | string
+        ) ~ 'm'
+      }}
+    smart_os_health_check_running_kernel: "{{ ansible_facts['kernel'] | default('unknown') }}"
+    smart_os_health_check_latest_installed_kernel: "{{ smart_os_health_check_latest_kernel_cmd.stdout | default('unknown') | trim }}"
+    smart_os_health_check_latest_kernel_updated_at: "{{ smart_os_health_check_latest_kernel_timestamp_cmd.stdout | default('unknown') | trim }}"
+    smart_os_health_check_latest_kernel_selected: >-
+      {{
+        (
+          smart_os_health_check_latest_kernel_cmd.stdout | default('') | trim
+        ) == (
+          ansible_facts['kernel'] | default('') | trim
+        )
+      }}
+    smart_os_health_check_reboot_required: >-
+      {{
+        (
+          smart_os_health_check_reboot_required_file.stat.exists | default(false)
+        ) if ansible_facts['os_family'] == 'Debian'
+        else (
+          smart_os_health_check_needs_restarting_cmd.rc | default(1)
+        ) == 1 if ansible_facts['os_family'] == 'RedHat'
+        else (
+          smart_os_health_check_suse_reboot_file.stat.exists | default(false)
+        ) if ansible_facts['os_family'] == 'Suse'
+        else not smart_os_health_check_latest_kernel_selected
+      }}
+    smart_os_health_check_selinux_status: "{{ smart_os_health_check_selinux_cmd.stdout | default('not-installed') | trim }}"
+    smart_os_health_check_apparmor_status: >-
+      {{
+        'enabled'
+        if smart_os_health_check_apparmor_cmd.rc | default(1) == 0
+        else 'disabled'
+      }}
+    smart_os_health_check_failed_login_attempts: >-
+      {{
+        smart_os_health_check_failed_login_attempts_cmd.stdout_lines
+        | default([])
+        | reject('equalto', '')
+        | list
+      }}
+    smart_os_health_check_last_failed_login: >-
+      {{
+        smart_os_health_check_failed_login_attempts_cmd.stdout_lines
+        | default([])
+        | reject('equalto', '')
+        | first
+        | default('No failed login attempts found')
+      }}
+    smart_os_health_check_last_reboot: >-
+      {{
+        smart_os_health_check_last_reboot_cmd.stdout
+        | default('Unknown')
+        | regex_replace('^\\s*system boot\\s+', '')
+        | trim
+      }}
+    smart_os_health_check_kernel_install_failures: "{{ smart_os_health_check_kernel_failure_matches | length }}"
+    smart_os_health_check_kernel_install_failure_excerpt: "{{ smart_os_health_check_kernel_failure_matches[:5] }}"
+    smart_os_health_check_rescue_image_available: >-
+      {{
+        smart_os_health_check_rescue_image_cmd.stdout | default('') | trim | length > 0
+      }}
+    smart_os_health_check_rescue_image_paths: "{{ smart_os_health_check_rescue_image_cmd.stdout_lines | default([]) }}"
+
+- name: Build boot partition facts
+  ansible.builtin.set_fact:
+    smart_os_health_check_boot_mount: >-
+      {{
+        (
+          ansible_facts['mounts']
+          | selectattr('mount', 'equalto', '/boot')
+          | list
+          | first
+        )
+        | default(
+          (
+            ansible_facts['mounts']
+            | selectattr('mount', 'equalto', '/boot/efi')
+            | list
+            | first
+          ),
+          true
+        )
+      }}
+
+- name: Finalize boot space facts
+  ansible.builtin.set_fact:
+    smart_os_health_check_boot_mount_point: "{{ smart_os_health_check_boot_mount.mount | default('not-mounted') }}"
+    smart_os_health_check_boot_free_mb: >-
+      {{
+        (smart_os_health_check_boot_mount.size_available | default(0) | float / 1048576)
+        | round(1)
+      }}
+    smart_os_health_check_boot_total_mb: >-
+      {{
+        (smart_os_health_check_boot_mount.size_total | default(0) | float / 1048576)
+        | round(1)
+      }}
+    smart_os_health_check_boot_free_pct: >-
+      {{
+        (
+          (
+            smart_os_health_check_boot_mount.size_available | default(0) | float
+          ) / (
+            smart_os_health_check_boot_mount.size_total | default(1) | float
+          )
+        ) * 100
+        | round(1)
+      }}
+    smart_os_health_check_boot_space_status: >-
+      {{
+        'Not Available'
+        if smart_os_health_check_boot_mount.mount is not defined
+        else 'Low'
+        if (
+          (
+            (
+              smart_os_health_check_boot_mount.size_available | default(0) | float
+            ) / (
+              smart_os_health_check_boot_mount.size_total | default(1) | float
+            ) * 100
+          ) | round(1)
+        ) < smart_os_health_check_boot_warning_threshold | float
+        else 'Healthy'
+      }}
+
+- name: Build required service status map
+  ansible.builtin.set_fact:
+    smart_os_health_check_service_status:
+      sssd:
+        service_name: >-
+          {{
+            (
+              ['sssd.service', 'sssd']
+              | intersect(smart_os_health_check_service_names)
+              | first
+            ) | default('absent', true)
+          }}
+        state: >-
+          {{
+            ansible_facts.services.get(
+              (
+                ['sssd.service', 'sssd']
+                | intersect(smart_os_health_check_service_names)
+                | first
+              ) | default('absent', true),
+              {}
+            ).state | default('missing')
+          }}
+      systemd_journald:
+        service_name: >-
+          {{
+            (
+              ['systemd-journald.service', 'systemd-journald']
+              | intersect(smart_os_health_check_service_names)
+              | first
+            ) | default('absent', true)
+          }}
+        state: >-
+          {{
+            ansible_facts.services.get(
+              (
+                ['systemd-journald.service', 'systemd-journald']
+                | intersect(smart_os_health_check_service_names)
+                | first
+              ) | default('absent', true),
+              {}
+            ).state | default('missing')
+          }}
+      time_sync:
+        service_name: "{{ smart_os_health_check_time_sync_service }}"
+        state: >-
+          {{
+            ansible_facts.services.get(
+              smart_os_health_check_time_sync_service,
+              {}
+            ).state | default('missing')
+          }}
