@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ smart_os_health_check_report_title }}</title>
+  <style>
+    :root {
+      --bg: #f3f7fb;
+      --panel: #ffffff;
+      --ink: #14213d;
+      --muted: #5c677d;
+      --line: #d6deeb;
+      --brand: #0b6e99;
+      --ok: #177245;
+      --warn: #b26b00;
+      --crit: #b42318;
+      --shadow: 0 18px 40px rgba(20, 33, 61, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(11, 110, 153, 0.12), transparent 30%),
+        linear-gradient(180deg, #f9fbfd 0%, var(--bg) 100%);
+      padding: 32px 20px 48px;
+    }
+
+    .page {
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, #12324a 0%, #0b6e99 100%);
+      color: #fff;
+      border-radius: 24px;
+      padding: 28px 32px;
+      box-shadow: var(--shadow);
+      margin-bottom: 24px;
+    }
+
+    .hero h1 {
+      margin: 0 0 8px;
+      font-size: 32px;
+    }
+
+    .hero p {
+      margin: 0;
+      color: rgba(255, 255, 255, 0.86);
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .card {
+      background: var(--panel);
+      border-radius: 18px;
+      padding: 20px;
+      box-shadow: var(--shadow);
+      border: 1px solid rgba(214, 222, 235, 0.7);
+    }
+
+    .card .label {
+      color: var(--muted);
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+
+    .card .value {
+      font-size: 28px;
+      font-weight: 700;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--panel);
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+
+    th, td {
+      text-align: left;
+      padding: 16px 14px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+      font-size: 14px;
+    }
+
+    th {
+      background: #eaf2f8;
+      color: #24415a;
+      text-transform: uppercase;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .status-pill {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 12px;
+    }
+
+    .ok {
+      color: var(--ok);
+      background: rgba(23, 114, 69, 0.12);
+    }
+
+    .warning {
+      color: var(--warn);
+      background: rgba(178, 107, 0, 0.14);
+    }
+
+    .critical {
+      color: var(--crit);
+      background: rgba(180, 35, 24, 0.12);
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .list {
+      margin: 0;
+      padding-left: 18px;
+    }
+
+    @media (max-width: 900px) {
+      body {
+        padding: 20px 12px 36px;
+      }
+
+      .hero {
+        padding: 22px 20px;
+      }
+
+      th, td {
+        padding: 12px 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="hero">
+      <h1>{{ smart_os_health_check_report_title }}</h1>
+      <p>Generated on {{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S UTC') }} for {{ smart_os_health_check_summary.servers_checked }} managed hosts.</p>
+      <p>Maintenance Summary: {{ smart_os_health_check_summary.snippet }}</p>
+    </section>
+
+    <section class="summary">
+      <div class="card">
+        <div class="label">Servers Checked</div>
+        <div class="value">{{ smart_os_health_check_summary.servers_checked }}</div>
+      </div>
+      <div class="card">
+        <div class="label">Auto-Fixed</div>
+        <div class="value">{{ smart_os_health_check_summary.auto_fixed_count }}</div>
+      </div>
+      <div class="card">
+        <div class="label">Critical Errors</div>
+        <div class="value">{{ smart_os_health_check_summary.critical_error_count }}</div>
+      </div>
+    </section>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Hostname</th>
+          <th>OS</th>
+          <th>RAM Status</th>
+          <th>Log Errors</th>
+          <th>Services Healed</th>
+          <th>Final Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for host in ansible_play_hosts_all %}
+        {% set result = hostvars[host]['smart_os_health_check_result'] %}
+        <tr>
+          <td>
+            <strong>{{ result.hostname }}</strong><br>
+            <span class="muted">{{ result.os_family }} / {{ result.package_manager }}</span>
+          </td>
+          <td>{{ result.os }}</td>
+          <td>
+            {% set ram_class = 'ok' if result.ram_status == 'OK' else 'warning' if result.ram_status == 'Warning' else 'critical' %}
+            <span class="status-pill {{ ram_class }}">{{ result.ram_status }}</span><br>
+            <span class="muted">{{ result.ram_used_pct }}% used ({{ result.ram_used_mb }} MB / {{ result.ram_total_mb }} MB)</span>
+          </td>
+          <td>
+            {% if result.log_errors | int > 0 %}
+            <span class="status-pill critical">{{ result.log_errors }} hit(s)</span>
+            {% if result.log_excerpt %}
+            <ul class="list">
+              {% for line in result.log_excerpt %}
+              <li>{{ line }}</li>
+              {% endfor %}
+            </ul>
+            {% endif %}
+            {% else %}
+            <span class="status-pill ok">No recent errors</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if result.healing_results %}
+            <ul class="list">
+              {% for service in result.healing_results %}
+              <li>{{ service.service }}: {{ service.result }}</li>
+              {% endfor %}
+            </ul>
+            {% else %}
+            <span class="muted">No healing actions required</span>
+            {% endif %}
+          </td>
+          <td>
+            {% set final_class = 'ok' if result.final_status == 'Pass' else 'critical' %}
+            <span class="status-pill {{ final_class }}">{{ result.final_status }}</span>
+            {% if result.findings %}
+            <ul class="list">
+              {% for finding in result.findings %}
+              <li>{{ finding }}</li>
+              {% endfor %}
+            </ul>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</body>
+</html>

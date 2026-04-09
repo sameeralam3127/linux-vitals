@@ -1,7 +1,0 @@
----
-- name: Linux Server Health Dashboard
-  hosts: linux_servers
-  gather_facts: true
-
-  roles:
-    - performance_report

@@ -1,129 +1,150 @@
-# Ansible Server Health Dashboard
+# Smart OS Health Check & Self-Healing
 
-A role-based Ansible project that collects Linux server metrics (CPU, RAM, Disk usage) and generates a centralized HTML dashboard report.
-<img width="1480" height="401" alt="Screenshot 2026-02-15 at 11 44 39 PM" src="https://github.com/user-attachments/assets/69166efb-f17a-4ec2-85b3-9a4bde67de85" />
+Enterprise-focused Ansible automation for Linux VM fleets running RHEL, Fedora, Ubuntu, and SUSE. The playbook discovers platform facts, validates runtime health, attempts one-shot self-healing for enabled failed services, builds a centralized HTML dashboard, and can push a single maintenance summary to Slack.
 
-## Features
+## What This Repo Does
 
-- Collects:
-  - CPU cores
-  - Memory usage
-  - Disk usage (root partition)
-  - OS details
-  - IP address
-- Generates consolidated HTML report
-- Color-coded health indicators
-- Role-prefixed variables (lint compliant)
-- Explicit file permissions (security-safe)
-- Pre-commit enforced quality checks
+- Discovers each host with `ansible.builtin.setup` and `service_facts`
+- Evaluates RAM health with enterprise thresholds:
+  - `Warning` at `80%`
+  - `Critical` at `95%`
+- Hunts recent `journalctl` entries containing `Error` or `Failed` from the last 30 minutes
+- Validates core processes:
+  - `sssd`
+  - `systemd-journald`
+  - `chronyd` or `ntp`
+- Attempts one restart for any service that is both `enabled` and currently `failed`
+- Records healing results as:
+  - `Fixed`
+  - `Failed to Fix`
+  - `Manual Intervention Required`
+- Generates a CSS-styled HTML dashboard
+- Sends one Slack webhook summary for the full run
+- Handles distro differences with `ansible_os_family` and package-manager context
 
----
+## Repo Naming
+
+The project branding has been refactored to **Smart OS Health Check & Self-Healing**.
+
+Current role name:
+
+```text
+roles/smart_os_health_check
+```
+
+If you also want the physical Git folder or remote repository name changed from `ansible-server-health-dashboard`, that needs to be done in GitHub and/or the parent directory outside the playbook files.
 
 ## Requirements
 
 - Python 3.10+
 - Ansible Core 2.16+
-- ansible-lint v26+
-- pre-commit
+- Linux targets using `systemd`
 
-Install dependencies:
+Install local tooling:
 
 ```bash
 pip install ansible-core ansible-lint pre-commit
 ```
 
----
+## Inventory Example
 
-## Usage
-
-### Configure Inventory
-
-Edit:
-
-```
-inventory/hosts.ini
-```
-
-Example:
+Edit [inventory/hosts.ini](/Users/sameeralam/Documents/GitHub/ansible-server-health-dashboard/inventory/hosts.ini):
 
 ```ini
 [linux_servers]
-server1 ansible_host=192.168.1.10
-server2 ansible_host=192.168.1.11
+rhel01 ansible_host=192.168.1.10
+ubuntu01 ansible_host=192.168.1.11
+fedora01 ansible_host=192.168.1.12
+sles01 ansible_host=192.168.1.13
 
 [linux_servers:vars]
-ansible_user=ubuntu
+ansible_user=automation
 ansible_become=true
 ```
 
----
+## Optional Variables
 
-### Run Playbook
+You can override these defaults in inventory, `group_vars`, or extra vars:
+
+```yaml
+smart_os_health_check_output_path: "{{ playbook_dir }}/reports/smart_os_health_report.html"
+smart_os_health_check_log_window: "30 minutes ago"
+smart_os_health_check_ram_warning_threshold: 80
+smart_os_health_check_ram_critical_threshold: 95
+smart_os_health_check_slack_webhook_url: "{{ lookup('ansible.builtin.env', 'SLACK_WEBHOOK_URL') | default('', true) }}"
+```
+
+## Slack Webhook via `.env`
+
+Create a local `.env` file from [.env.example](/Users/sameeralam/Documents/GitHub/ansible-server-health-dashboard/.env.example):
 
 ```bash
+cp .env.example .env
+```
+
+Add your webhook:
+
+```bash
+SLACK_WEBHOOK_URL="https://hooks.slack.com/services/your/team/webhook"
+```
+
+Load it into your shell before running Ansible:
+
+```bash
+set -a
+source .env
+set +a
 ansible-playbook -i inventory/hosts.ini site.yml
+ansible-playbook -i inventory/hosts.ini smart_os_health_check.yml
 ```
 
----
+If `SLACK_WEBHOOK_URL` is not set, the Slack task is skipped automatically.
 
-### View Report
+## Run The Playbook
 
-Open:
-
-```
-reports/system_report.html
+```bash
+ansible-playbook -i inventory/hosts.ini smart_os_health_check.yml
 ```
 
----
+## Output
 
-## Dashboard Output
+HTML dashboard:
 
-The generated dashboard includes:
+```text
+reports/smart_os_health_report.html
+```
 
-- Memory usage percentage
-- Disk usage percentage
-- Health coloring:
-  - 🟢 OK (< 60%)
-  - 🟠 Warning (60–80%)
-  - 🔴 Critical (> 80%)
+Dashboard table columns:
 
----
+- Hostname
+- OS
+- RAM Status
+- Log Errors
+- Services Healed
+- Final Status
 
-## Code Quality (Pre-commit)
+Slack summary format:
 
-This project enforces:
+```text
+Maintenance Summary: 50 Servers Checked, 2 Auto-Fixed, 1 Critical Error
+```
 
-- ansible-lint rules
-- YAML validation
-- trailing whitespace removal
-- end-of-file fixes
+## Quality Checks
 
-### Install hooks
+Install hooks:
 
 ```bash
 pre-commit install
 ```
 
-### Run manually
+Run validation:
 
 ```bash
 pre-commit run --all-files
+ANSIBLE_LOCAL_TEMP=/tmp/ansible-local ANSIBLE_REMOTE_TEMP=/tmp/ansible-remote ansible-lint smart_os_health_check.yml
+ansible-playbook -i inventory/hosts.ini smart_os_health_check.yml --syntax-check
 ```
-
----
-
-## Lint Compliance
-
-The role follows:
-
-- Role-prefixed variables
-- Explicit file permissions
-- Proper task naming conventions
-- Modern `ansible_facts` usage
-- Safe Jinja formatting
-
----
 
 ## License
 
-MIT License
+MIT

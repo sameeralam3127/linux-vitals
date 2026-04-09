@@ -1,0 +1,30 @@
+---
+- name: Restart failed enabled services
+  ansible.builtin.service:
+    name: "{{ item | regex_replace('\\.service$', '') }}"
+    state: restarted
+  loop: "{{ smart_os_health_check_services_to_restart | default([]) }}"
+  listen: restart failed enabled services
+
+- name: Restart SSSD
+  ansible.builtin.service:
+    name: sssd
+    state: restarted
+  listen: restart sssd
+
+- name: Restart systemd-journald
+  ansible.builtin.service:
+    name: systemd-journald
+    state: restarted
+  listen: restart systemd-journald
+
+- name: Restart chronyd
+  ansible.builtin.service:
+    name: chronyd
+    state: restarted
+  listen: restart chronyd
+
+- name: Restart ntp
+  ansible.builtin.service:
+    name: ntp
+    state: restarted

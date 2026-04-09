@@ -1,6 +1,0 @@
----
-- name: Ensure facts are refreshed
-  ansible.builtin.setup:
-    gather_subset:
-      - hardware
-      - network
