@@ -4,4 +4,4 @@ smart_os_health_check_report_title: "Smart OS Health Check & Self-Healing Dashbo
 smart_os_health_check_log_window: "30 minutes ago"
 smart_os_health_check_ram_warning_threshold: 80
 smart_os_health_check_ram_critical_threshold: 95
-smart_os_health_check_slack_webhook_url: "{{ lookup('ansible.builtin.env', 'SLACK_WEBHOOK_URL') | default('', true) }}"
+smart_os_health_check_slack_webhook_url: ""

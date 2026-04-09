@@ -10,15 +10,37 @@
 - name: Collect service facts
   ansible.builtin.service_facts:
 
+- name: Load Slack webhook from local .env when present
+  ansible.builtin.set_fact:
+    smart_os_health_check_dotenv_slack_webhook_url: >-
+      {{
+        (
+          lookup('ansible.builtin.file', playbook_dir ~ '/.env', errors='ignore')
+          | regex_findall("(?m)^SLACK_WEBHOOK_URL=[\"']?([^\"'\\n#]+)[\"']?$")
+          | first
+        ) | default('', true) | trim
+      }}
+
+- name: Finalize effective Slack webhook configuration
+  ansible.builtin.set_fact:
+    smart_os_health_check_effective_slack_webhook_url: >-
+      {{
+        (
+          smart_os_health_check_slack_webhook_url | default('', true) | trim
+        ) if (
+          smart_os_health_check_slack_webhook_url | default('', true) | trim | length > 0
+        ) else smart_os_health_check_dotenv_slack_webhook_url
+      }}
+
 - name: Define distro-aware health check context
   ansible.builtin.set_fact:
     smart_os_health_check_service_names: "{{ ansible_facts.services.keys() | list }}"
     smart_os_health_check_pkg_manager: >-
-      {{ 'apt' if ansible_os_family == 'Debian' else
-         'zypper' if ansible_os_family == 'Suse' else
+      {{ 'apt' if ansible_facts['os_family'] == 'Debian' else
+         'zypper' if ansible_facts['os_family'] == 'Suse' else
          'dnf' }}
     smart_os_health_check_log_source: >-
-      {{ 'journald' if ansible_service_mgr == 'systemd' else 'system logs' }}
+      {{ 'journald' if ansible_facts['service_mgr'] == 'systemd' else 'system logs' }}
     smart_os_health_check_time_sync_candidates:
       - chronyd.service
       - chronyd
@@ -54,7 +76,7 @@
   register: smart_os_health_check_journalctl
   changed_when: false
   failed_when: false
-  when: ansible_service_mgr == "systemd"
+  when: ansible_facts['service_mgr'] == "systemd"
 
 - name: Evaluate RAM and log health
   ansible.builtin.set_fact:
@@ -304,7 +326,7 @@
     smart_os_health_check_result:
       hostname: "{{ ansible_facts.hostname | default(inventory_hostname) }}"
       os: "{{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}"
-      os_family: "{{ ansible_os_family }}"
+      os_family: "{{ ansible_facts['os_family'] }}"
       package_manager: "{{ smart_os_health_check_pkg_manager }}"
       log_source: "{{ smart_os_health_check_log_source }}"
       ram_status: "{{ smart_os_health_check_ram_status }}"
@@ -381,13 +403,14 @@
 
 - name: Send Slack maintenance summary
   ansible.builtin.uri:
-    url: "{{ smart_os_health_check_slack_webhook_url }}"
+    url: "{{ smart_os_health_check_effective_slack_webhook_url }}"
     method: POST
     body_format: json
     body:
       text: >-
         Maintenance Summary: {{ smart_os_health_check_summary.snippet }}
     status_code: 200
+    return_content: true
   delegate_to: localhost
   run_once: true
-  when: smart_os_health_check_slack_webhook_url | length > 0
+  when: smart_os_health_check_effective_slack_webhook_url | length > 0

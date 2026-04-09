@@ -1,0 +1,13 @@
+---
+# Override these values here for all hosts in the inventory.
+# Inventory/group_vars values override role defaults.
+
+# smart_os_health_check_output_path: "{{ playbook_dir }}/reports/smart_os_health_report.html"
+# smart_os_health_check_log_window: "30 minutes ago"
+# smart_os_health_check_ram_warning_threshold: 80
+# smart_os_health_check_ram_critical_threshold: 95
+#
+# Option 1: Set directly here
+# smart_os_health_check_slack_webhook_url: "https://hooks.slack.com/services/your/team/webhook"
+#
+# Option 2: Store in .env as SLACK_WEBHOOK_URL=... and the role will auto-load it.

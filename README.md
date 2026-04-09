@@ -71,8 +71,10 @@ smart_os_health_check_output_path: "{{ playbook_dir }}/reports/smart_os_health_r
 smart_os_health_check_log_window: "30 minutes ago"
 smart_os_health_check_ram_warning_threshold: 80
 smart_os_health_check_ram_critical_threshold: 95
-smart_os_health_check_slack_webhook_url: "{{ lookup('ansible.builtin.env', 'SLACK_WEBHOOK_URL') | default('', true) }}"
+smart_os_health_check_slack_webhook_url: "https://hooks.slack.com/services/your/team/webhook"
 ```
+
+Shared overrides for all hosts can be placed in [group_vars/all.yml](/Users/sameeralam/Documents/GitHub/ansible-server-health-dashboard/group_vars/all.yml).
 
 ## Slack Webhook via `.env`
 
@@ -88,7 +90,7 @@ Add your webhook:
 SLACK_WEBHOOK_URL="https://hooks.slack.com/services/your/team/webhook"
 ```
 
-Load it into your shell before running Ansible:
+The role now auto-loads `SLACK_WEBHOOK_URL` from `.env`, so sourcing is optional. You can still source it manually if you want:
 
 ```bash
 set -a
@@ -97,7 +99,11 @@ set +a
 ansible-playbook -i inventory/hosts.ini smart_os_health_check.yml
 ```
 
-If `SLACK_WEBHOOK_URL` is not set, the Slack task is skipped automatically.
+Slack resolution order:
+
+- `group_vars` / inventory / extra vars value in `smart_os_health_check_slack_webhook_url`
+- `.env` value from `SLACK_WEBHOOK_URL`
+- if neither is set, the Slack task is skipped
 
 ## Run The Playbook
 
