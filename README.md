@@ -1,49 +1,82 @@
 # Smart OS Health Check & Self-Healing
 
-Enterprise-focused Ansible automation for Linux VM fleets running RHEL, Fedora, Ubuntu, and SUSE. The playbook discovers platform facts, validates runtime health, attempts one-shot self-healing for enabled failed services, builds a centralized HTML dashboard, and can push a single maintenance summary to Slack.
+Enterprise-focused Ansible automation for Linux VM fleets running RHEL, Fedora, Ubuntu, and SUSE. This project performs smart OS health checks, captures deeper system posture, attempts one-shot self-healing for failed enabled services, generates an HTML dashboard, and sends a Slack summary for operations teams.
 
-## What This Repo Does
+## What This Does
 
-- Discovers each host with `ansible.builtin.setup` and `service_facts`
-- Evaluates RAM health with enterprise thresholds:
-  - `Warning` at `80%`
-  - `Critical` at `95%`
-- Hunts recent `journalctl` entries containing `Error` or `Failed` from the last 30 minutes
-- Captures extended system posture:
+Automated OS health checks using Ansible:
+
+- CPU and platform-aware system discovery through Ansible facts
+- Memory usage monitoring with warning and critical thresholds
+- Journal and error scanning for recent failures
+- Running service validation for `sssd`, `systemd-journald`, and `chronyd` or `ntp`
+- Network-aware host inventory with hostname and IP address reporting
+- Kernel, reboot, boot-space, rescue image, security-control, and login-failure checks
+
+## Features
+
+- Agentless Linux health checks across RHEL, Fedora, Ubuntu, and SUSE
+- Lightweight role-based design with modular task files
+- Customizable thresholds using inventory, `group_vars`, or `.env`
+- One-shot self-healing for failed enabled services
+- HTML dashboard export for management-friendly reporting
+- Slack webhook summaries for operational visibility
+- Detailed host-level findings including:
   - uptime
-  - virtual machine vs physical platform
+  - VM vs physical classification
   - running kernel vs latest installed kernel
-  - latest kernel update timestamp
   - reboot required state
   - SELinux and AppArmor status
-  - recent failed login attempts
-  - kernel installation or bootloader failures from logs
+  - boot partition health
   - rescue image availability
-  - boot partition free space
-- Validates core processes:
-  - `sssd`
-  - `systemd-journald`
-  - `chronyd` or `ntp`
-- Attempts one restart for any service that is both `enabled` and currently `failed`
-- Records healing results as:
-  - `Fixed`
-  - `Failed to Fix`
-  - `Manual Intervention Required`
-- Generates a CSS-styled HTML dashboard
-- Sends one Slack webhook summary for the full run
-- Handles distro differences with `ansible_os_family` and package-manager context
+  - failed login attempts
+  - kernel install or bootloader related failures
 
-## Repo Naming
+## Why This Repo Stands Out
 
-The project branding has been refactored to **Smart OS Health Check & Self-Healing**.
+Many Ansible health-check projects stop at basic CPU, memory, and disk metrics. This one goes further by combining:
 
-Current role name:
+- deep OS posture checks
+- self-healing for enabled failed services
+- HTML dashboard output
+- Slack reporting
+
+That makes it closer to an SRE-style operational health framework than a simple check script.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    A["Control Node<br/>Ansible Playbook"] --> B["Managed Linux Nodes<br/>RHEL / Ubuntu / SUSE / Fedora"]
+    B --> C["Discovery & Validation<br/>facts, logs, services, kernel, boot, security"]
+    C --> D["Self-Healing<br/>restart enabled failed services once"]
+    C --> E["Result Aggregation"]
+    D --> E["Result Aggregation"]
+    E --> F["HTML Dashboard<br/>reports/smart_os_health_report.html"]
+    E --> G["Slack Summary<br/>Webhook Notification"]
+```
+
+## Repo Structure
+
+Main playbook:
+
+```text
+smart_os_health_check.yml
+```
+
+Role:
 
 ```text
 roles/smart_os_health_check
 ```
 
-If you also want the physical Git folder or remote repository name changed from `ansible-server-health-dashboard`, that needs to be done in GitHub and/or the parent directory outside the playbook files.
+Modular task layout:
+
+- [config.yml](/Users/sameeralam/Documents/GitHub/ansible-server-health-dashboard/roles/smart_os_health_check/tasks/config.yml)
+- [discovery.yml](/Users/sameeralam/Documents/GitHub/ansible-server-health-dashboard/roles/smart_os_health_check/tasks/discovery.yml)
+- [self_healing.yml](/Users/sameeralam/Documents/GitHub/ansible-server-health-dashboard/roles/smart_os_health_check/tasks/self_healing.yml)
+- [result.yml](/Users/sameeralam/Documents/GitHub/ansible-server-health-dashboard/roles/smart_os_health_check/tasks/result.yml)
+- [reporting.yml](/Users/sameeralam/Documents/GitHub/ansible-server-health-dashboard/roles/smart_os_health_check/tasks/reporting.yml)
 
 ## Requirements
 
@@ -73,7 +106,7 @@ ansible_user=automation
 ansible_become=true
 ```
 
-## Optional Variables
+## Configuration
 
 You can override these defaults in inventory, `group_vars`, or extra vars:
 
@@ -106,53 +139,58 @@ Add your webhook:
 SLACK_WEBHOOK_URL="https://hooks.slack.com/services/your/team/webhook"
 ```
 
-The role now auto-loads `SLACK_WEBHOOK_URL` from `.env`, so sourcing is optional. You can still source it manually if you want:
-
-```bash
-set -a
-source .env
-set +a
-ansible-playbook -i inventory/hosts.ini smart_os_health_check.yml
-```
-
 Slack resolution order:
 
 - `group_vars` / inventory / extra vars value in `smart_os_health_check_slack_webhook_url`
 - `.env` value from `SLACK_WEBHOOK_URL`
 - if neither is set, the Slack task is skipped
 
-Standard Slack message example:
+## Usage
 
-```text
-Standard Maintenance Summary
-Servers Checked: 2
-Auto-Fixed: 0
-Critical Errors: 1
-Final Result: FAIL
-Summary: 2 Servers Checked, 0 Auto-Fixed, 1 Critical Error
-Hosts:
-- server1 | Status: Pass | Type: Virtual Machine | Uptime: 12d 4h 21m | Kernel: 5.14.0-503.35.1.el9_5.x86_64 | Reboot: No | Boot: Healthy | Failed Logins: 0
-- server2 | Status: Fail | Type: Physical | Uptime: 48d 7h 13m | Kernel: 6.8.0-60-generic (latest installed not active) | Reboot: Required | Boot: Low | Failed Logins: 3
-Generated by Ansible
-```
-
-## Run The Playbook
+Run the playbook:
 
 ```bash
 ansible-playbook -i inventory/hosts.ini smart_os_health_check.yml
 ```
 
-## Output
+Validate before running:
 
-HTML dashboard:
+```bash
+ANSIBLE_LOCAL_TEMP=/tmp/ansible-local ANSIBLE_REMOTE_TEMP=/tmp/ansible-remote ansible-lint smart_os_health_check.yml
+ansible-playbook -i inventory/hosts.ini smart_os_health_check.yml --syntax-check
+```
+
+## Sample Output
+
+Generated HTML dashboard:
 
 ```text
 reports/smart_os_health_report.html
 ```
 
-Dashboard table columns:
+Current sample report file in this repo:
+
+[smart_os_health_report.html](/Users/sameeralam/Documents/GitHub/ansible-server-health-dashboard/reports/smart_os_health_report.html)
+
+Sample Slack output:
+
+```text
+Standard Maintenance Summary
+Overall Status: FAIL
+Servers Checked: 2 | Auto-Fixed: 0 | Critical Errors: 2
+Summary: 2 Servers Checked, 0 Auto-Fixed, 2 Critical Errors
+Host Breakdown:
+- server1 (192.168.2.19) | Status: Pass | Type: Virtual Machine | Uptime: 12d 4h 21m | Kernel: 5.14.0-503.35.1.el9_5.x86_64 | Reboot: No | Boot: Healthy | Failed Logins: 0
+- server2 (192.168.2.20) | Status: Fail | Type: Physical | Uptime: 48d 7h 13m | Kernel: 6.8.0-60-generic (latest installed not active) | Reboot: Required | Boot: Low | Failed Logins: 3
+Generated by Ansible
+```
+
+## Reporting
+
+HTML dashboard summary table includes:
 
 - Hostname
+- IP Address
 - OS
 - RAM Status
 - Log Errors
@@ -171,11 +209,17 @@ Extended host detail cards include:
 - Last failed login attempt
 - Kernel install failure excerpts
 
-Slack summary format:
+## GitHub Topics
 
-```text
-Maintenance Summary: 50 Servers Checked, 2 Auto-Fixed, 1 Critical Error
-```
+Recommended repository topics:
+
+- `ansible`
+- `devops`
+- `monitoring`
+- `health-check`
+- `sre`
+- `automation`
+- `linux`
 
 ## Quality Checks
 
