@@ -94,7 +94,6 @@ Load it into your shell before running Ansible:
 set -a
 source .env
 set +a
-ansible-playbook -i inventory/hosts.ini site.yml
 ansible-playbook -i inventory/hosts.ini smart_os_health_check.yml
 ```
 
