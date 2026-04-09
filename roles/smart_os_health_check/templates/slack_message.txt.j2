@@ -1,0 +1,15 @@
+{{ smart_os_health_check_slack_message_header }}
+Servers Checked: {{ smart_os_health_check_summary.servers_checked }}
+Auto-Fixed: {{ smart_os_health_check_summary.auto_fixed_count }}
+Critical Errors: {{ smart_os_health_check_summary.critical_error_count }}
+Final Result: {{ 'PASS' if smart_os_health_check_summary.critical_error_count | int == 0 else 'FAIL' }}
+Summary: {{ smart_os_health_check_summary.snippet }}
+{% if smart_os_health_check_slack_include_host_breakdown %}
+Hosts:
+{% for host in ansible_play_hosts_all %}
+- {{ hostvars[host]['smart_os_health_check_result'].hostname }}: {{ hostvars[host]['smart_os_health_check_result'].final_status }} | RAM {{ hostvars[host]['smart_os_health_check_result'].ram_status }} | Logs {{ hostvars[host]['smart_os_health_check_result'].log_errors }} | Healed {{ hostvars[host]['smart_os_health_check_result'].services_healed | length }}
+{% endfor %}
+{% endif %}
+{% if smart_os_health_check_slack_message_footer | trim %}
+{{ smart_os_health_check_slack_message_footer }}
+{% endif %}

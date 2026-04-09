@@ -5,3 +5,6 @@ smart_os_health_check_log_window: "30 minutes ago"
 smart_os_health_check_ram_warning_threshold: 80
 smart_os_health_check_ram_critical_threshold: 95
 smart_os_health_check_slack_webhook_url: ""
+smart_os_health_check_slack_message_header: "Standard Maintenance Summary"
+smart_os_health_check_slack_message_footer: ""
+smart_os_health_check_slack_include_host_breakdown: true

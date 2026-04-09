@@ -407,8 +407,7 @@
     method: POST
     body_format: json
     body:
-      text: >-
-        Maintenance Summary: {{ smart_os_health_check_summary.snippet }}
+      text: "{{ lookup('ansible.builtin.template', 'slack_message.txt.j2') }}"
     status_code: 200
     return_content: true
   delegate_to: localhost
