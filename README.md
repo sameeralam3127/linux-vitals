@@ -209,17 +209,7 @@ Extended host detail cards include:
 - Last failed login attempt
 - Kernel install failure excerpts
 
-## GitHub Topics
-
-Recommended repository topics:
-
-- `ansible`
-- `devops`
-- `monitoring`
-- `health-check`
-- `sre`
-- `automation`
-- `linux`
+---
 
 ## Quality Checks
 
