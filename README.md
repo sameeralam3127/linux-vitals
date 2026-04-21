@@ -87,7 +87,7 @@ Modular task layout:
 Install local tooling:
 
 ```bash
-pip install ansible-core ansible-lint pre-commit
+pip install -r requirements-dev.txt
 ```
 
 ## Inventory Example
@@ -158,6 +158,7 @@ Validate before running:
 ```bash
 ANSIBLE_LOCAL_TEMP=/tmp/ansible-local ANSIBLE_REMOTE_TEMP=/tmp/ansible-remote ansible-lint smart_os_health_check.yml
 ansible-playbook -i inventory/hosts.ini smart_os_health_check.yml --syntax-check
+pytest -q
 ```
 
 ## Sample Output
@@ -229,12 +230,21 @@ Install hooks:
 pre-commit install
 ```
 
+Validation coverage in this branch includes:
+
+- `ansible-playbook --syntax-check` for the top-level playbook
+- `ansible-lint` for repo linting
+- `pytest` template rendering checks for the HTML dashboard and Slack summary
+
+A GitHub Actions workflow at [.github/workflows/ci.yml](/Users/sameeralam/Documents/GitHub/ansible-server-health-dashboard/.github/workflows/ci.yml) runs the same checks on pushes and pull requests.
+
 Run validation:
 
 ```bash
 pre-commit run --all-files
 ANSIBLE_LOCAL_TEMP=/tmp/ansible-local ANSIBLE_REMOTE_TEMP=/tmp/ansible-remote ansible-lint smart_os_health_check.yml
 ansible-playbook -i inventory/hosts.ini smart_os_health_check.yml --syntax-check
+pytest -q
 ```
 
 ## License
