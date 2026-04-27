@@ -25,6 +25,7 @@ Automated OS health checks using Ansible:
   - uptime
   - VM vs physical classification
   - running kernel vs latest installed kernel
+  - default boot entry vs latest installed kernel
   - reboot required state
   - SELinux and AppArmor status
   - boot partition health
@@ -202,6 +203,7 @@ Extended host detail cards include:
 - Uptime and last reboot
 - VM or physical platform classification
 - Running kernel vs latest installed kernel
+- Default boot entry validation when GRUB data is available
 - Reboot required state
 - SELinux and AppArmor status
 - Boot partition status and free space
