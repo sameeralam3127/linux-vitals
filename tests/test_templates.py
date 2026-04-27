@@ -36,7 +36,9 @@ def test_templates_render_with_representative_health_data(tmp_path: Path) -> Non
 
     assert "Smart OS Health Check Test Dashboard" in report
     assert "localhost" in report
+    assert "Bootloader Check: Default boot entry selects the latest installed kernel" in report
     assert "chronyd.service: Fixed" in report
     assert "Standard Maintenance Summary" in slack
     assert "Overall Status: PASS" in slack
+    assert "Bootloader: 6.8.0-test (latest selected)" in slack
     assert "Host Breakdown:" in slack

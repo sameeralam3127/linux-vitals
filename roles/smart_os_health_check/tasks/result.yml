@@ -26,6 +26,9 @@
       {%- if not smart_os_health_check_latest_kernel_selected -%}
       {%- set _ = findings.append('Latest installed kernel is not currently running') -%}
       {%- endif -%}
+      {%- if smart_os_health_check_bootloader_default_status == 'resolved' and not smart_os_health_check_bootloader_default_matches_latest -%}
+      {%- set _ = findings.append('Default boot entry does not select the latest installed kernel') -%}
+      {%- endif -%}
       {%- if smart_os_health_check_boot_space_status == 'Low' -%}
       {%- set _ = findings.append('Boot partition free space is low') -%}
       {%- endif -%}
@@ -69,6 +72,13 @@
       latest_installed_kernel: "{{ smart_os_health_check_latest_installed_kernel }}"
       latest_kernel_updated_at: "{{ smart_os_health_check_latest_kernel_updated_at }}"
       latest_kernel_selected: "{{ smart_os_health_check_latest_kernel_selected }}"
+      bootloader_supported: "{{ smart_os_health_check_bootloader_supported }}"
+      bootloader_default_source: "{{ smart_os_health_check_bootloader_default_source }}"
+      bootloader_default_entry: "{{ smart_os_health_check_bootloader_default_entry }}"
+      bootloader_default_kernel: "{{ smart_os_health_check_bootloader_default_kernel }}"
+      bootloader_default_status: "{{ smart_os_health_check_bootloader_default_status }}"
+      bootloader_default_matches_latest: "{{ smart_os_health_check_bootloader_default_matches_latest }}"
+      bootloader_validation_message: "{{ smart_os_health_check_bootloader_validation_message }}"
       reboot_required: "{{ smart_os_health_check_reboot_required }}"
       selinux_status: "{{ smart_os_health_check_selinux_status }}"
       apparmor_status: "{{ smart_os_health_check_apparmor_status }}"

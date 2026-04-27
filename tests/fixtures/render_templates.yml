@@ -29,6 +29,13 @@
       latest_installed_kernel: "6.8.0-test"
       latest_kernel_updated_at: "2026-04-20 11:30"
       latest_kernel_selected: true
+      bootloader_supported: true
+      bootloader_default_source: "grubby"
+      bootloader_default_entry: "/boot/vmlinuz-6.8.0-test"
+      bootloader_default_kernel: "6.8.0-test"
+      bootloader_default_status: "resolved"
+      bootloader_default_matches_latest: true
+      bootloader_validation_message: "Default boot entry selects the latest installed kernel"
       reboot_required: false
       selinux_status: "not-installed"
       apparmor_status: "enabled"
