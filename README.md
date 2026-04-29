@@ -113,6 +113,11 @@ You can override these defaults in inventory, `group_vars`, or extra vars:
 
 ```yaml
 smart_os_health_check_output_path: "{{ playbook_dir }}/reports/smart_os_health_report.html"
+smart_os_health_check_archive_html_reports: true
+smart_os_health_check_archive_json_reports: false
+smart_os_health_check_json_output_path: ""
+smart_os_health_check_report_archive_dir: "{{ smart_os_health_check_output_path | dirname }}/archive"
+smart_os_health_check_report_retention_count: 10
 smart_os_health_check_log_window: "30 minutes ago"
 smart_os_health_check_audit_log_window: "7 days ago"
 smart_os_health_check_ram_warning_threshold: 80
@@ -125,6 +130,13 @@ smart_os_health_check_slack_include_host_breakdown: true
 ```
 
 Shared overrides for all hosts can be placed in [group_vars/all.yml](/Users/sameeralam/Documents/GitHub/ansible-server-health-dashboard/group_vars/all.yml).
+
+Historical report retention:
+
+- The latest HTML dashboard is still written to `smart_os_health_check_output_path`
+- Archived HTML copies are stored with UTC timestamps in `smart_os_health_check_report_archive_dir`
+- Set `smart_os_health_check_report_retention_count` to keep only the last `N` archived files
+- Set `smart_os_health_check_archive_json_reports: true` and `smart_os_health_check_json_output_path` to archive JSON outputs when you add them
 
 ## Slack Webhook via `.env`
 
