@@ -1,0 +1,29 @@
+{
+  "summary": {
+    "header": {{ smart_os_health_check_slack_message_header | to_json }},
+    "overall_status": {{ ('PASS' if smart_os_health_check_summary.critical_error_count | int == 0 else 'FAIL') | to_json }},
+    "servers_checked": {{ smart_os_health_check_summary.servers_checked | int }},
+    "auto_fixed_count": {{ smart_os_health_check_summary.auto_fixed_count | int }},
+    "critical_error_count": {{ smart_os_health_check_summary.critical_error_count | int }},
+    "snippet": {{ smart_os_health_check_summary.snippet | to_json }}
+  },
+  "message": {{ smart_os_health_check_notification_message | to_json }},
+  "hosts": [
+    {% for host in ansible_play_hosts_all %}
+    {% set result = hostvars[host]['smart_os_health_check_result'] %}
+    {
+      "hostname": {{ result.hostname | to_json }},
+      "ip_address": {{ result.ip_address | to_json }},
+      "status": {{ result.final_status | to_json }},
+      "platform_type": {{ result.platform_type | to_json }},
+      "uptime": {{ result.uptime | to_json }},
+      "running_kernel": {{ result.running_kernel | to_json }},
+      "latest_kernel_selected": {{ result.latest_kernel_selected | to_json }},
+      "reboot_required": {{ result.reboot_required | to_json }},
+      "boot_space_status": {{ result.boot_space_status | to_json }},
+      "failed_login_count": {{ result.failed_login_count | int }},
+      "findings": {{ result.findings | to_json }}
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+  ]
+}
