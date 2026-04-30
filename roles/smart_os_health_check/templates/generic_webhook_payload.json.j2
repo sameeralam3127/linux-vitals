@@ -9,7 +9,7 @@
   },
   "message": {{ smart_os_health_check_notification_message | to_json }},
   "hosts": [
-    {% for host in smart_os_health_check_reporting_hosts %}
+    {% for host in smart_os_health_check_reporting_hosts | default(ansible_play_hosts_all) %}
     {% set result = hostvars[host]['smart_os_health_check_result'] %}
     {
       "hostname": {{ result.hostname | to_json }},

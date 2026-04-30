@@ -145,7 +145,7 @@ smart_os_health_check_generic_webhook_headers:
 
 Shared overrides for all hosts can be placed in [group_vars/all.yml](/Users/sameeralam/Documents/GitHub/ansible-server-health-dashboard/group_vars/all.yml).
 
-## Notifications via `.env`
+## Report Retention
 
 Historical report retention:
 
@@ -154,15 +154,19 @@ Historical report retention:
 - Set `smart_os_health_check_report_retention_count` to keep only the last `N` archived files
 - Set `smart_os_health_check_archive_json_reports: true` and `smart_os_health_check_json_output_path` to archive JSON outputs when you add them
 
-Create a local `.env` file from [.env.example](/Users/sameeralam/Documents/GitHub/ansible-server-health-dashboard/.env.example):
+## `.env` Setup
+
+The role can read controller-side secrets from a local `.env` file in the repository root.
+
+Create `.env` from [.env.example](/Users/sameeralam/Documents/GitHub/ansible-server-health-dashboard/.env.example):
 
 ```bash
 cp .env.example .env
 ```
 
-Add your notification secrets:
+Edit `.env` and set only the values you actually plan to use:
 
-```bash
+```dotenv
 SLACK_WEBHOOK_URL="https://hooks.slack.com/services/your/team/webhook"
 GENERIC_WEBHOOK_URL="https://example.com/health-events"
 EMAIL_SMTP_HOST="smtp.example.com"
@@ -170,19 +174,49 @@ EMAIL_SMTP_USERNAME="smtp-user"
 EMAIL_SMTP_PASSWORD="smtp-password"
 ```
 
-Slack resolution order:
+What the role reads from `.env`:
+
+- `SLACK_WEBHOOK_URL`
+- `GENERIC_WEBHOOK_URL`
+- `EMAIL_SMTP_HOST`
+- `EMAIL_SMTP_USERNAME`
+- `EMAIL_SMTP_PASSWORD`
+
+Important notes:
+
+- `.env` is read on the Ansible control node from `{{ playbook_dir }}/.env`
+- values set in inventory, `group_vars`, or extra vars still take precedence over `.env`
+- `.env` is only used for secret-like controller settings, not for every role variable
+- email delivery still requires `smart_os_health_check_email_enabled: true` and at least one recipient in `smart_os_health_check_email_to`
+- generic webhook delivery still requires `smart_os_health_check_generic_webhook_enabled: true`
+
+Example mixed configuration:
+
+```yaml
+# group_vars/all.yml
+smart_os_health_check_slack_message_header: "Nightly Health Summary"
+smart_os_health_check_email_enabled: true
+smart_os_health_check_email_to:
+  - "ops@example.com"
+smart_os_health_check_generic_webhook_enabled: true
+smart_os_health_check_report_retention_count: 14
+```
+
+Resolution order by channel:
+
+Slack:
 
 - `group_vars` / inventory / extra vars value in `smart_os_health_check_slack_webhook_url`
 - `.env` value from `SLACK_WEBHOOK_URL`
-- if neither is set, the Slack task is skipped
+- if neither is set, Slack is skipped
 
-Generic webhook resolution order:
+Generic webhook:
 
 - `group_vars` / inventory / extra vars value in `smart_os_health_check_generic_webhook_url`
 - `.env` value from `GENERIC_WEBHOOK_URL`
 - if neither is set, the generic webhook task is skipped
 
-Email SMTP resolution order:
+Email SMTP:
 
 - inventory, `group_vars`, or extra vars values
 - `.env` values for `EMAIL_SMTP_HOST`, `EMAIL_SMTP_USERNAME`, and `EMAIL_SMTP_PASSWORD`
