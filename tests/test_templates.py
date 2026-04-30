@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import json
 import subprocess
 from pathlib import Path
 from shutil import which
@@ -33,6 +34,7 @@ def test_templates_render_with_representative_health_data(tmp_path: Path) -> Non
 
     report = (tmp_path / "report.html").read_text(encoding="utf-8")
     slack = (tmp_path / "slack.txt").read_text(encoding="utf-8")
+    generic_webhook = json.loads((tmp_path / "generic_webhook.json").read_text(encoding="utf-8"))
 
     assert "Smart OS Health Check Test Dashboard" in report
     assert "localhost" in report
@@ -42,3 +44,6 @@ def test_templates_render_with_representative_health_data(tmp_path: Path) -> Non
     assert "Overall Status: PASS" in slack
     assert "Bootloader: 6.8.0-test (latest selected)" in slack
     assert "Host Breakdown:" in slack
+    assert generic_webhook["summary"]["overall_status"] == "PASS"
+    assert generic_webhook["hosts"][0]["hostname"] == "localhost"
+    assert "Standard Maintenance Summary" in generic_webhook["message"]

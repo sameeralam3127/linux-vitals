@@ -69,15 +69,54 @@
   delegate_to: localhost
   run_once: true
 
+- name: Render reusable notification summary message
+  ansible.builtin.set_fact:
+    smart_os_health_check_notification_message: "{{ lookup('ansible.builtin.template', 'slack_message.txt.j2') }}"
+  delegate_to: localhost
+  run_once: true
+
 - name: Send Slack maintenance summary
   ansible.builtin.uri:
     url: "{{ smart_os_health_check_effective_slack_webhook_url }}"
     method: POST
     body_format: json
     body:
-      text: "{{ lookup('ansible.builtin.template', 'slack_message.txt.j2') }}"
+      text: "{{ smart_os_health_check_notification_message }}"
     status_code: 200
     return_content: true
   delegate_to: localhost
   run_once: true
   when: smart_os_health_check_effective_slack_webhook_url | length > 0
+
+- name: Send email maintenance summary
+  community.general.mail:
+    host: "{{ smart_os_health_check_effective_email_host }}"
+    port: "{{ smart_os_health_check_email_port | int }}"
+    secure: "{{ smart_os_health_check_email_secure }}"
+    username: "{{ smart_os_health_check_effective_email_username | default(omit, true) }}"
+    password: "{{ smart_os_health_check_effective_email_password | default(omit, true) }}"
+    to: "{{ smart_os_health_check_email_to }}"
+    cc: "{{ smart_os_health_check_email_cc if smart_os_health_check_email_cc | length > 0 else omit }}"
+    from: "{{ smart_os_health_check_email_from }}"
+    subject: "{{ smart_os_health_check_email_subject }}"
+    body: "{{ smart_os_health_check_notification_message }}"
+  delegate_to: localhost
+  run_once: true
+  when:
+    - smart_os_health_check_email_enabled
+    - smart_os_health_check_email_to | length > 0
+
+- name: Send generic webhook maintenance summary
+  ansible.builtin.uri:
+    url: "{{ smart_os_health_check_effective_generic_webhook_url }}"
+    method: POST
+    body_format: json
+    body: "{{ lookup('ansible.builtin.template', 'generic_webhook_payload.json.j2') | from_json }}"
+    headers: "{{ smart_os_health_check_generic_webhook_headers if smart_os_health_check_generic_webhook_headers | length > 0 else omit }}"
+    status_code: "{{ smart_os_health_check_generic_webhook_status_code | int }}"
+    return_content: true
+  delegate_to: localhost
+  run_once: true
+  when:
+    - smart_os_health_check_generic_webhook_enabled
+    - smart_os_health_check_effective_generic_webhook_url | length > 0
