@@ -4,7 +4,7 @@ Servers Checked: {{ smart_os_health_check_summary.servers_checked }} | Auto-Fixe
 Summary: {{ smart_os_health_check_summary.snippet }}
 {% if smart_os_health_check_slack_include_host_breakdown %}
 Host Breakdown:
-{% for host in ansible_play_hosts_all %}
+{% for host in smart_os_health_check_reporting_hosts %}
 - {{ hostvars[host]['smart_os_health_check_result'].hostname }} ({{ hostvars[host]['smart_os_health_check_result'].ip_address }}) | Status: {{ hostvars[host]['smart_os_health_check_result'].final_status }} | Type: {{ hostvars[host]['smart_os_health_check_result'].platform_type }} | Uptime: {{ hostvars[host]['smart_os_health_check_result'].uptime }} | Kernel: {{ hostvars[host]['smart_os_health_check_result'].running_kernel }}{% if not hostvars[host]['smart_os_health_check_result'].latest_kernel_selected %} (latest installed not active){% endif %} | Bootloader: {% if hostvars[host]['smart_os_health_check_result'].bootloader_default_status == 'resolved' %}{{ hostvars[host]['smart_os_health_check_result'].bootloader_default_kernel }}{% if hostvars[host]['smart_os_health_check_result'].bootloader_default_matches_latest %} (latest selected){% else %} (latest not selected){% endif %}{% elif hostvars[host]['smart_os_health_check_result'].bootloader_default_status == 'entry-only' %}{{ hostvars[host]['smart_os_health_check_result'].bootloader_default_entry }} (kernel unresolved){% else %}Not Available{% endif %} | Reboot: {{ 'Required' if hostvars[host]['smart_os_health_check_result'].reboot_required else 'No' }} | Boot: {{ hostvars[host]['smart_os_health_check_result'].boot_space_status }} | Failed Logins: {{ hostvars[host]['smart_os_health_check_result'].failed_login_count }}
 {% endfor %}
 {% endif %}

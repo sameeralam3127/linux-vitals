@@ -371,7 +371,7 @@
       {{
         (
           smart_os_health_check_bootloader_default_cmd.stdout
-          | regex_search('(?m)^supported=(.*)$', '\\1')
+          | regex_findall('(?m)^supported=(.*)$')
           | first
           | default('false')
           | trim
@@ -380,7 +380,7 @@
     smart_os_health_check_bootloader_default_source: >-
       {{
         smart_os_health_check_bootloader_default_cmd.stdout
-        | regex_search('(?m)^source=(.*)$', '\\1')
+        | regex_findall('(?m)^source=(.*)$')
         | first
         | default('unavailable')
         | trim
@@ -388,7 +388,7 @@
     smart_os_health_check_bootloader_default_entry: >-
       {{
         smart_os_health_check_bootloader_default_cmd.stdout
-        | regex_search('(?m)^default_entry=(.*)$', '\\1')
+        | regex_findall('(?m)^default_entry=(.*)$')
         | first
         | default('')
         | trim
@@ -396,7 +396,7 @@
     smart_os_health_check_bootloader_default_kernel: >-
       {{
         smart_os_health_check_bootloader_default_cmd.stdout
-        | regex_search('(?m)^default_kernel=(.*)$', '\\1')
+        | regex_findall('(?m)^default_kernel=(.*)$')
         | first
         | default('')
         | trim
@@ -404,26 +404,10 @@
     smart_os_health_check_bootloader_default_status: >-
       {{
         smart_os_health_check_bootloader_default_cmd.stdout
-        | regex_search('(?m)^status=(.*)$', '\\1')
+        | regex_findall('(?m)^status=(.*)$')
         | first
         | default('unavailable')
         | trim
-      }}
-    smart_os_health_check_bootloader_default_matches_latest: >-
-      {{
-        smart_os_health_check_bootloader_default_status == 'resolved'
-        and smart_os_health_check_bootloader_default_kernel == smart_os_health_check_latest_installed_kernel
-      }}
-    smart_os_health_check_bootloader_validation_message: >-
-      {{
-        'Default boot entry selects the latest installed kernel'
-        if smart_os_health_check_bootloader_default_status == 'resolved'
-        and smart_os_health_check_bootloader_default_matches_latest
-        else 'Default boot entry does not select the latest installed kernel'
-        if smart_os_health_check_bootloader_default_status == 'resolved'
-        else 'Default boot entry detected but the kernel could not be resolved'
-        if smart_os_health_check_bootloader_default_status == 'entry-only'
-        else 'Bootloader default kernel validation is not available on this host'
       }}
     smart_os_health_check_reboot_required: >-
       {{
@@ -474,6 +458,25 @@
         smart_os_health_check_rescue_image_cmd.stdout | default('') | trim | length > 0
       }}
     smart_os_health_check_rescue_image_paths: "{{ smart_os_health_check_rescue_image_cmd.stdout_lines | default([]) }}"
+
+- name: Finalize bootloader validation facts
+  ansible.builtin.set_fact:
+    smart_os_health_check_bootloader_default_matches_latest: >-
+      {{
+        smart_os_health_check_bootloader_default_status == 'resolved'
+        and smart_os_health_check_bootloader_default_kernel == smart_os_health_check_latest_installed_kernel
+      }}
+    smart_os_health_check_bootloader_validation_message: >-
+      {{
+        'Default boot entry selects the latest installed kernel'
+        if smart_os_health_check_bootloader_default_status == 'resolved'
+        and smart_os_health_check_bootloader_default_matches_latest
+        else 'Default boot entry does not select the latest installed kernel'
+        if smart_os_health_check_bootloader_default_status == 'resolved'
+        else 'Default boot entry detected but the kernel could not be resolved'
+        if smart_os_health_check_bootloader_default_status == 'entry-only'
+        else 'Bootloader default kernel validation is not available on this host'
+      }}
 
 - name: Build boot partition facts
   ansible.builtin.set_fact:

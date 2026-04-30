@@ -235,7 +235,7 @@
         </tr>
       </thead>
       <tbody>
-        {% for host in ansible_play_hosts_all %}
+        {% for host in smart_os_health_check_reporting_hosts %}
         {% set result = hostvars[host]['smart_os_health_check_result'] %}
         <tr>
           <td>
@@ -291,7 +291,7 @@
     </table>
 
     <section class="details">
-      {% for host in ansible_play_hosts_all %}
+      {% for host in smart_os_health_check_reporting_hosts %}
       {% set result = hostvars[host]['smart_os_health_check_result'] %}
       <article class="detail-card">
         <h2>{{ result.hostname }}</h2>
