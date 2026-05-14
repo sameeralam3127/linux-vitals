@@ -89,6 +89,7 @@ Install local tooling:
 
 ```bash
 pip install -r requirements-dev.txt
+ansible-galaxy collection install -r requirements.yml
 ```
 
 ## Inventory Example
