@@ -89,6 +89,7 @@ Install local tooling:
 
 ```bash
 pip install -r requirements-dev.txt
+ansible-galaxy collection install -r requirements.yml
 ```
 
 ## Inventory Example
@@ -231,6 +232,30 @@ Run the playbook:
 ```bash
 ansible-playbook -i inventory/hosts.ini smart_os_health_check.yml
 ```
+
+Run targeted health-check slices with Ansible tags:
+
+```bash
+# Discovery facts, service state, memory, logs, kernel, boot, and security posture
+ansible-playbook -i inventory/hosts.ini smart_os_health_check.yml --tags discovery
+
+# Kernel and reboot-required checks
+ansible-playbook -i inventory/hosts.ini smart_os_health_check.yml --tags kernel
+
+# SELinux, AppArmor, and failed-login checks
+ansible-playbook -i inventory/hosts.ini smart_os_health_check.yml --tags security
+
+# Boot partition and rescue image checks
+ansible-playbook -i inventory/hosts.ini smart_os_health_check.yml --tags boot
+
+# Failed enabled service restart attempts
+ansible-playbook -i inventory/hosts.ini smart_os_health_check.yml --tags self_healing
+
+# Rebuild report artifacts and send configured notifications from current run data
+ansible-playbook -i inventory/hosts.ini smart_os_health_check.yml --tags reporting
+```
+
+The `config` setup runs automatically for tagged executions so controller-side `.env` values are still loaded. Combine tags with commas for focused workflows, such as `--tags discovery,kernel,reporting`.
 
 Validate before running:
 

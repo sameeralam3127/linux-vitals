@@ -48,6 +48,8 @@
     mode: "0755"
   delegate_to: localhost
   run_once: true
+  tags:
+    - reporting
 
 - name: Ensure archive directory exists
   ansible.builtin.file:
@@ -124,6 +126,8 @@
         }}
   delegate_to: localhost
   run_once: true
+  tags:
+    - reporting
 
 - name: Generate consolidated HTML dashboard
   ansible.builtin.template:
@@ -132,6 +136,8 @@
     mode: "0644"
   delegate_to: localhost
   run_once: true
+  tags:
+    - reporting
 
 - name: Archive consolidated HTML dashboard
   ansible.builtin.copy:
@@ -272,6 +278,9 @@
   delegate_to: localhost
   run_once: true
   when: smart_os_health_check_effective_slack_webhook_url | length > 0
+  tags:
+    - reporting
+    - notifications
 
 - name: Send email maintenance summary
   community.general.mail:
@@ -290,6 +299,9 @@
   when:
     - smart_os_health_check_email_enabled
     - smart_os_health_check_email_to | length > 0
+  tags:
+    - reporting
+    - notifications
 
 - name: Send generic webhook maintenance summary
   ansible.builtin.uri:
@@ -305,3 +317,6 @@
   when:
     - smart_os_health_check_generic_webhook_enabled
     - smart_os_health_check_effective_generic_webhook_url | length > 0
+  tags:
+    - reporting
+    - notifications
