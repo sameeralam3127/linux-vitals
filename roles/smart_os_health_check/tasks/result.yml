@@ -47,6 +47,9 @@
       {%- endif -%}
       {%- endfor -%}
       {{ findings }}
+  tags:
+    - result
+    - reporting
 
 - name: Build per-host report object
   ansible.builtin.set_fact:
@@ -93,3 +96,6 @@
       healing_results: "{{ smart_os_health_check_healing_results }}"
       final_status: "{{ 'Pass' if smart_os_health_check_findings | length == 0 else 'Fail' }}"
       findings: "{{ smart_os_health_check_findings }}"
+  tags:
+    - result
+    - reporting

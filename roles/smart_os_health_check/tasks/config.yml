@@ -9,6 +9,9 @@
           | first
         ) | default('', true) | trim
       }}
+  tags:
+    - always
+    - config
 
 - name: Finalize effective Slack webhook configuration
   ansible.builtin.set_fact:
@@ -20,3 +23,6 @@
           smart_os_health_check_slack_webhook_url | default('', true) | trim | length > 0
         ) else smart_os_health_check_dotenv_slack_webhook_url
       }}
+  tags:
+    - always
+    - config

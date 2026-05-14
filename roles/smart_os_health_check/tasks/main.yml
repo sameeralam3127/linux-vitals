@@ -1,15 +1,31 @@
 ---
 - name: Load controller-side configuration
   ansible.builtin.include_tasks: config.yml
+  tags:
+    - always
+    - config
 
 - name: Collect host discovery and extended system details
   ansible.builtin.include_tasks: discovery.yml
+  tags:
+    - discovery
+    - kernel
+    - security
+    - boot
 
 - name: Run self-healing checks
   ansible.builtin.include_tasks: self_healing.yml
+  tags:
+    - self_healing
 
 - name: Build host health result
   ansible.builtin.include_tasks: result.yml
+  tags:
+    - result
+    - reporting
 
 - name: Build reports and notifications
   ansible.builtin.include_tasks: reporting.yml
+  tags:
+    - reporting
+    - notifications

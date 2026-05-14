@@ -6,9 +6,13 @@
       - hardware
       - network
       - virtual
+  tags:
+    - discovery
 
 - name: Collect service facts
   ansible.builtin.service_facts:
+  tags:
+    - discovery
 
 - name: Define distro-aware health check context
   ansible.builtin.set_fact:
@@ -26,6 +30,8 @@
       - ntpd
       - ntp.service
       - ntp
+  tags:
+    - discovery
 
 - name: Resolve time synchronization service
   ansible.builtin.set_fact:
@@ -37,6 +43,8 @@
           | first
         ) | default('absent', true)
       }}
+  tags:
+    - discovery
 
 - name: Collect recent systemd log errors
   ansible.builtin.command:
@@ -50,6 +58,8 @@
   changed_when: false
   failed_when: false
   when: ansible_facts['service_mgr'] == "systemd"
+  tags:
+    - discovery
 
 - name: Collect recent failed login attempts
   ansible.builtin.command:
@@ -60,6 +70,9 @@
   register: smart_os_health_check_failed_login_attempts_cmd
   changed_when: false
   failed_when: false
+  tags:
+    - discovery
+    - security
 
 - name: Collect last reboot information
   ansible.builtin.command:
@@ -69,6 +82,9 @@
   register: smart_os_health_check_last_reboot_cmd
   changed_when: false
   failed_when: false
+  tags:
+    - discovery
+    - boot
 
 - name: Collect latest installed kernel version
   ansible.builtin.command:
@@ -79,6 +95,9 @@
   register: smart_os_health_check_latest_kernel_cmd
   changed_when: false
   failed_when: false
+  tags:
+    - discovery
+    - kernel
 
 - name: Collect latest installed kernel timestamp
   ansible.builtin.command:
@@ -89,12 +108,18 @@
   register: smart_os_health_check_latest_kernel_timestamp_cmd
   changed_when: false
   failed_when: false
+  tags:
+    - discovery
+    - kernel
 
 - name: Check if reboot is required on Debian family
   ansible.builtin.stat:
     path: /var/run/reboot-required
   register: smart_os_health_check_reboot_required_file
   when: ansible_facts['os_family'] == 'Debian'
+  tags:
+    - discovery
+    - kernel
 
 - name: Check if reboot is recommended on RedHat family
   ansible.builtin.command:
@@ -105,12 +130,18 @@
   changed_when: false
   failed_when: false
   when: ansible_facts['os_family'] == 'RedHat'
+  tags:
+    - discovery
+    - kernel
 
 - name: Check if reboot is recommended on SUSE family
   ansible.builtin.stat:
     path: /var/run/reboot-needed
   register: smart_os_health_check_suse_reboot_file
   when: ansible_facts['os_family'] == 'Suse'
+  tags:
+    - discovery
+    - kernel
 
 - name: Collect SELinux mode
   ansible.builtin.command:
@@ -119,6 +150,9 @@
   register: smart_os_health_check_selinux_cmd
   changed_when: false
   failed_when: false
+  tags:
+    - discovery
+    - security
 
 - name: Collect AppArmor status
   ansible.builtin.command:
@@ -128,6 +162,9 @@
   register: smart_os_health_check_apparmor_cmd
   changed_when: false
   failed_when: false
+  tags:
+    - discovery
+    - security
 
 - name: Collect rescue image presence
   ansible.builtin.command:
@@ -138,6 +175,9 @@
   register: smart_os_health_check_rescue_image_cmd
   changed_when: false
   failed_when: false
+  tags:
+    - discovery
+    - boot
 
 - name: Collect kernel install failures from logs
   ansible.builtin.command:
@@ -151,6 +191,9 @@
   changed_when: false
   failed_when: false
   when: ansible_facts['service_mgr'] == "systemd"
+  tags:
+    - discovery
+    - kernel
 
 - name: Evaluate base memory and log health
   ansible.builtin.set_fact:
@@ -188,6 +231,11 @@
           | regex_findall('(?im)^.*(?:kernel|grub|dracut|initramfs).*(?:fail|error).*$')
         )
       }}
+  tags:
+    - discovery
+    - kernel
+    - security
+    - boot
 
 - name: Finalize extended discovery facts
   ansible.builtin.set_fact:
@@ -285,6 +333,11 @@
         smart_os_health_check_rescue_image_cmd.stdout | default('') | trim | length > 0
       }}
     smart_os_health_check_rescue_image_paths: "{{ smart_os_health_check_rescue_image_cmd.stdout_lines | default([]) }}"
+  tags:
+    - discovery
+    - kernel
+    - security
+    - boot
 
 - name: Build boot partition facts
   ansible.builtin.set_fact:
@@ -306,6 +359,9 @@
           true
         )
       }}
+  tags:
+    - discovery
+    - boot
 
 - name: Finalize boot space facts
   ansible.builtin.set_fact:
@@ -347,6 +403,9 @@
         ) < smart_os_health_check_boot_warning_threshold | float
         else 'Healthy'
       }}
+  tags:
+    - discovery
+    - boot
 
 - name: Build required service status map
   ansible.builtin.set_fact:
@@ -400,3 +459,5 @@
               {}
             ).state | default('missing')
           }}
+  tags:
+    - discovery

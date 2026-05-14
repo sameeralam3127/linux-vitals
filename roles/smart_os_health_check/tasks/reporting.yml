@@ -6,6 +6,8 @@
     mode: "0755"
   delegate_to: localhost
   run_once: true
+  tags:
+    - reporting
 
 - name: Build consolidated maintenance summary
   ansible.builtin.set_fact:
@@ -60,6 +62,8 @@
         }}
   delegate_to: localhost
   run_once: true
+  tags:
+    - reporting
 
 - name: Generate consolidated HTML dashboard
   ansible.builtin.template:
@@ -68,6 +72,8 @@
     mode: "0644"
   delegate_to: localhost
   run_once: true
+  tags:
+    - reporting
 
 - name: Send Slack maintenance summary
   ansible.builtin.uri:
@@ -81,3 +87,6 @@
   delegate_to: localhost
   run_once: true
   when: smart_os_health_check_effective_slack_webhook_url | length > 0
+  tags:
+    - reporting
+    - notifications

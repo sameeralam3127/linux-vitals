@@ -11,6 +11,8 @@
         | map(attribute='key')
         | list
       }}
+  tags:
+    - self_healing
 
 - name: Attempt one restart for enabled failed services
   ansible.builtin.service:
@@ -20,10 +22,14 @@
   register: smart_os_health_check_restart_attempts
   failed_when: false
   when: smart_os_health_check_failed_enabled_services | length > 0
+  tags:
+    - self_healing
 
 - name: Refresh service facts after self-healing attempts
   ansible.builtin.service_facts:
   when: smart_os_health_check_failed_enabled_services | length > 0
+  tags:
+    - self_healing
 
 - name: Summarize self-healing outcomes
   ansible.builtin.set_fact:
@@ -45,6 +51,8 @@
       {%- set _ = outcomes.append({'service': key, 'result': result}) -%}
       {%- endfor -%}
       {{ outcomes }}
+  tags:
+    - self_healing
 
 - name: Finalize healing counters
   ansible.builtin.set_fact:
@@ -62,6 +70,8 @@
         | list
         | length
       }}
+  tags:
+    - self_healing
 
 - name: Refresh required service status after healing
   ansible.builtin.set_fact:
@@ -115,3 +125,5 @@
               {}
             ).state | default('missing')
           }}
+  tags:
+    - self_healing
