@@ -235,7 +235,7 @@
         </tr>
       </thead>
       <tbody>
-        {% for host in ansible_play_hosts_all %}
+        {% for host in smart_os_health_check_reporting_hosts | default(ansible_play_hosts_all) %}
         {% set result = hostvars[host]['smart_os_health_check_result'] %}
         <tr>
           <td>
@@ -291,7 +291,7 @@
     </table>
 
     <section class="details">
-      {% for host in ansible_play_hosts_all %}
+      {% for host in smart_os_health_check_reporting_hosts | default(ansible_play_hosts_all) %}
       {% set result = hostvars[host]['smart_os_health_check_result'] %}
       <article class="detail-card">
         <h2>{{ result.hostname }}</h2>
@@ -317,7 +317,11 @@
             <span>Running: {{ result.running_kernel }}</span><br>
             <span>Latest Installed: {{ result.latest_installed_kernel }}</span><br>
             <span>Updated: {{ result.latest_kernel_updated_at }}</span><br>
-            <span>Latest Selected: {{ 'Yes' if result.latest_kernel_selected else 'No' }}</span>
+            <span>Latest Selected: {{ 'Yes' if result.latest_kernel_selected else 'No' }}</span><br>
+            <span>Bootloader Check: {{ result.bootloader_validation_message }}</span><br>
+            <span>Bootloader Source: {{ result.bootloader_default_source }}</span><br>
+            <span>Default Entry: {{ result.bootloader_default_entry if result.bootloader_default_entry else 'Not Available' }}</span><br>
+            <span>Default Kernel: {{ result.bootloader_default_kernel if result.bootloader_default_kernel else 'Not Resolved' }}</span>
           </div>
           <div class="detail-item">
             <strong>Reboot Requirement</strong>

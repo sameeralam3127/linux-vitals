@@ -1,7 +1,49 @@
 ---
+- name: Build report output metadata
+  ansible.builtin.set_fact:
+    smart_os_health_check_reports_dir: "{{ smart_os_health_check_output_path | dirname }}"
+    smart_os_health_check_effective_archive_dir: "{{ smart_os_health_check_report_archive_dir }}"
+    smart_os_health_check_effective_archive_timestamp: >-
+      {{
+        smart_os_health_check_archive_timestamp | trim
+        if smart_os_health_check_archive_timestamp | trim | length > 0
+        else now(utc=true, fmt='%Y%m%dT%H%M%SZ')
+      }}
+    smart_os_health_check_output_filename: "{{ smart_os_health_check_output_path | basename }}"
+    smart_os_health_check_output_stem: "{{ (smart_os_health_check_output_path | basename | splitext)[0] }}"
+    smart_os_health_check_output_ext: >-
+      {{ (smart_os_health_check_output_path | basename | splitext)[1] | default('.html', true) }}
+    smart_os_health_check_json_output_filename: "{{ smart_os_health_check_json_output_path | default('', true) | basename }}"
+    smart_os_health_check_json_output_stem: "{{ (smart_os_health_check_json_output_path | default('', true) | basename | splitext)[0] }}"
+    smart_os_health_check_json_output_ext: >-
+      {{ (smart_os_health_check_json_output_path | default('', true) | basename | splitext)[1] | default('.json', true) }}
+  delegate_to: localhost
+  run_once: true
+
+- name: Finalize archive file paths
+  ansible.builtin.set_fact:
+    smart_os_health_check_archive_html_path: >-
+      {{
+        smart_os_health_check_effective_archive_dir ~ '/'
+        ~ smart_os_health_check_output_stem
+        ~ '-'
+        ~ smart_os_health_check_effective_archive_timestamp
+        ~ smart_os_health_check_output_ext
+      }}
+    smart_os_health_check_archive_json_path: >-
+      {{
+        smart_os_health_check_effective_archive_dir ~ '/'
+        ~ smart_os_health_check_json_output_stem
+        ~ '-'
+        ~ smart_os_health_check_effective_archive_timestamp
+        ~ smart_os_health_check_json_output_ext
+      }}
+  delegate_to: localhost
+  run_once: true
+
 - name: Ensure reports directory exists
   ansible.builtin.file:
-    path: "{{ playbook_dir }}/reports"
+    path: "{{ smart_os_health_check_reports_dir }}"
     state: directory
     mode: "0755"
   delegate_to: localhost
@@ -9,13 +51,35 @@
   tags:
     - reporting
 
+- name: Ensure archive directory exists
+  ansible.builtin.file:
+    path: "{{ smart_os_health_check_effective_archive_dir }}"
+    state: directory
+    mode: "0755"
+  delegate_to: localhost
+  run_once: true
+  when:
+    - smart_os_health_check_archive_html_reports or smart_os_health_check_archive_json_reports
+
+- name: Determine hosts with completed health results
+  ansible.builtin.set_fact:
+    smart_os_health_check_reporting_hosts: >-
+      {{
+        ansible_play_hosts
+        | select('in', hostvars.keys())
+        | select('in', ansible_play_hosts)
+        | list
+      }}
+  delegate_to: localhost
+  run_once: true
+
 - name: Build consolidated maintenance summary
   ansible.builtin.set_fact:
     smart_os_health_check_summary:
-      servers_checked: "{{ ansible_play_hosts_all | length }}"
+      servers_checked: "{{ smart_os_health_check_reporting_hosts | length }}"
       auto_fixed_count: >-
         {{
-          ansible_play_hosts_all
+          smart_os_health_check_reporting_hosts
           | map('extract', hostvars, 'smart_os_health_check_auto_fixed_count')
           | map('default', 0)
           | map('int')
@@ -23,7 +87,7 @@
         }}
       critical_error_count: >-
         {{
-          ansible_play_hosts_all
+          smart_os_health_check_reporting_hosts
           | map('extract', hostvars, 'smart_os_health_check_result')
           | selectattr('final_status', 'equalto', 'Fail')
           | list
@@ -32,10 +96,10 @@
       snippet: >-
         {{
           (
-            ansible_play_hosts_all | length | string
+            smart_os_health_check_reporting_hosts | length | string
           ) ~ ' Servers Checked, '
           ~ (
-            ansible_play_hosts_all
+            smart_os_health_check_reporting_hosts
             | map('extract', hostvars, 'smart_os_health_check_auto_fixed_count')
             | map('default', 0)
             | map('int')
@@ -43,7 +107,7 @@
             | string
           ) ~ ' Auto-Fixed, '
           ~ (
-            ansible_play_hosts_all
+            smart_os_health_check_reporting_hosts
             | map('extract', hostvars, 'smart_os_health_check_result')
             | selectattr('final_status', 'equalto', 'Fail')
             | list
@@ -52,7 +116,7 @@
           ) ~ ' Critical '
           ~ (
             'Errors' if (
-              ansible_play_hosts_all
+              smart_os_health_check_reporting_hosts
               | map('extract', hostvars, 'smart_os_health_check_result')
               | selectattr('final_status', 'equalto', 'Fail')
               | list
@@ -75,18 +139,184 @@
   tags:
     - reporting
 
+- name: Archive consolidated HTML dashboard
+  ansible.builtin.copy:
+    src: "{{ smart_os_health_check_output_path }}"
+    dest: "{{ smart_os_health_check_archive_html_path }}"
+    mode: "0644"
+    remote_src: true
+  delegate_to: localhost
+  run_once: true
+  when: smart_os_health_check_archive_html_reports
+
+- name: Check whether JSON report exists for archiving
+  ansible.builtin.stat:
+    path: "{{ smart_os_health_check_json_output_path }}"
+  register: smart_os_health_check_json_output_file
+  delegate_to: localhost
+  run_once: true
+  when: smart_os_health_check_archive_json_reports
+
+- name: Archive JSON report when present
+  ansible.builtin.copy:
+    src: "{{ smart_os_health_check_json_output_path }}"
+    dest: "{{ smart_os_health_check_archive_json_path }}"
+    mode: "0644"
+    remote_src: true
+  delegate_to: localhost
+  run_once: true
+  when:
+    - smart_os_health_check_archive_json_reports
+    - smart_os_health_check_json_output_path | trim | length > 0
+    - smart_os_health_check_json_output_file.stat.exists | default(false)
+
+- name: Find archived HTML reports
+  ansible.builtin.find:
+    paths: "{{ smart_os_health_check_effective_archive_dir }}"
+    file_type: file
+    patterns:
+      - "{{ smart_os_health_check_output_stem }}-*{{ smart_os_health_check_output_ext }}"
+  register: smart_os_health_check_archived_html_reports
+  delegate_to: localhost
+  run_once: true
+  when:
+    - smart_os_health_check_archive_html_reports
+    - smart_os_health_check_report_retention_count | int > 0
+
+- name: Find archived JSON reports
+  ansible.builtin.find:
+    paths: "{{ smart_os_health_check_effective_archive_dir }}"
+    file_type: file
+    patterns:
+      - "{{ smart_os_health_check_json_output_stem }}-*{{ smart_os_health_check_json_output_ext }}"
+  register: smart_os_health_check_archived_json_reports
+  delegate_to: localhost
+  run_once: true
+  when:
+    - smart_os_health_check_archive_json_reports
+    - smart_os_health_check_json_output_path | trim | length > 0
+    - smart_os_health_check_report_retention_count | int > 0
+
+- name: Sort archived HTML report paths for retention pruning
+  ansible.builtin.set_fact:
+    smart_os_health_check_archived_html_report_paths: >-
+      {{
+        smart_os_health_check_archived_html_reports.files
+        | map(attribute='path')
+        | sort
+        | reverse
+        | list
+      }}
+  delegate_to: localhost
+  run_once: true
+  when:
+    - smart_os_health_check_archive_html_reports
+    - smart_os_health_check_report_retention_count | int > 0
+
+- name: Sort archived JSON report paths for retention pruning
+  ansible.builtin.set_fact:
+    smart_os_health_check_archived_json_report_paths: >-
+      {{
+        smart_os_health_check_archived_json_reports.files
+        | default([])
+        | map(attribute='path')
+        | sort
+        | reverse
+        | list
+      }}
+  delegate_to: localhost
+  run_once: true
+  when:
+    - smart_os_health_check_archive_json_reports
+    - smart_os_health_check_json_output_path | trim | length > 0
+    - smart_os_health_check_report_retention_count | int > 0
+
+- name: Remove archived HTML reports beyond retention limit
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ smart_os_health_check_archived_html_report_paths }}"
+  loop_control:
+    extended: true
+  delegate_to: localhost
+  run_once: true
+  when:
+    - smart_os_health_check_archive_html_reports
+    - smart_os_health_check_report_retention_count | int > 0
+    - ansible_loop.index0 >= (smart_os_health_check_report_retention_count | int)
+
+- name: Remove archived JSON reports beyond retention limit
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ smart_os_health_check_archived_json_report_paths }}"
+  loop_control:
+    extended: true
+  delegate_to: localhost
+  run_once: true
+  when:
+    - smart_os_health_check_archive_json_reports
+    - smart_os_health_check_json_output_path | trim | length > 0
+    - smart_os_health_check_report_retention_count | int > 0
+    - ansible_loop.index0 >= (smart_os_health_check_report_retention_count | int)
+
+- name: Render reusable notification summary message
+  ansible.builtin.set_fact:
+    smart_os_health_check_notification_message: "{{ lookup('ansible.builtin.template', 'slack_message.txt.j2') }}"
+  delegate_to: localhost
+  run_once: true
+
 - name: Send Slack maintenance summary
   ansible.builtin.uri:
     url: "{{ smart_os_health_check_effective_slack_webhook_url }}"
     method: POST
     body_format: json
     body:
-      text: "{{ lookup('ansible.builtin.template', 'slack_message.txt.j2') }}"
+      text: "{{ smart_os_health_check_notification_message }}"
     status_code: 200
     return_content: true
   delegate_to: localhost
   run_once: true
   when: smart_os_health_check_effective_slack_webhook_url | length > 0
+  tags:
+    - reporting
+    - notifications
+
+- name: Send email maintenance summary
+  community.general.mail:
+    host: "{{ smart_os_health_check_effective_email_host }}"
+    port: "{{ smart_os_health_check_email_port | int }}"
+    secure: "{{ smart_os_health_check_email_secure }}"
+    username: "{{ smart_os_health_check_effective_email_username | default(omit, true) }}"
+    password: "{{ smart_os_health_check_effective_email_password | default(omit, true) }}"
+    to: "{{ smart_os_health_check_email_to }}"
+    cc: "{{ smart_os_health_check_email_cc if smart_os_health_check_email_cc | length > 0 else omit }}"
+    from: "{{ smart_os_health_check_email_from }}"
+    subject: "{{ smart_os_health_check_email_subject }}"
+    body: "{{ smart_os_health_check_notification_message }}"
+  delegate_to: localhost
+  run_once: true
+  when:
+    - smart_os_health_check_email_enabled
+    - smart_os_health_check_email_to | length > 0
+  tags:
+    - reporting
+    - notifications
+
+- name: Send generic webhook maintenance summary
+  ansible.builtin.uri:
+    url: "{{ smart_os_health_check_effective_generic_webhook_url }}"
+    method: POST
+    body_format: json
+    body: "{{ lookup('ansible.builtin.template', 'generic_webhook_payload.json.j2') | from_json }}"
+    headers: "{{ smart_os_health_check_generic_webhook_headers if smart_os_health_check_generic_webhook_headers | length > 0 else omit }}"
+    status_code: "{{ smart_os_health_check_generic_webhook_status_code | int }}"
+    return_content: true
+  delegate_to: localhost
+  run_once: true
+  when:
+    - smart_os_health_check_generic_webhook_enabled
+    - smart_os_health_check_effective_generic_webhook_url | length > 0
   tags:
     - reporting
     - notifications

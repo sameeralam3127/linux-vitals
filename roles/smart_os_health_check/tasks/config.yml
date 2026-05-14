@@ -1,11 +1,44 @@
 ---
 - name: Load Slack webhook from local .env when present
   ansible.builtin.set_fact:
+    smart_os_health_check_dotenv_contents: "{{ lookup('ansible.builtin.file', playbook_dir ~ '/.env', errors='ignore') }}"
     smart_os_health_check_dotenv_slack_webhook_url: >-
       {{
         (
-          lookup('ansible.builtin.file', playbook_dir ~ '/.env', errors='ignore')
+          smart_os_health_check_dotenv_contents
           | regex_findall("(?m)^SLACK_WEBHOOK_URL=[\"']?([^\"'\\n#]+)[\"']?$")
+          | first
+        ) | default('', true) | trim
+      }}
+    smart_os_health_check_dotenv_generic_webhook_url: >-
+      {{
+        (
+          smart_os_health_check_dotenv_contents
+          | regex_findall("(?m)^GENERIC_WEBHOOK_URL=[\"']?([^\"'\\n#]+)[\"']?$")
+          | first
+        ) | default('', true) | trim
+      }}
+    smart_os_health_check_dotenv_email_host: >-
+      {{
+        (
+          smart_os_health_check_dotenv_contents
+          | regex_findall("(?m)^EMAIL_SMTP_HOST=[\"']?([^\"'\\n#]+)[\"']?$")
+          | first
+        ) | default('', true) | trim
+      }}
+    smart_os_health_check_dotenv_email_username: >-
+      {{
+        (
+          smart_os_health_check_dotenv_contents
+          | regex_findall("(?m)^EMAIL_SMTP_USERNAME=[\"']?([^\"'\\n#]+)[\"']?$")
+          | first
+        ) | default('', true) | trim
+      }}
+    smart_os_health_check_dotenv_email_password: >-
+      {{
+        (
+          smart_os_health_check_dotenv_contents
+          | regex_findall("(?m)^EMAIL_SMTP_PASSWORD=[\"']?([^\"'\\n#]+)[\"']?$")
           | first
         ) | default('', true) | trim
       }}
@@ -13,7 +46,7 @@
     - always
     - config
 
-- name: Finalize effective Slack webhook configuration
+- name: Finalize effective notification configuration
   ansible.builtin.set_fact:
     smart_os_health_check_effective_slack_webhook_url: >-
       {{
@@ -22,6 +55,43 @@
         ) if (
           smart_os_health_check_slack_webhook_url | default('', true) | trim | length > 0
         ) else smart_os_health_check_dotenv_slack_webhook_url
+      }}
+    smart_os_health_check_effective_generic_webhook_url: >-
+      {{
+        (
+          smart_os_health_check_generic_webhook_url | default('', true) | trim
+        ) if (
+          smart_os_health_check_generic_webhook_url | default('', true) | trim | length > 0
+        ) else smart_os_health_check_dotenv_generic_webhook_url
+      }}
+    smart_os_health_check_effective_email_host: >-
+      {{
+        (
+          smart_os_health_check_email_host | default('', true) | trim
+        ) if (
+          smart_os_health_check_email_host | default('', true) | trim | length > 0
+          and smart_os_health_check_email_host | default('', true) | trim != 'localhost'
+        ) else (
+          smart_os_health_check_dotenv_email_host
+          if smart_os_health_check_dotenv_email_host | length > 0
+          else smart_os_health_check_email_host
+        )
+      }}
+    smart_os_health_check_effective_email_username: >-
+      {{
+        (
+          smart_os_health_check_email_username | default('', true) | trim
+        ) if (
+          smart_os_health_check_email_username | default('', true) | trim | length > 0
+        ) else smart_os_health_check_dotenv_email_username
+      }}
+    smart_os_health_check_effective_email_password: >-
+      {{
+        (
+          smart_os_health_check_email_password | default('', true) | trim
+        ) if (
+          smart_os_health_check_email_password | default('', true) | trim | length > 0
+        ) else smart_os_health_check_dotenv_email_password
       }}
   tags:
     - always
