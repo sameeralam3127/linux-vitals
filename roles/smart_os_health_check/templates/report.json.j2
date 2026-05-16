@@ -1,0 +1,89 @@
+{
+  "schema_version": "1.0",
+  "generated_at": {{ smart_os_health_check_effective_archive_timestamp | default(now(utc=true, fmt='%Y%m%dT%H%M%SZ')) | to_json }},
+  "report": {
+    "title": {{ smart_os_health_check_report_title | to_json }},
+    "html_output_path": {{ smart_os_health_check_output_path | to_json }},
+    "json_output_path": {{ smart_os_health_check_json_output_path | to_json }}
+  },
+  "summary": {
+    "overall_status": {{ ('PASS' if smart_os_health_check_summary.critical_error_count | int == 0 else 'FAIL') | to_json }},
+    "servers_checked": {{ smart_os_health_check_summary.servers_checked | int }},
+    "auto_fixed_count": {{ smart_os_health_check_summary.auto_fixed_count | int }},
+    "critical_error_count": {{ smart_os_health_check_summary.critical_error_count | int }},
+    "snippet": {{ smart_os_health_check_summary.snippet | to_json }}
+  },
+  "hosts": [
+    {% for host in smart_os_health_check_reporting_hosts | default(ansible_play_hosts_all) %}
+    {% set result = hostvars[host]['smart_os_health_check_result'] %}
+    {
+      "inventory_name": {{ host | to_json }},
+      "hostname": {{ result.hostname | to_json }},
+      "ip_address": {{ result.ip_address | to_json }},
+      "status": {{ result.final_status | to_json }},
+      "os": {
+        "distribution": {{ result.os | to_json }},
+        "family": {{ result.os_family | to_json }},
+        "package_manager": {{ result.package_manager | to_json }},
+        "log_source": {{ result.log_source | to_json }}
+      },
+      "platform": {
+        "type": {{ result.platform_type | to_json }},
+        "virtualization_type": {{ result.virtualization_type | to_json }},
+        "uptime": {{ result.uptime | to_json }},
+        "last_reboot": {{ result.last_reboot | to_json }}
+      },
+      "kernel": {
+        "running": {{ result.running_kernel | to_json }},
+        "latest_installed": {{ result.latest_installed_kernel | to_json }},
+        "latest_updated_at": {{ result.latest_kernel_updated_at | to_json }},
+        "latest_selected": {{ result.latest_kernel_selected | to_json }},
+        "install_failures": {{ result.kernel_install_failures | int }},
+        "install_failure_excerpt": {{ result.kernel_install_failure_excerpt | to_json }}
+      },
+      "bootloader": {
+        "supported": {{ result.bootloader_supported | to_json }},
+        "default_source": {{ result.bootloader_default_source | to_json }},
+        "default_entry": {{ result.bootloader_default_entry | to_json }},
+        "default_kernel": {{ result.bootloader_default_kernel | to_json }},
+        "default_status": {{ result.bootloader_default_status | to_json }},
+        "default_matches_latest": {{ result.bootloader_default_matches_latest | to_json }},
+        "validation_message": {{ result.bootloader_validation_message | to_json }}
+      },
+      "reboot": {
+        "required": {{ result.reboot_required | to_json }}
+      },
+      "security": {
+        "selinux_status": {{ result.selinux_status | to_json }},
+        "apparmor_status": {{ result.apparmor_status | to_json }},
+        "failed_login_count": {{ result.failed_login_count | int }},
+        "last_failed_login": {{ result.last_failed_login | to_json }}
+      },
+      "boot_space": {
+        "mount": {{ result.boot_mount | to_json }},
+        "free_mb": {{ result.boot_free_mb | float }},
+        "total_mb": {{ result.boot_total_mb | float }},
+        "free_pct": {{ result.boot_free_pct | float }},
+        "status": {{ result.boot_space_status | to_json }},
+        "rescue_image_available": {{ result.rescue_image_available | to_json }},
+        "rescue_image_paths": {{ result.rescue_image_paths | to_json }}
+      },
+      "memory": {
+        "status": {{ result.ram_status | to_json }},
+        "used_pct": {{ result.ram_used_pct | float }},
+        "used_mb": {{ result.ram_used_mb | float }},
+        "total_mb": {{ result.ram_total_mb | float }}
+      },
+      "logs": {
+        "error_count": {{ result.log_errors | int }},
+        "excerpt": {{ result.log_excerpt | to_json }}
+      },
+      "self_healing": {
+        "services_healed": {{ result.services_healed | to_json }},
+        "healing_results": {{ result.healing_results | to_json }}
+      },
+      "findings": {{ result.findings | to_json }}
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+  ]
+}

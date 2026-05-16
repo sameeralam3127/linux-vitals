@@ -116,7 +116,7 @@ You can override these defaults in inventory, `group_vars`, or extra vars:
 smart_os_health_check_output_path: "{{ playbook_dir }}/reports/smart_os_health_report.html"
 smart_os_health_check_archive_html_reports: true
 smart_os_health_check_archive_json_reports: false
-smart_os_health_check_json_output_path: ""
+smart_os_health_check_json_output_path: "{{ playbook_dir }}/reports/smart_os_health_report.json"
 smart_os_health_check_report_archive_dir: "{{ smart_os_health_check_output_path | dirname }}/archive"
 smart_os_health_check_report_retention_count: 10
 smart_os_health_check_log_window: "30 minutes ago"
@@ -151,9 +151,10 @@ Shared overrides for all hosts can be placed in [group_vars/all.yml](/Users/same
 Historical report retention:
 
 - The latest HTML dashboard is still written to `smart_os_health_check_output_path`
+- The latest JSON report is written to `smart_os_health_check_json_output_path` when the value is not empty
 - Archived HTML copies are stored with UTC timestamps in `smart_os_health_check_report_archive_dir`, for example `smart_os_health_report-20260429T120000Z.html`
 - Set `smart_os_health_check_report_retention_count` to keep only the last `N` archived files
-- Set `smart_os_health_check_archive_json_reports: true` and `smart_os_health_check_json_output_path` to archive matching JSON outputs when the JSON report file exists
+- Set `smart_os_health_check_archive_json_reports: true` to archive matching JSON outputs
 - Set `smart_os_health_check_archive_html_reports: false` when you only want to update the latest dashboard file
 
 Example that keeps the last 14 HTML reports:
@@ -291,6 +292,12 @@ Generated HTML dashboard:
 reports/smart_os_health_report.html
 ```
 
+Generated JSON report:
+
+```text
+reports/smart_os_health_report.json
+```
+
 Current sample report file in this repo:
 
 [smart_os_health_report.html](/Users/sameeralam/Documents/GitHub/ansible-server-health-dashboard/reports/smart_os_health_report.html)
@@ -332,6 +339,20 @@ Extended host detail cards include:
 - Rescue image availability
 - Last failed login attempt
 - Kernel install failure excerpts
+
+JSON report export includes:
+
+- run metadata and overall PASS/FAIL summary
+- host findings and final status
+- kernel state, bootloader validation, and reboot-required state
+- SELinux, AppArmor, and failed-login security controls
+- boot partition health, rescue image state, memory usage, log excerpts, and self-healing results
+
+Sample ingestion use cases:
+
+- ship `reports/smart_os_health_report.json` with Filebeat or Fluent Bit into ELK/OpenSearch
+- scrape the JSON artifact from CI or Ansible Automation Platform jobs for downstream automation
+- load the host records into Grafana-compatible observability storage for fleet trend dashboards
 
 ---
 
