@@ -36,6 +36,7 @@ def test_templates_render_with_representative_health_data(tmp_path: Path) -> Non
     report = (tmp_path / "report.html").read_text(encoding="utf-8")
     slack = (tmp_path / "slack.txt").read_text(encoding="utf-8")
     generic_webhook = json.loads((tmp_path / "generic_webhook.json").read_text(encoding="utf-8"))
+    json_report = json.loads((tmp_path / "report.json").read_text(encoding="utf-8"))
 
     assert "Smart OS Health Check Test Dashboard" in report
     assert "localhost" in report
@@ -48,6 +49,12 @@ def test_templates_render_with_representative_health_data(tmp_path: Path) -> Non
     assert generic_webhook["summary"]["overall_status"] == "PASS"
     assert generic_webhook["hosts"][0]["hostname"] == "localhost"
     assert "Standard Maintenance Summary" in generic_webhook["message"]
+    assert json_report["schema_version"] == "1.0"
+    assert json_report["generated_at"] == "20260429T120000Z"
+    assert json_report["summary"]["overall_status"] == "PASS"
+    assert json_report["hosts"][0]["kernel"]["running"] == "6.8.0-test"
+    assert json_report["hosts"][0]["reboot"]["required"] is False
+    assert json_report["hosts"][0]["security"]["apparmor_status"] == "enabled"
 
 
 def test_reporting_archives_timestamped_outputs_and_prunes_old_reports(tmp_path: Path) -> None:
@@ -72,10 +79,13 @@ def test_reporting_archives_timestamped_outputs_and_prunes_old_reports(tmp_path:
     )
 
     latest_report = tmp_path / "latest" / "smart_os_health_report.html"
+    latest_json_report = tmp_path / "latest" / "smart_os_health_report.json"
     archived_html = sorted((tmp_path / "archive").glob("smart_os_health_report-*.html"))
     archived_json = sorted((tmp_path / "archive").glob("smart_os_health_report-*.json"))
 
     assert latest_report.exists()
+    assert latest_json_report.exists()
+    assert json.loads(latest_json_report.read_text(encoding="utf-8"))["summary"]["overall_status"] == "PASS"
     assert [path.name for path in archived_html] == [
         "smart_os_health_report-20260428T120000Z.html",
         "smart_os_health_report-20260429T120000Z.html",
