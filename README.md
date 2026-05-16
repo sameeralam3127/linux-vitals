@@ -151,9 +151,27 @@ Shared overrides for all hosts can be placed in [group_vars/all.yml](/Users/same
 Historical report retention:
 
 - The latest HTML dashboard is still written to `smart_os_health_check_output_path`
-- Archived HTML copies are stored with UTC timestamps in `smart_os_health_check_report_archive_dir`
+- Archived HTML copies are stored with UTC timestamps in `smart_os_health_check_report_archive_dir`, for example `smart_os_health_report-20260429T120000Z.html`
 - Set `smart_os_health_check_report_retention_count` to keep only the last `N` archived files
-- Set `smart_os_health_check_archive_json_reports: true` and `smart_os_health_check_json_output_path` to archive JSON outputs when you add them
+- Set `smart_os_health_check_archive_json_reports: true` and `smart_os_health_check_json_output_path` to archive matching JSON outputs when the JSON report file exists
+- Set `smart_os_health_check_archive_html_reports: false` when you only want to update the latest dashboard file
+
+Example that keeps the last 14 HTML reports:
+
+```yaml
+smart_os_health_check_archive_html_reports: true
+smart_os_health_check_report_archive_dir: "{{ playbook_dir }}/reports/archive"
+smart_os_health_check_report_retention_count: 14
+```
+
+Example that keeps the last 7 HTML and JSON reports:
+
+```yaml
+smart_os_health_check_archive_html_reports: true
+smart_os_health_check_archive_json_reports: true
+smart_os_health_check_json_output_path: "{{ playbook_dir }}/reports/smart_os_health_report.json"
+smart_os_health_check_report_retention_count: 7
+```
 
 ## `.env` Setup
 
@@ -329,7 +347,7 @@ Validation coverage in this branch includes:
 
 - `ansible-playbook --syntax-check` for the top-level playbook
 - `ansible-lint` for repo linting
-- `pytest` template rendering checks for the HTML dashboard and Slack summary
+- `pytest` template rendering checks for the HTML dashboard, notification payloads, and report archiving retention
 
 A GitHub Actions workflow at [.github/workflows/ci.yml](/Users/sameeralam/Documents/GitHub/ansible-server-health-dashboard/.github/workflows/ci.yml) runs the same checks on pushes and pull requests.
 
