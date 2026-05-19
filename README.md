@@ -348,6 +348,43 @@ JSON report export includes:
 - SELinux, AppArmor, and failed-login security controls
 - boot partition health, rescue image state, memory usage, log excerpts, and self-healing results
 
+Minimal JSON shape:
+
+```json
+{
+  "schema_version": "1.0",
+  "generated_at": "20260429T120000Z",
+  "summary": {
+    "overall_status": "PASS",
+    "servers_checked": 2,
+    "auto_fixed_count": 1,
+    "critical_error_count": 0
+  },
+  "hosts": [
+    {
+      "inventory_name": "ubuntu01",
+      "hostname": "ubuntu01",
+      "status": "Pass",
+      "kernel": {
+        "running": "6.8.0-60-generic",
+        "latest_installed": "6.8.0-60-generic"
+      },
+      "reboot": {
+        "required": false
+      },
+      "security": {
+        "selinux_status": "not_applicable",
+        "apparmor_status": "enabled",
+        "failed_login_count": 0
+      },
+      "findings": [
+        "RAM status: Healthy"
+      ]
+    }
+  ]
+}
+```
+
 Sample ingestion use cases:
 
 - ship `reports/smart_os_health_report.json` with Filebeat or Fluent Bit into ELK/OpenSearch
