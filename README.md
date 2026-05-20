@@ -123,7 +123,7 @@ ansible_become=true
 
 ## Configuration
 
-You can override these defaults in inventory, `group_vars`, or extra vars:
+The role defaults are intentionally conservative and can be overridden in inventory, `group_vars`, or extra vars:
 
 ```yaml
 smart_os_health_check_output_path: "{{ playbook_dir }}/reports/smart_os_health_report.html"
@@ -160,6 +160,45 @@ smart_os_health_check_generic_webhook_status_code: 200
 ```
 
 Shared overrides for all hosts can be placed in [group_vars/all.yml](group_vars/all.yml). Full role defaults live in [roles/smart_os_health_check/defaults/main.yml](roles/smart_os_health_check/defaults/main.yml).
+
+Current repository override:
+
+```yaml
+smart_os_health_check_generic_webhook_enabled: true
+```
+
+That setting only sends a generic webhook when a URL is also supplied through `smart_os_health_check_generic_webhook_url` or `GENERIC_WEBHOOK_URL` in `.env`. If no URL is present, the webhook task is skipped.
+
+## Notification Examples
+
+Slack through `.env`:
+
+```dotenv
+SLACK_WEBHOOK_URL="https://hooks.slack.com/services/your/team/webhook"
+```
+
+Generic webhook through `.env`:
+
+```dotenv
+GENERIC_WEBHOOK_URL="https://example.com/health-events"
+```
+
+Email through `group_vars/all.yml` plus `.env` SMTP secrets:
+
+```yaml
+smart_os_health_check_email_enabled: true
+smart_os_health_check_email_to:
+  - "ops@example.com"
+smart_os_health_check_email_from: "smart-os-health-check@example.com"
+smart_os_health_check_email_port: 587
+smart_os_health_check_email_secure: "starttls"
+```
+
+```dotenv
+EMAIL_SMTP_HOST="smtp.example.com"
+EMAIL_SMTP_USERNAME="smtp-user"
+EMAIL_SMTP_PASSWORD="smtp-password"
+```
 
 ## Report Retention
 
@@ -430,6 +469,14 @@ ANSIBLE_LOCAL_TEMP=/tmp/ansible-local ANSIBLE_REMOTE_TEMP=/tmp/ansible-remote an
 ansible-playbook -i inventory/hosts.ini smart_os_health_check.yml --syntax-check
 pytest -q
 ```
+
+## Troubleshooting
+
+- If `reports/` is missing, run the playbook once; report files are generated locally and ignored by git.
+- If Slack or generic webhook notifications do not send, confirm the matching webhook URL is set in inventory, `group_vars`, extra vars, or `.env`.
+- If email does not send, confirm `smart_os_health_check_email_enabled: true`, at least one recipient in `smart_os_health_check_email_to`, and valid SMTP settings.
+- If Ansible writes temp-file permission errors, run with writable temp paths, for example `ANSIBLE_LOCAL_TEMP=/tmp/ansible-local ANSIBLE_REMOTE_TEMP=/tmp/ansible-remote`.
+- If tagged runs skip expected output, include `reporting` with your focused tags, for example `--tags discovery,kernel,reporting`.
 
 ## License
 
