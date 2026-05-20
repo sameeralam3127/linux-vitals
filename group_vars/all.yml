@@ -21,7 +21,7 @@
 # smart_os_health_check_email_username: "smtp-user"
 # smart_os_health_check_email_password: "smtp-password"
 # smart_os_health_check_email_subject: "Smart OS Health Check Summary"
-# smart_os_health_check_generic_webhook_enabled: false
+smart_os_health_check_generic_webhook_enabled: true
 # smart_os_health_check_generic_webhook_url: "https://example.com/health-events"
 # smart_os_health_check_generic_webhook_headers:
 #   Authorization: "Bearer example-token"
