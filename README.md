@@ -12,6 +12,8 @@ Automated OS health checks using Ansible:
 - Running service validation for `sssd`, `systemd-journald`, and `chronyd` or `ntp`
 - Network-aware host inventory with hostname and IP address reporting
 - Kernel, reboot, boot-space, rescue image, security-control, and login-failure checks
+- HTML and JSON report generation with optional archive retention
+- Slack, email, and generic webhook notifications for run summaries
 
 ## Features
 
@@ -20,7 +22,10 @@ Automated OS health checks using Ansible:
 - Customizable thresholds using inventory, `group_vars`, or `.env`
 - One-shot self-healing for failed enabled services
 - HTML dashboard export for management-friendly reporting
+- JSON report export for ingestion into observability or automation pipelines
+- Report archive retention for historical run comparison
 - Slack webhook, email, and generic webhook summaries for operational visibility
+- CI validation with playbook syntax checks, Ansible linting, and template tests
 - Detailed host-level findings including:
   - uptime
   - VM vs physical classification
@@ -39,8 +44,10 @@ Many Ansible health-check projects stop at basic CPU, memory, and disk metrics. 
 
 - deep OS posture checks
 - self-healing for enabled failed services
-- HTML dashboard output
-- Slack reporting
+- HTML and JSON reporting
+- report retention
+- Slack, email, and generic webhook notifications
+- automated validation in CI
 
 That makes it closer to an SRE-style operational health framework than a simple check script.
 
@@ -54,7 +61,10 @@ flowchart LR
     C --> E["Result Aggregation"]
     D --> E["Result Aggregation"]
     E --> F["HTML Dashboard<br/>reports/smart_os_health_report.html"]
-    E --> G["Slack Summary<br/>Webhook Notification"]
+    E --> G["JSON Report<br/>reports/smart_os_health_report.json"]
+    F --> H["Archive Retention<br/>timestamped HTML and JSON history"]
+    G --> H
+    E --> I["Notifications<br/>Slack, email, generic webhook"]
 ```
 
 ## Repo Structure
@@ -100,6 +110,7 @@ pip install -r requirements-dev.txt
 ansible-galaxy collection install -r requirements.yml
 cp .env.example .env
 ansible-playbook -i inventory/hosts.ini smart_os_health_check.yml --syntax-check
+pytest -q
 ansible-playbook -i inventory/hosts.ini smart_os_health_check.yml
 ```
 
@@ -442,6 +453,17 @@ Sample ingestion use cases:
 - ship `reports/smart_os_health_report.json` with Filebeat or Fluent Bit into ELK/OpenSearch
 - scrape the JSON artifact from CI or Ansible Automation Platform jobs for downstream automation
 - load the host records into Grafana-compatible observability storage for fleet trend dashboards
+
+## Automation Workflow
+
+Recommended operator workflow:
+
+1. Update inventory and shared overrides in `inventory/hosts.ini` and `group_vars/all.yml`.
+2. Put notification secrets in `.env`, or inject them through your automation platform.
+3. Run `ansible-playbook --syntax-check`, `ansible-lint`, and `pytest -q` before production runs.
+4. Execute the playbook against the fleet.
+5. Review the HTML dashboard for human triage and the JSON report for downstream automation.
+6. Keep archived reports enabled when you need historical evidence for audits or trend analysis.
 
 ---
 
