@@ -1,7 +1,14 @@
 ---
-- name: Load Slack webhook from local .env when present
+- name: Load local .env contents when present
   ansible.builtin.set_fact:
     linux_vitals_dotenv_contents: "{{ lookup('ansible.builtin.file', inventory_dir ~ '/.env', errors='ignore') }}"
+  no_log: true
+  tags:
+    - always
+    - config
+
+- name: Parse notification secrets out of .env contents
+  ansible.builtin.set_fact:
     linux_vitals_dotenv_slack_webhook_url: >-
       {{
         (

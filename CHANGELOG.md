@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-07-12
+
+### Fixed
+
+- **`.env`-based notification config never actually worked.** `linux_vitals_dotenv_slack_webhook_url` (and the four other `linux_vitals_dotenv_*` secrets: generic webhook URL, SMTP host/username/password) referenced `linux_vitals_dotenv_contents` from *within the same `set_fact` call* that defined it -- the same same-task self-reference bug as the 1.0.1 bootloader fix, except here it failed silently (Ansible's `regex_findall` on an Undefined value fell through the `| default('', true)` chain to an empty string) instead of erroring, so it went undetected through every prior test and release. Every channel that relied on `.env` as a fallback (rather than an explicit inventory/`group_vars` value) was silently skipped. Split `vitals_report/tasks/config.yml`'s first task into two sequential tasks. Verified by re-running against the live Multipass fleet: the Slack notification task changed from `skipping` to `ok` and the webhook received an actual HTTP POST.
+
 ## [1.0.1] - 2026-07-12
 
 Fixes found by running `playbooks/baseline.yml` / `playbooks/postcheck.yml` against a real 10-node Ubuntu fleet (Multipass) for the first time -- none of these were reachable from the macOS-only testing available during initial development.
