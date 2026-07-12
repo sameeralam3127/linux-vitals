@@ -1,16 +1,26 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "generated_at": {{ linux_vitals_effective_archive_timestamp | default(now(utc=true, fmt='%Y%m%dT%H%M%SZ')) | to_json }},
   "report": {
     "title": {{ linux_vitals_report_title | to_json }},
     "html_output_path": {{ linux_vitals_output_path | to_json }},
     "json_output_path": {{ linux_vitals_json_output_path | to_json }}
   },
+  "maintenance": {
+    "phase": {{ linux_vitals_phase | to_json }},
+    "maintenance_id": {{ linux_vitals_maintenance_id | to_json }}
+  },
   "summary": {
     "overall_status": {{ ('PASS' if linux_vitals_summary.critical_error_count | int == 0 else 'FAIL') | to_json }},
     "servers_checked": {{ linux_vitals_summary.servers_checked | int }},
     "auto_fixed_count": {{ linux_vitals_summary.auto_fixed_count | int }},
     "critical_error_count": {{ linux_vitals_summary.critical_error_count | int }},
+    "health_score_pct": {{ linux_vitals_summary.health_score_pct | float }},
+    "health_score_band": {{ linux_vitals_summary.health_score_band | to_json }},
+    "comparison_active": {{ linux_vitals_summary.comparison_active | to_json }},
+    "regressed_count": {{ linux_vitals_summary.regressed_count | int }},
+    "improved_count": {{ linux_vitals_summary.improved_count | int }},
+    "new_hosts_count": {{ linux_vitals_summary.new_hosts_count | int }},
     "snippet": {{ linux_vitals_summary.snippet | to_json }}
   },
   "hosts": [
@@ -82,6 +92,8 @@
         "services_healed": {{ result.services_healed | to_json }},
         "healing_results": {{ result.healing_results | to_json }}
       },
+      "asset_serial": {{ result.asset_serial | to_json }},
+      "comparison": {{ result.comparison | to_json }},
       "findings": {{ result.findings | to_json }}
     }{% if not loop.last %},{% endif %}
     {% endfor %}

@@ -62,7 +62,7 @@ def test_templates_render_with_representative_health_data(tmp_path: Path) -> Non
 
     assert "LinuxVitals Test Dashboard" in report
     assert "localhost" in report
-    assert "Bootloader Check: Default boot entry selects the latest installed kernel" in report
+    assert "Default boot entry selects the latest installed kernel" in report
     assert "chronyd.service: Fixed" in report
     assert "Standard Maintenance Summary" in slack
     assert "Overall Status: PASS" in slack
@@ -71,7 +71,10 @@ def test_templates_render_with_representative_health_data(tmp_path: Path) -> Non
     assert generic_webhook["summary"]["overall_status"] == "PASS"
     assert generic_webhook["hosts"][0]["hostname"] == "localhost"
     assert "Standard Maintenance Summary" in generic_webhook["message"]
-    assert json_report["schema_version"] == "1.0"
+    assert json_report["schema_version"] == "1.1"
+    assert json_report["summary"]["health_score_pct"] == 100.0
+    assert json_report["hosts"][0]["asset_serial"] == "TEST-SERIAL-0001"
+    assert json_report["hosts"][0]["comparison"]["baseline_available"] is False
     assert json_report["generated_at"] == "20260429T120000Z"
     assert json_report["summary"]["overall_status"] == "PASS"
     assert json_report["hosts"][0]["kernel"]["running"] == "6.8.0-test"

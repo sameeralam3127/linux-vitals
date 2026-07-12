@@ -1,374 +1,846 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{ linux_vitals_report_title }}</title>
-  <style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ linux_vitals_report_title }}</title>
+<style>
+  :root {
+    --surface: #fcfcfb;
+    --page: #f9f9f7;
+    --ink: #0b0b0b;
+    --ink-secondary: #52514e;
+    --ink-muted: #898781;
+    --line: #e1e0d9;
+    --border: rgba(11, 11, 11, 0.10);
+    --brand: #2a78d6;
+    --good: #0ca30c;
+    --warning: #fab219;
+    --serious: #ec835a;
+    --critical: #d03b3b;
+    --good-wash: rgba(12, 163, 12, 0.12);
+    --warning-wash: rgba(250, 178, 25, 0.18);
+    --serious-wash: rgba(236, 131, 90, 0.18);
+    --critical-wash: rgba(208, 59, 59, 0.12);
+    --muted-wash: rgba(137, 135, 129, 0.14);
+    --shadow: 0 1px 2px rgba(11, 11, 11, 0.05), 0 8px 24px rgba(11, 11, 11, 0.06);
+    --radius: 14px;
+  }
+
+  @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #f3f7fb;
-      --panel: #ffffff;
-      --ink: #14213d;
-      --muted: #5c677d;
-      --line: #d6deeb;
-      --brand: #0b6e99;
-      --ok: #177245;
-      --warn: #b26b00;
-      --crit: #b42318;
-      --shadow: 0 18px 40px rgba(20, 33, 61, 0.12);
+      --surface: #1a1a19;
+      --page: #0d0d0d;
+      --ink: #ffffff;
+      --ink-secondary: #c3c2b7;
+      --ink-muted: #898781;
+      --line: #2c2c2a;
+      --border: rgba(255, 255, 255, 0.10);
+      --brand: #3987e5;
+      --good-wash: rgba(12, 163, 12, 0.20);
+      --warning-wash: rgba(250, 178, 25, 0.22);
+      --serious-wash: rgba(236, 131, 90, 0.22);
+      --critical-wash: rgba(208, 59, 59, 0.24);
+      --muted-wash: rgba(137, 135, 129, 0.18);
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.35);
     }
+  }
 
-    * {
-      box-sizing: border-box;
-    }
+  :root[data-theme="dark"] {
+    --surface: #1a1a19;
+    --page: #0d0d0d;
+    --ink: #ffffff;
+    --ink-secondary: #c3c2b7;
+    --ink-muted: #898781;
+    --line: #2c2c2a;
+    --border: rgba(255, 255, 255, 0.10);
+    --brand: #3987e5;
+    --good-wash: rgba(12, 163, 12, 0.20);
+    --warning-wash: rgba(250, 178, 25, 0.22);
+    --serious-wash: rgba(236, 131, 90, 0.22);
+    --critical-wash: rgba(208, 59, 59, 0.24);
+    --muted-wash: rgba(137, 135, 129, 0.18);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
 
-    body {
-      margin: 0;
-      font-family: "Segoe UI", Tahoma, sans-serif;
-      color: var(--ink);
-      background:
-        radial-gradient(circle at top left, rgba(11, 110, 153, 0.12), transparent 30%),
-        linear-gradient(180deg, #f9fbfd 0%, var(--bg) 100%);
-      padding: 32px 20px 48px;
-    }
+  :root[data-theme="light"] {
+    --surface: #fcfcfb;
+    --page: #f9f9f7;
+    --ink: #0b0b0b;
+    --ink-secondary: #52514e;
+    --ink-muted: #898781;
+    --line: #e1e0d9;
+    --border: rgba(11, 11, 11, 0.10);
+    --brand: #2a78d6;
+    --good-wash: rgba(12, 163, 12, 0.12);
+    --warning-wash: rgba(250, 178, 25, 0.18);
+    --serious-wash: rgba(236, 131, 90, 0.18);
+    --critical-wash: rgba(208, 59, 59, 0.12);
+    --muted-wash: rgba(137, 135, 129, 0.14);
+    --shadow: 0 1px 2px rgba(11, 11, 11, 0.05), 0 8px 24px rgba(11, 11, 11, 0.06);
+  }
 
-    .page {
-      max-width: 1280px;
-      margin: 0 auto;
-    }
+  * { box-sizing: border-box; }
 
-    .hero {
-      background: linear-gradient(135deg, #12324a 0%, #0b6e99 100%);
-      color: #fff;
-      border-radius: 24px;
-      padding: 28px 32px;
-      box-shadow: var(--shadow);
-      margin-bottom: 24px;
-    }
+  html, body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
 
-    .hero h1 {
-      margin: 0 0 8px;
-      font-size: 32px;
-    }
+  body { padding: 24px 20px 56px; }
 
-    .hero p {
-      margin: 0;
-      color: rgba(255, 255, 255, 0.86);
-    }
+  .page { max-width: 1360px; margin: 0 auto; }
 
-    .summary {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 16px;
-      margin-bottom: 24px;
-    }
+  a { color: var(--brand); }
 
-    .card {
-      background: var(--panel);
-      border-radius: 18px;
-      padding: 20px;
-      box-shadow: var(--shadow);
-      border: 1px solid rgba(214, 222, 235, 0.7);
-    }
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+  }
 
-    .card .label {
-      color: var(--muted);
-      font-size: 13px;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      margin-bottom: 8px;
-    }
+  .topbar .brand {
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: 0.02em;
+    color: var(--ink-secondary);
+    text-transform: uppercase;
+  }
 
-    .card .value {
-      font-size: 28px;
-      font-weight: 700;
-    }
+  .icon-btn {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--ink);
+    border-radius: 999px;
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+  }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      background: var(--panel);
-      border-radius: 18px;
-      overflow: hidden;
-      box-shadow: var(--shadow);
-    }
+  .hero {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 24px 28px;
+    box-shadow: var(--shadow);
+    margin-bottom: 20px;
+  }
 
-    th, td {
-      text-align: left;
-      padding: 16px 14px;
-      border-bottom: 1px solid var(--line);
-      vertical-align: top;
-      font-size: 14px;
-    }
+  .hero h1 { margin: 0 0 6px; font-size: 26px; }
 
-    th {
-      background: #eaf2f8;
-      color: #24415a;
-      text-transform: uppercase;
-      font-size: 12px;
-      letter-spacing: 0.08em;
-    }
+  .hero .meta { margin: 0; color: var(--ink-secondary); font-size: 14px; }
 
-    tr:last-child td {
-      border-bottom: none;
-    }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    background: var(--muted-wash);
+    color: var(--ink-secondary);
+    margin-left: 8px;
+  }
 
-    .status-pill {
-      display: inline-block;
-      padding: 6px 10px;
-      border-radius: 999px;
-      font-weight: 700;
-      font-size: 12px;
-    }
+  .hero-actions { display: flex; gap: 8px; flex-shrink: 0; }
 
-    .ok {
-      color: var(--ok);
-      background: rgba(23, 114, 69, 0.12);
-    }
+  .btn {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--ink);
+    border-radius: 10px;
+    padding: 9px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+  }
 
-    .warning {
-      color: var(--warn);
-      background: rgba(178, 107, 0, 0.14);
-    }
+  .btn:hover { border-color: var(--brand); }
 
-    .critical {
-      color: var(--crit);
-      background: rgba(180, 35, 24, 0.12);
-    }
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 14px;
+    margin-bottom: 20px;
+  }
 
-    .muted {
-      color: var(--muted);
-    }
+  .tile {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    box-shadow: var(--shadow);
+  }
 
-    .list {
-      margin: 0;
-      padding-left: 18px;
-    }
+  .tile-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-muted);
+    margin-top: 4px;
+  }
 
-    .details {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 18px;
-      margin-top: 24px;
-    }
+  .tile-value {
+    font-size: 30px;
+    font-weight: 600;
+    line-height: 1.1;
+  }
 
-    .detail-card {
-      background: var(--panel);
-      border-radius: 18px;
-      padding: 20px;
-      box-shadow: var(--shadow);
-      border: 1px solid rgba(214, 222, 235, 0.7);
-    }
+  .tile--good .tile-value { color: var(--good); }
+  .tile--critical .tile-value { color: var(--critical); }
 
-    .detail-card h2 {
-      margin: 0 0 16px;
-      font-size: 18px;
-    }
+  .tile--score {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
 
-    .detail-grid {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 10px;
-    }
+  .ring {
+    --pct: 0;
+    --ring-color: var(--good);
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: conic-gradient(var(--ring-color) calc(var(--pct) * 1%), var(--line) 0);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 
-    .detail-item {
-      border-top: 1px solid var(--line);
-      padding-top: 10px;
-    }
+  .ring::before {
+    content: "";
+    position: absolute;
+  }
 
-    .detail-item strong {
-      display: block;
-      font-size: 12px;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      color: var(--muted);
-      margin-bottom: 4px;
-    }
+  .ring-inner {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+  }
 
-    @media (max-width: 900px) {
-      body {
-        padding: 20px 12px 36px;
-      }
+  .score-text .tile-value { font-size: 22px; }
 
-      .hero {
-        padding: 22px 20px;
-      }
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
 
-      th, td {
-        padding: 12px 10px;
-      }
-    }
-  </style>
+  #search {
+    flex: 1 1 220px;
+    padding: 9px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--ink);
+    font-size: 13px;
+  }
+
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  .chip {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--ink-secondary);
+    border-radius: 999px;
+    padding: 7px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .chip.is-active {
+    background: var(--brand);
+    border-color: var(--brand);
+    color: #ffffff;
+  }
+
+  #visible-count { color: var(--ink-muted); font-size: 12px; margin-left: auto; }
+
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow-x: auto;
+  }
+
+  table { width: 100%; border-collapse: collapse; min-width: 780px; }
+
+  th, td {
+    text-align: left;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+    font-size: 13px;
+  }
+
+  th {
+    color: var(--ink-muted);
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    user-select: none;
+  }
+
+  th:hover { color: var(--ink); }
+
+  th .arrow { opacity: 0.4; margin-left: 3px; }
+  th.is-sorted .arrow { opacity: 1; }
+
+  tbody tr.row:hover { background: var(--muted-wash); }
+
+  tbody tr.row.is-hidden,
+  tbody tr.detail-row.is-hidden { display: none; }
+
+  tr.detail-row td { background: var(--page); padding: 18px 22px; }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+  .pill--good { background: var(--good-wash); }
+  .pill--good .dot { background: var(--good); }
+  .pill--warning { background: var(--warning-wash); }
+  .pill--warning .dot { background: var(--warning); }
+  .pill--serious { background: var(--serious-wash); }
+  .pill--serious .dot { background: var(--serious); }
+  .pill--critical { background: var(--critical-wash); }
+  .pill--critical .dot { background: var(--critical); }
+  .pill--muted { background: var(--muted-wash); }
+  .pill--muted .dot { background: var(--ink-muted); }
+
+  .meter { display: flex; align-items: center; gap: 8px; min-width: 130px; }
+  .meter-track {
+    flex: 1;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--line);
+    overflow: hidden;
+  }
+  .meter-fill { height: 100%; border-radius: 999px; }
+  .meter-fill--good { background: var(--good); }
+  .meter-fill--warning { background: var(--warning); }
+  .meter-fill--critical { background: var(--critical); }
+  .meter-value { font-size: 12px; color: var(--ink-secondary); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+  .host-cell strong { display: block; }
+  .host-cell .muted, .muted { color: var(--ink-secondary); }
+  .subtle { color: var(--ink-muted); font-size: 12px; }
+
+  .expand-btn {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--ink-secondary);
+    border-radius: 8px;
+    width: 28px;
+    height: 28px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+
+  .row.is-expanded .expand-btn { color: var(--brand); border-color: var(--brand); }
+
+  .detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 16px;
+  }
+
+  .detail-item strong {
+    display: block;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    margin-bottom: 4px;
+  }
+
+  .detail-item { font-size: 13px; }
+
+  .list { margin: 4px 0 0; padding-left: 16px; }
+  .list li { margin-bottom: 2px; }
+
+  .footer {
+    text-align: center;
+    color: var(--ink-muted);
+    font-size: 12px;
+    margin-top: 24px;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--ink-muted);
+    display: none;
+  }
+
+  @media (max-width: 720px) {
+    body { padding: 16px 12px 40px; }
+    .hero { padding: 18px 18px; }
+    table { min-width: 640px; }
+  }
+
+  @media print {
+    :root { --surface: #ffffff; --page: #ffffff; --ink: #000000; --ink-secondary: #333333; --ink-muted: #555555; --shadow: none; }
+    body { padding: 0; }
+    .icon-btn, .hero-actions, .toolbar { display: none; }
+    .table-wrap { overflow: visible; border: none; box-shadow: none; }
+    table { min-width: 0; }
+    .tile, .hero, .table-wrap { box-shadow: none; border: 1px solid #ccc; }
+  }
+</style>
 </head>
 <body>
-  <div class="page">
-    <section class="hero">
-      <h1>{{ linux_vitals_report_title }}</h1>
-      <p>Generated on {{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S UTC') }} for {{ linux_vitals_summary.servers_checked }} managed hosts.</p>
-      <p>Maintenance Summary: {{ linux_vitals_summary.snippet }}</p>
-    </section>
+<div class="page">
+  <div class="topbar">
+    <div class="brand">LinuxVitals</div>
+    <button class="icon-btn" id="theme-toggle" type="button" title="Toggle light/dark" aria-label="Toggle light/dark theme">&#9680;</button>
+  </div>
 
-    <section class="summary">
-      <div class="card">
-        <div class="label">Servers Checked</div>
-        <div class="value">{{ linux_vitals_summary.servers_checked }}</div>
-      </div>
-      <div class="card">
-        <div class="label">Auto-Fixed</div>
-        <div class="value">{{ linux_vitals_summary.auto_fixed_count }}</div>
-      </div>
-      <div class="card">
-        <div class="label">Critical Errors</div>
-        <div class="value">{{ linux_vitals_summary.critical_error_count }}</div>
-      </div>
-    </section>
+  <section class="hero">
+    <div>
+      <h1>{{ linux_vitals_report_title }}
+        {% if linux_vitals_phase != 'adhoc' %}
+        <span class="badge">{{ linux_vitals_phase | capitalize }}</span>
+        {% if linux_vitals_maintenance_id %}<span class="badge">ID: {{ linux_vitals_maintenance_id | e }}</span>{% endif %}
+        {% endif %}
+      </h1>
+      <p class="meta">Generated {{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S UTC') }} for {{ linux_vitals_summary.servers_checked }} managed host(s). {{ linux_vitals_summary.snippet }}</p>
+    </div>
+    <div class="hero-actions">
+      <button class="btn" id="expand-all" type="button">Expand all</button>
+      <button class="btn" id="collapse-all" type="button">Collapse all</button>
+      <button class="btn" id="print-btn" type="button">Print / Export PDF</button>
+    </div>
+  </section>
 
-    <table>
+  <section class="kpi-row">
+    {% set band_color = 'good' if linux_vitals_summary.health_score_band == 'Excellent' or linux_vitals_summary.health_score_band == 'Good' else 'warning' if linux_vitals_summary.health_score_band == 'Fair' else 'critical' %}
+    <div class="tile tile--score">
+      <div class="ring" style="--pct: {{ linux_vitals_summary.health_score_pct }}; --ring-color: var(--{{ band_color }});">
+        <div class="ring-inner">{{ linux_vitals_summary.health_score_pct }}%</div>
+      </div>
+      <div class="score-text">
+        <div class="tile-value">{{ linux_vitals_summary.health_score_band }}</div>
+        <div class="tile-label">Health score</div>
+      </div>
+    </div>
+    <div class="tile">
+      <div class="tile-value">{{ linux_vitals_summary.servers_checked }}</div>
+      <div class="tile-label">Servers checked</div>
+    </div>
+    <div class="tile tile--good">
+      <div class="tile-value">{{ linux_vitals_summary.servers_checked | int - linux_vitals_summary.critical_error_count | int }}</div>
+      <div class="tile-label">Passing</div>
+    </div>
+    <div class="tile tile--critical">
+      <div class="tile-value">{{ linux_vitals_summary.critical_error_count }}</div>
+      <div class="tile-label">Failing</div>
+    </div>
+    <div class="tile">
+      <div class="tile-value">{{ linux_vitals_summary.auto_fixed_count }}</div>
+      <div class="tile-label">Auto-fixed</div>
+    </div>
+    {% if linux_vitals_summary.comparison_active %}
+    <div class="tile tile--good">
+      <div class="tile-value">{{ linux_vitals_summary.improved_count }}</div>
+      <div class="tile-label">Improved</div>
+    </div>
+    <div class="tile tile--critical">
+      <div class="tile-value">{{ linux_vitals_summary.regressed_count }}</div>
+      <div class="tile-label">Regressed</div>
+    </div>
+    <div class="tile">
+      <div class="tile-value">{{ linux_vitals_summary.new_hosts_count }}</div>
+      <div class="tile-label">New hosts</div>
+    </div>
+    {% endif %}
+  </section>
+
+  <section class="toolbar">
+    <input id="search" type="search" placeholder="Search hostname, IP, OS, serial...">
+    <div class="chips" data-filter-group="status">
+      <button class="chip is-active" data-value="all" type="button">All statuses</button>
+      <button class="chip" data-value="Pass" type="button">Pass</button>
+      <button class="chip" data-value="Fail" type="button">Fail</button>
+    </div>
+    {% if linux_vitals_summary.comparison_active %}
+    <div class="chips" data-filter-group="comparison">
+      <button class="chip is-active" data-value="all" type="button">All changes</button>
+      <button class="chip" data-value="regressed" type="button">Regressed</button>
+      <button class="chip" data-value="improved" type="button">Improved</button>
+      <button class="chip" data-value="new" type="button">New</button>
+    </div>
+    {% endif %}
+    <span id="visible-count"></span>
+  </section>
+
+  <section class="table-wrap">
+    <table id="host-table">
       <thead>
         <tr>
-          <th>Hostname</th>
-          <th>OS</th>
-          <th>RAM Status</th>
-          <th>Log Errors</th>
-          <th>Services Healed</th>
-          <th>Final Status</th>
+          <th data-sort="status">Status <span class="arrow">&#8645;</span></th>
+          <th data-sort="hostname">Host <span class="arrow">&#8645;</span></th>
+          <th data-sort="os">OS <span class="arrow">&#8645;</span></th>
+          <th data-sort="ram">RAM <span class="arrow">&#8645;</span></th>
+          <th data-sort="kernel">Kernel <span class="arrow">&#8645;</span></th>
+          <th data-sort="reboot">Reboot <span class="arrow">&#8645;</span></th>
+          <th data-sort="boot">Boot space <span class="arrow">&#8645;</span></th>
+          <th data-sort="logins">Failed logins <span class="arrow">&#8645;</span></th>
+          {% if linux_vitals_summary.comparison_active %}<th data-sort="comparison">Change <span class="arrow">&#8645;</span></th>{% endif %}
+          <th></th>
         </tr>
       </thead>
       <tbody>
         {% for host in linux_vitals_reporting_hosts | default(ansible_play_hosts_all) %}
         {% set result = hostvars[host]['linux_vitals_result'] %}
-        <tr>
+        {% set row_id = 'detail-' ~ loop.index %}
+        {% set status_class = 'good' if result.final_status == 'Pass' else 'critical' %}
+        {% set ram_class = 'good' if result.ram_status == 'OK' else 'warning' if result.ram_status == 'Warning' else 'critical' %}
+        {% set boot_class = 'good' if result.boot_space_status == 'Healthy' else 'warning' if result.boot_space_status == 'Low' else 'muted' %}
+        {% set cmp = result.comparison %}
+        {% set cmp_key = 'new' if not cmp.baseline_available else 'regressed' if cmp.status_regressed else 'improved' if cmp.status_improved else 'unchanged' %}
+        <tr class="row"
+            id="host-{{ result.hostname | e }}"
+            data-status="{{ result.final_status }}"
+            data-comparison="{{ cmp_key }}"
+            data-search="{{ (result.hostname ~ ' ' ~ result.ip_address ~ ' ' ~ result.os ~ ' ' ~ result.os_family ~ ' ' ~ result.asset_serial) | lower | e }}"
+            data-sort-status="{{ 0 if result.final_status == 'Fail' else 1 }}"
+            data-sort-hostname="{{ result.hostname | lower | e }}"
+            data-sort-os="{{ result.os | lower | e }}"
+            data-sort-ram="{{ result.ram_used_pct }}"
+            data-sort-kernel="{{ 0 if not result.latest_kernel_selected else 1 }}"
+            data-sort-reboot="{{ 0 if result.reboot_required else 1 }}"
+            data-sort-boot="{{ result.boot_free_pct }}"
+            data-sort-logins="{{ result.failed_login_count }}"
+            data-sort-comparison="{{ 0 if cmp_key == 'regressed' else 1 if cmp_key == 'new' else 2 if cmp_key == 'unchanged' else 3 }}">
           <td>
-            <strong>{{ result.hostname | e }}</strong><br>
-            <span class="muted">{{ result.ip_address | e }}</span><br>
-            <span class="muted">{{ result.os_family | e }} / {{ result.package_manager | e }}</span>
+            <span class="pill pill--{{ status_class }}"><span class="dot"></span>{{ result.final_status }}</span>
           </td>
-          <td>{{ result.os | e }}</td>
-          <td>
-            {% set ram_class = 'ok' if result.ram_status == 'OK' else 'warning' if result.ram_status == 'Warning' else 'critical' %}
-            <span class="status-pill {{ ram_class }}">{{ result.ram_status }}</span><br>
-            <span class="muted">{{ result.ram_used_pct }}% used ({{ result.ram_used_mb }} MB / {{ result.ram_total_mb }} MB)</span>
+          <td class="host-cell">
+            <strong>{{ result.hostname | e }}</strong>
+            <span class="muted">{{ result.ip_address | e }}</span>
           </td>
           <td>
-            {% if result.log_errors | int > 0 %}
-            <span class="status-pill critical">{{ result.log_errors }} hit(s)</span>
-            {% if result.log_excerpt %}
-            <ul class="list">
-              {% for line in result.log_excerpt %}
-              <li>{{ line | e }}</li>
-              {% endfor %}
-            </ul>
-            {% endif %}
+            {{ result.os | e }}
+            <div class="subtle">{{ result.platform_type | e }}</div>
+          </td>
+          <td>
+            <div class="meter">
+              <div class="meter-track"><div class="meter-fill meter-fill--{{ ram_class }}" style="width: {{ result.ram_used_pct }}%;"></div></div>
+              <span class="meter-value">{{ result.ram_used_pct }}%</span>
+            </div>
+          </td>
+          <td>
+            {% if result.latest_kernel_selected %}
+            <span class="pill pill--good"><span class="dot"></span>Current</span>
             {% else %}
-            <span class="status-pill ok">No recent errors</span>
+            <span class="pill pill--warning"><span class="dot"></span>Outdated</span>
             {% endif %}
           </td>
           <td>
-            {% if result.healing_results %}
-            <ul class="list">
-              {% for service in result.healing_results %}
-              <li>{{ service.service | e }}: {{ service.result | e }}</li>
-              {% endfor %}
-            </ul>
+            {% if result.reboot_required %}
+            <span class="pill pill--warning"><span class="dot"></span>Required</span>
             {% else %}
-            <span class="muted">No healing actions required</span>
+            <span class="pill pill--good"><span class="dot"></span>No</span>
             {% endif %}
           </td>
           <td>
-            {% set final_class = 'ok' if result.final_status == 'Pass' else 'critical' %}
-            <span class="status-pill {{ final_class }}">{{ result.final_status }}</span>
-            {% if result.findings %}
-            <ul class="list">
-              {% for finding in result.findings %}
-              <li>{{ finding | e }}</li>
-              {% endfor %}
-            </ul>
+            <span class="pill pill--{{ boot_class }}"><span class="dot"></span>{{ result.boot_space_status | e }}</span>
+            <div class="subtle">{{ result.boot_free_pct }}% free</div>
+          </td>
+          <td>{{ result.failed_login_count }}</td>
+          {% if linux_vitals_summary.comparison_active %}
+          <td>
+            {% if not cmp.baseline_available %}
+            <span class="pill pill--muted"><span class="dot"></span>New</span>
+            {% elif cmp.status_regressed %}
+            <span class="pill pill--critical"><span class="dot"></span>Regressed</span>
+            {% elif cmp.status_improved %}
+            <span class="pill pill--good"><span class="dot"></span>Improved</span>
+            {% else %}
+            <span class="pill pill--muted"><span class="dot"></span>Unchanged</span>
             {% endif %}
+          </td>
+          {% endif %}
+          <td><button class="expand-btn" type="button" data-target="{{ row_id }}" aria-expanded="false">&#9662;</button></td>
+        </tr>
+        <tr class="detail-row is-hidden" id="{{ row_id }}">
+          <td colspan="{{ 10 if linux_vitals_summary.comparison_active else 9 }}">
+            <div class="detail-grid">
+              <div class="detail-item">
+                <strong>Identity</strong>
+                <span>OS family: {{ result.os_family | e }}</span><br>
+                <span>Package manager: {{ result.package_manager | e }}</span><br>
+                <span>Log source: {{ result.log_source | e }}</span><br>
+                <span>Virtualization: {{ result.virtualization_type | e }}</span><br>
+                <span>Serial: {{ result.asset_serial | e }}</span>
+              </div>
+              <div class="detail-item">
+                <strong>Uptime &amp; boot</strong>
+                <span>Uptime: {{ result.uptime | e }}</span><br>
+                <span>Last reboot: {{ result.last_reboot | e }}</span><br>
+                <span>Reboot required: {{ 'Yes' if result.reboot_required else 'No' }}</span>
+              </div>
+              <div class="detail-item">
+                <strong>Kernel &amp; bootloader</strong>
+                <span>Running: {{ result.running_kernel | e }}</span><br>
+                <span>Latest installed: {{ result.latest_installed_kernel | e }}</span><br>
+                <span>Installed: {{ result.latest_kernel_updated_at | e }}</span><br>
+                <span>{{ result.bootloader_validation_message | e }}</span><br>
+                <span>Default entry ({{ result.bootloader_default_source | e }}): {{ (result.bootloader_default_entry if result.bootloader_default_entry else 'Not available') | e }}</span>
+              </div>
+              <div class="detail-item">
+                <strong>Security controls</strong>
+                <span>SELinux: {{ result.selinux_status | e }}</span><br>
+                <span>AppArmor: {{ result.apparmor_status | e }}</span><br>
+                <span>Failed logins: {{ result.failed_login_count }}</span><br>
+                <span>Last failed login: {{ result.last_failed_login | e }}</span>
+              </div>
+              <div class="detail-item">
+                <strong>Boot partition</strong>
+                <span>Mount: {{ result.boot_mount | e }}</span><br>
+                <span>Free: {{ result.boot_free_mb }} MB / {{ result.boot_total_mb }} MB ({{ result.boot_free_pct }}%)</span><br>
+                <span>Rescue image: {{ 'Available' if result.rescue_image_available else 'Not available' }}</span>
+                {% if result.rescue_image_paths %}
+                <ul class="list">{% for item in result.rescue_image_paths %}<li>{{ item | e }}</li>{% endfor %}</ul>
+                {% endif %}
+              </div>
+              <div class="detail-item">
+                <strong>Recent log errors ({{ result.log_errors }})</strong>
+                {% if result.log_excerpt %}
+                <ul class="list">{% for line in result.log_excerpt %}<li>{{ line | e }}</li>{% endfor %}</ul>
+                {% else %}
+                <span class="muted">None in the scan window.</span>
+                {% endif %}
+              </div>
+              <div class="detail-item">
+                <strong>Kernel/bootloader failures ({{ result.kernel_install_failures }})</strong>
+                {% if result.kernel_install_failure_excerpt %}
+                <ul class="list">{% for item in result.kernel_install_failure_excerpt %}<li>{{ item | e }}</li>{% endfor %}</ul>
+                {% else %}
+                <span class="muted">None in the audit window.</span>
+                {% endif %}
+              </div>
+              <div class="detail-item">
+                <strong>Self-healing</strong>
+                {% if result.healing_results %}
+                <ul class="list">{% for service in result.healing_results %}<li>{{ service.service | e }}: {{ service.result | e }}</li>{% endfor %}</ul>
+                {% else %}
+                <span class="muted">No healing actions taken this run.</span>
+                {% endif %}
+              </div>
+              <div class="detail-item">
+                <strong>Findings ({{ result.findings | length }})</strong>
+                {% if result.findings %}
+                <ul class="list">{% for finding in result.findings %}<li>{{ finding | e }}</li>{% endfor %}</ul>
+                {% else %}
+                <span class="muted">No findings -- all checks passed.</span>
+                {% endif %}
+              </div>
+              {% if linux_vitals_summary.comparison_active and cmp.baseline_available %}
+              <div class="detail-item">
+                <strong>Change vs. baseline</strong>
+                <span>Status: {{ cmp.status_before | e }} &#8594; {{ cmp.status_after | e }}</span><br>
+                <span>RAM: {{ cmp.ram_used_pct_before }}% &#8594; {{ cmp.ram_used_pct_after }}% ({{ '+' if cmp.ram_used_pct_delta | float >= 0 else '' }}{{ cmp.ram_used_pct_delta }} pts)</span><br>
+                <span>Kernel: {{ cmp.running_kernel_before | e }} &#8594; {{ cmp.running_kernel_after | e }}</span><br>
+                <span>Reboot required: {{ 'Yes' if cmp.reboot_required_before else 'No' }} &#8594; {{ 'Yes' if cmp.reboot_required_after else 'No' }}</span>
+                {% if cmp.new_findings %}
+                <br><strong style="margin-top:8px;">New findings</strong>
+                <ul class="list">{% for finding in cmp.new_findings %}<li>{{ finding | e }}</li>{% endfor %}</ul>
+                {% endif %}
+                {% if cmp.resolved_findings %}
+                <strong style="margin-top:8px;">Resolved findings</strong>
+                <ul class="list">{% for finding in cmp.resolved_findings %}<li>{{ finding | e }}</li>{% endfor %}</ul>
+                {% endif %}
+              </div>
+              {% elif linux_vitals_summary.comparison_active %}
+              <div class="detail-item">
+                <strong>Change vs. baseline</strong>
+                <span class="muted">No baseline snapshot found for this host under this maintenance id.</span>
+              </div>
+              {% endif %}
+            </div>
           </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
+    <div class="empty-state" id="empty-state">No hosts match the current filters.</div>
+  </section>
 
-    <section class="details">
-      {% for host in linux_vitals_reporting_hosts | default(ansible_play_hosts_all) %}
-      {% set result = hostvars[host]['linux_vitals_result'] %}
-      <article class="detail-card">
-        <h2>{{ result.hostname | e }}</h2>
-        <div class="detail-grid">
-          <div class="detail-item">
-            <strong>IP Address</strong>
-            <span>{{ result.ip_address | e }}</span>
-          </div>
-          <div class="detail-item">
-            <strong>Platform</strong>
-            <span>{{ result.platform_type | e }} / {{ result.virtualization_type | e }}</span>
-          </div>
-          <div class="detail-item">
-            <strong>Uptime</strong>
-            <span>{{ result.uptime | e }}</span>
-          </div>
-          <div class="detail-item">
-            <strong>Last Reboot</strong>
-            <span>{{ result.last_reboot | e }}</span>
-          </div>
-          <div class="detail-item">
-            <strong>Kernel</strong>
-            <span>Running: {{ result.running_kernel | e }}</span><br>
-            <span>Latest Installed: {{ result.latest_installed_kernel | e }}</span><br>
-            <span>Updated: {{ result.latest_kernel_updated_at | e }}</span><br>
-            <span>Latest Selected: {{ 'Yes' if result.latest_kernel_selected else 'No' }}</span><br>
-            <span>Bootloader Check: {{ result.bootloader_validation_message | e }}</span><br>
-            <span>Bootloader Source: {{ result.bootloader_default_source | e }}</span><br>
-            <span>Default Entry: {{ (result.bootloader_default_entry if result.bootloader_default_entry else 'Not Available') | e }}</span><br>
-            <span>Default Kernel: {{ (result.bootloader_default_kernel if result.bootloader_default_kernel else 'Not Resolved') | e }}</span>
-          </div>
-          <div class="detail-item">
-            <strong>Reboot Requirement</strong>
-            <span>{{ 'Required' if result.reboot_required else 'Not Required' }}</span>
-          </div>
-          <div class="detail-item">
-            <strong>Security Controls</strong>
-            <span>SELinux: {{ result.selinux_status | e }}</span><br>
-            <span>AppArmor: {{ result.apparmor_status | e }}</span>
-          </div>
-          <div class="detail-item">
-            <strong>Boot Space</strong>
-            <span>Mount: {{ result.boot_mount | e }}</span><br>
-            <span>Status: {{ result.boot_space_status | e }}</span><br>
-            <span>Free: {{ result.boot_free_mb }} MB / {{ result.boot_total_mb }} MB ({{ result.boot_free_pct }}%)</span>
-          </div>
-          <div class="detail-item">
-            <strong>Rescue Image</strong>
-            <span>{{ 'Available' if result.rescue_image_available else 'Not Available' }}</span>
-            {% if result.rescue_image_paths %}
-            <ul class="list">
-              {% for item in result.rescue_image_paths %}
-              <li>{{ item | e }}</li>
-              {% endfor %}
-            </ul>
-            {% endif %}
-          </div>
-          <div class="detail-item">
-            <strong>Failed Logins</strong>
-            <span>Count: {{ result.failed_login_count }}</span><br>
-            <span>Last Seen: {{ result.last_failed_login | e }}</span>
-          </div>
-          <div class="detail-item">
-            <strong>Kernel Install Failures</strong>
-            <span>{{ result.kernel_install_failures }}</span>
-            {% if result.kernel_install_failure_excerpt %}
-            <ul class="list">
-              {% for item in result.kernel_install_failure_excerpt %}
-              <li>{{ item | e }}</li>
-              {% endfor %}
-            </ul>
-            {% endif %}
-          </div>
-        </div>
-      </article>
-      {% endfor %}
-    </section>
-  </div>
+  <p class="footer">Generated by LinuxVitals (sameeralam3127.linux_vitals) &middot; JSON report available alongside this file for automation and historical drilldown.</p>
+</div>
+<script>
+(function () {
+  "use strict";
+
+  var root = document.documentElement;
+  var THEME_KEY = "linux-vitals-theme";
+
+  function applyStoredTheme() {
+    var stored = null;
+    try { stored = window.localStorage.getItem(THEME_KEY); } catch (e) { /* storage unavailable */ }
+    if (stored === "light" || stored === "dark") {
+      root.setAttribute("data-theme", stored);
+    }
+  }
+
+  function toggleTheme() {
+    var current = root.getAttribute("data-theme");
+    var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    var effectiveDark = current ? current === "dark" : prefersDark;
+    var next = effectiveDark ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    try { window.localStorage.setItem(THEME_KEY, next); } catch (e) { /* storage unavailable */ }
+  }
+
+  applyStoredTheme();
+  var themeBtn = document.getElementById("theme-toggle");
+  if (themeBtn) { themeBtn.addEventListener("click", toggleTheme); }
+
+  var table = document.getElementById("host-table");
+  if (!table) { return; }
+  var tbody = table.querySelector("tbody");
+  var rows = Array.prototype.slice.call(tbody.querySelectorAll("tr.row"));
+  var searchInput = document.getElementById("search");
+  var visibleCountEl = document.getElementById("visible-count");
+  var emptyState = document.getElementById("empty-state");
+  var activeFilters = {};
+
+  function detailRowFor(row) {
+    var next = row.nextElementSibling;
+    return (next && next.classList.contains("detail-row")) ? next : null;
+  }
+
+  function applyFilters() {
+    var query = (searchInput && searchInput.value || "").trim().toLowerCase();
+    var visible = 0;
+    rows.forEach(function (row) {
+      var matchesSearch = !query || (row.getAttribute("data-search") || "").indexOf(query) !== -1;
+      var matchesFilters = Object.keys(activeFilters).every(function (group) {
+        var wanted = activeFilters[group];
+        return wanted === "all" || row.getAttribute("data-" + group) === wanted;
+      });
+      var show = matchesSearch && matchesFilters;
+      row.classList.toggle("is-hidden", !show);
+      var detail = detailRowFor(row);
+      if (detail && !show) { detail.classList.add("is-hidden"); }
+      if (show) { visible += 1; }
+    });
+    if (visibleCountEl) { visibleCountEl.textContent = visible + " of " + rows.length + " host(s)"; }
+    if (emptyState) { emptyState.style.display = visible === 0 ? "block" : "none"; }
+  }
+
+  if (searchInput) { searchInput.addEventListener("input", applyFilters); }
+
+  Array.prototype.slice.call(document.querySelectorAll(".chips")).forEach(function (group) {
+    var name = group.getAttribute("data-filter-group");
+    var chips = Array.prototype.slice.call(group.querySelectorAll(".chip"));
+    chips.forEach(function (chip) {
+      chip.addEventListener("click", function () {
+        chips.forEach(function (c) { c.classList.remove("is-active"); });
+        chip.classList.add("is-active");
+        activeFilters[name] = chip.getAttribute("data-value");
+        applyFilters();
+      });
+    });
+  });
+
+  function setExpanded(row, expand) {
+    var detail = detailRowFor(row);
+    if (!detail) { return; }
+    detail.classList.toggle("is-hidden", !expand);
+    row.classList.toggle("is-expanded", expand);
+    var btn = row.querySelector(".expand-btn");
+    if (btn) { btn.setAttribute("aria-expanded", expand ? "true" : "false"); }
+  }
+
+  tbody.addEventListener("click", function (event) {
+    var btn = event.target.closest ? event.target.closest(".expand-btn") : null;
+    if (!btn) { return; }
+    var row = btn.closest("tr.row");
+    if (!row) { return; }
+    setExpanded(row, !row.classList.contains("is-expanded"));
+  });
+
+  var expandAllBtn = document.getElementById("expand-all");
+  var collapseAllBtn = document.getElementById("collapse-all");
+  if (expandAllBtn) { expandAllBtn.addEventListener("click", function () { rows.forEach(function (r) { setExpanded(r, true); }); }); }
+  if (collapseAllBtn) { collapseAllBtn.addEventListener("click", function () { rows.forEach(function (r) { setExpanded(r, false); }); }); }
+
+  var printBtn = document.getElementById("print-btn");
+  if (printBtn) { printBtn.addEventListener("click", function () { window.print(); }); }
+
+  var sortState = { key: null, dir: 1 };
+  Array.prototype.slice.call(table.querySelectorAll("th[data-sort]")).forEach(function (th) {
+    th.addEventListener("click", function () {
+      var key = th.getAttribute("data-sort");
+      sortState.dir = (sortState.key === key) ? -sortState.dir : 1;
+      sortState.key = key;
+
+      Array.prototype.slice.call(table.querySelectorAll("th[data-sort]")).forEach(function (h) { h.classList.remove("is-sorted"); });
+      th.classList.add("is-sorted");
+
+      var pairs = rows.map(function (row) { return [row, detailRowFor(row)]; });
+      pairs.sort(function (a, b) {
+        var av = a[0].getAttribute("data-sort-" + key) || "";
+        var bv = b[0].getAttribute("data-sort-" + key) || "";
+        var an = parseFloat(av);
+        var bn = parseFloat(bv);
+        var cmp;
+        if (!isNaN(an) && !isNaN(bn)) {
+          cmp = an - bn;
+        } else {
+          cmp = av < bv ? -1 : (av > bv ? 1 : 0);
+        }
+        return cmp * sortState.dir;
+      });
+
+      pairs.forEach(function (pair) {
+        tbody.appendChild(pair[0]);
+        if (pair[1]) { tbody.appendChild(pair[1]); }
+      });
+      rows = pairs.map(function (pair) { return pair[0]; });
+    });
+  });
+
+  applyFilters();
+})();
+</script>
 </body>
 </html>
