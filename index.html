@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LinuxVitals — Continuous vitals for your Linux fleet</title>
+<meta name="description" content="LinuxVitals is an agentless Ansible collection that scans, heals, and reports on Linux fleets — with a baseline/postcheck comparison built for real maintenance windows, and a self-contained HTML dashboard.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A9%BA%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #090d0c;
+    --bg-alt: #0d1312;
+    --surface: #101a18;
+    --surface-2: #142120;
+    --line: #1e2e2b;
+    --ink: #eef4f2;
+    --ink-2: #9fb5ae;
+    --ink-3: #6c827b;
+    --accent: #2fe3c4;
+    --accent-dim: #1c8f7c;
+    --accent-wash: rgba(47, 227, 196, 0.12);
+    --good: #22c55e;
+    --warning: #fbbf24;
+    --critical: #f87171;
+    --good-wash: rgba(34, 197, 94, 0.14);
+    --warning-wash: rgba(251, 191, 36, 0.14);
+    --critical-wash: rgba(248, 113, 113, 0.14);
+    --shadow: 0 1px 0 rgba(255,255,255,0.03) inset, 0 20px 60px rgba(0,0,0,0.45);
+    --radius: 16px;
+    --font-display: "Bricolage Grotesque", system-ui, sans-serif;
+    --font-body: "Inter", system-ui, -apple-system, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    background-image:
+      radial-gradient(ellipse 900px 500px at 15% -10%, rgba(47,227,196,0.10), transparent 60%),
+      radial-gradient(ellipse 700px 500px at 100% 10%, rgba(47,227,196,0.06), transparent 55%);
+    color: var(--ink);
+    font-family: var(--font-body);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: inherit; }
+
+  ::selection { background: var(--accent); color: #06231e; }
+
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+
+  h1, h2, h3 { font-family: var(--font-display); font-weight: 700; letter-spacing: -0.02em; text-wrap: balance; margin: 0; }
+
+  code, .mono { font-family: var(--font-mono); }
+
+  /* ---------- Nav ---------- */
+  .nav {
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 24px;
+    background: rgba(9, 13, 12, 0.72);
+    backdrop-filter: blur(14px) saturate(140%);
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.25s ease, background 0.25s ease;
+  }
+  .nav.is-scrolled { border-bottom-color: var(--line); background: rgba(9, 13, 12, 0.92); }
+  .nav-inner { max-width: 1180px; margin: 0 auto; width: 100%; display: flex; align-items: center; justify-content: space-between; }
+
+  .brand { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-weight: 700; font-size: 17px; text-decoration: none; }
+  .brand-mark { width: 26px; height: 26px; flex-shrink: 0; }
+
+  .nav-links { display: flex; align-items: center; gap: 28px; }
+  .nav-links a { font-size: 14px; color: var(--ink-2); text-decoration: none; transition: color 0.15s ease; }
+  .nav-links a:hover { color: var(--ink); }
+  .nav-cta {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--accent); color: #06231e; font-weight: 600; font-size: 13.5px;
+    padding: 9px 16px; border-radius: 999px; text-decoration: none;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .nav-cta:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(47,227,196,0.28); }
+
+  @media (max-width: 780px) { .nav-links > a:not(.nav-cta) { display: none; } }
+
+  /* ---------- Hero ---------- */
+  .hero { position: relative; padding: 96px 0 60px; overflow: hidden; }
+  .hero-pulse { position: absolute; inset: auto 0 -20px 0; height: 220px; opacity: 0.55; pointer-events: none; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--font-mono); font-size: 12.5px; color: var(--accent);
+    background: var(--accent-wash); border: 1px solid rgba(47,227,196,0.25);
+    padding: 6px 12px; border-radius: 999px; margin-bottom: 24px;
+  }
+  .eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
+
+  .hero h1 { font-size: clamp(38px, 5.4vw, 68px); line-height: 1.04; max-width: 850px; }
+  .hero h1 em { font-style: normal; color: var(--accent); }
+  .hero p.lede { font-size: 19px; color: var(--ink-2); max-width: 620px; margin: 24px 0 36px; }
+
+  .hero-actions { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 9px;
+    padding: 13px 22px; border-radius: 12px; font-weight: 600; font-size: 15px;
+    text-decoration: none; border: 1px solid transparent; cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  }
+  .btn-primary { background: var(--accent); color: #06231e; }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 10px 28px rgba(47,227,196,0.3); }
+  .btn-ghost { background: var(--surface); color: var(--ink); border-color: var(--line); }
+  .btn-ghost:hover { border-color: var(--accent-dim); }
+
+  .install-snippet {
+    margin-top: 40px; display: inline-flex; align-items: center; gap: 14px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px 16px 14px 18px; font-family: var(--font-mono); font-size: 14px; color: var(--ink-2);
+  }
+  .install-snippet .prompt { color: var(--accent); }
+  .install-snippet code { color: var(--ink); }
+  .copy-btn {
+    background: var(--surface-2); border: 1px solid var(--line); color: var(--ink-2);
+    border-radius: 8px; padding: 7px 10px; font-size: 12px; cursor: pointer; font-family: var(--font-body);
+    transition: color 0.15s ease, border-color 0.15s ease;
+  }
+  .copy-btn:hover { color: var(--ink); border-color: var(--accent-dim); }
+
+  /* ---------- Stat strip ---------- */
+  .stat-strip {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+    background: var(--line); border: 1px solid var(--line); border-radius: var(--radius);
+    overflow: hidden; margin-top: 72px;
+  }
+  .stat-strip .stat { background: var(--surface); padding: 26px 24px; }
+  .stat .stat-value { font-family: var(--font-mono); font-size: 30px; font-weight: 600; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .stat .stat-label { font-size: 13px; color: var(--ink-2); margin-top: 6px; }
+  @media (max-width: 700px) { .stat-strip { grid-template-columns: repeat(2, 1fr); } }
+
+  /* ---------- Section shell ---------- */
+  section { padding: 108px 0; }
+  .section-head { max-width: 640px; margin-bottom: 56px; }
+  .section-tag { font-family: var(--font-mono); font-size: 12.5px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em; }
+  .section-head h2 { font-size: clamp(28px, 3.6vw, 42px); margin-top: 12px; }
+  .section-head p { color: var(--ink-2); font-size: 16.5px; margin-top: 14px; }
+
+  .reveal { opacity: 0; transform: translateY(18px); transition: opacity 0.6s ease, transform 0.6s ease; }
+  .reveal.is-visible { opacity: 1; transform: none; }
+
+  /* ---------- Features ---------- */
+  .feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  @media (max-width: 940px) { .feature-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 640px) { .feature-grid { grid-template-columns: 1fr; } }
+
+  .feature-card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 28px; transition: border-color 0.2s ease, transform 0.2s ease;
+  }
+  .feature-card:hover { border-color: var(--accent-dim); transform: translateY(-3px); }
+  .feature-icon {
+    width: 40px; height: 40px; border-radius: 10px; background: var(--accent-wash);
+    display: flex; align-items: center; justify-content: center; margin-bottom: 18px; color: var(--accent);
+  }
+  .feature-card h3 { font-size: 17.5px; margin-bottom: 10px; }
+  .feature-card p { font-size: 14.5px; color: var(--ink-2); margin: 0; }
+  .feature-card .tag { display: inline-block; margin-top: 14px; font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-3); background: var(--surface-2); padding: 4px 9px; border-radius: 6px; }
+
+  /* ---------- Demo section ---------- */
+  .browser-frame {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    overflow: hidden; box-shadow: var(--shadow);
+  }
+  .browser-chrome {
+    display: flex; align-items: center; gap: 14px;
+    padding: 12px 16px; background: var(--surface-2); border-bottom: 1px solid var(--line);
+  }
+  .browser-dots { display: flex; gap: 6px; }
+  .browser-dots span { width: 10px; height: 10px; border-radius: 50%; background: var(--line); }
+  .browser-url {
+    flex: 1; font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-3);
+    background: var(--bg); border: 1px solid var(--line); border-radius: 7px; padding: 6px 12px;
+  }
+  .browser-open { font-size: 12.5px; color: var(--accent); text-decoration: none; white-space: nowrap; font-weight: 600; }
+  .demo-frame-wrap { height: 760px; background: #fcfcfb; }
+  .demo-frame-wrap iframe { width: 100%; height: 100%; border: 0; display: block; }
+
+  .demo-callouts { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+  .callout-pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 13px; color: var(--ink-2); background: var(--surface); border: 1px solid var(--line);
+    padding: 8px 14px; border-radius: 999px;
+  }
+  .callout-pill .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .callout-pill .dot.good { background: var(--good); }
+  .callout-pill .dot.warn { background: var(--warning); }
+  .callout-pill .dot.crit { background: var(--critical); }
+  .callout-pill .dot.accent { background: var(--accent); }
+
+  /* ---------- Workflow ---------- */
+  .workflow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; position: relative; }
+  @media (max-width: 820px) { .workflow { grid-template-columns: 1fr; gap: 20px; } }
+  .workflow-step { position: relative; padding: 0 28px 0 0; }
+  .workflow-step:last-child { padding-right: 0; }
+  .workflow-num { font-family: var(--font-mono); color: var(--accent); font-size: 13px; margin-bottom: 14px; }
+  .workflow-step h3 { font-size: 18px; margin-bottom: 10px; }
+  .workflow-step p { color: var(--ink-2); font-size: 14.5px; }
+  .workflow-step code { background: var(--surface-2); border: 1px solid var(--line); padding: 2px 7px; border-radius: 6px; font-size: 12.5px; color: var(--accent); }
+  .workflow-arrow { position: absolute; right: 4px; top: 6px; color: var(--ink-3); font-size: 20px; }
+  @media (max-width: 820px) { .workflow-arrow { display: none; } }
+
+  /* ---------- Roadmap ---------- */
+  .roadmap-note {
+    font-size: 13.5px; color: var(--ink-3); border-left: 2px solid var(--accent-dim);
+    padding-left: 14px; margin-bottom: 40px; max-width: 560px;
+  }
+  .roadmap-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  @media (max-width: 780px) { .roadmap-grid { grid-template-columns: 1fr; } }
+  .roadmap-card {
+    display: flex; gap: 16px; background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 22px 24px;
+  }
+  .roadmap-status {
+    flex-shrink: 0; font-family: var(--font-mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em;
+    padding: 4px 9px; border-radius: 6px; height: fit-content; white-space: nowrap;
+  }
+  .roadmap-status.exploring { background: var(--accent-wash); color: var(--accent); }
+  .roadmap-status.planned { background: var(--warning-wash); color: var(--warning); }
+  .roadmap-card h3 { font-size: 15.5px; margin-bottom: 6px; }
+  .roadmap-card p { font-size: 13.5px; color: var(--ink-2); margin: 0; }
+
+  /* ---------- CTA band ---------- */
+  .cta-band {
+    background: linear-gradient(135deg, var(--surface) 0%, var(--surface-2) 100%);
+    border: 1px solid var(--line); border-radius: 24px;
+    padding: 64px 48px; text-align: center; position: relative; overflow: hidden;
+  }
+  .cta-band::before {
+    content: ""; position: absolute; inset: 0;
+    background: radial-gradient(circle at 50% 0%, rgba(47,227,196,0.14), transparent 60%);
+  }
+  .cta-band h2 { font-size: clamp(26px, 4vw, 38px); position: relative; }
+  .cta-band p { color: var(--ink-2); margin: 16px auto 32px; max-width: 480px; position: relative; }
+  .cta-band .hero-actions { justify-content: center; position: relative; }
+
+  /* ---------- Footer ---------- */
+  footer { border-top: 1px solid var(--line); padding: 48px 0 60px; }
+  .footer-grid { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 32px; }
+  .footer-brand p { color: var(--ink-3); font-size: 13.5px; max-width: 280px; margin-top: 10px; }
+  .footer-links { display: flex; gap: 56px; flex-wrap: wrap; }
+  .footer-col h4 { font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-3); margin-bottom: 14px; font-family: var(--font-body); font-weight: 600; }
+  .footer-col a { display: block; font-size: 14px; color: var(--ink-2); text-decoration: none; margin-bottom: 10px; }
+  .footer-col a:hover { color: var(--accent); }
+  .footer-bottom { margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; font-size: 12.5px; color: var(--ink-3); }
+</style>
+</head>
+<body>
+
+<nav class="nav" id="nav">
+  <div class="nav-inner">
+    <a class="brand" href="#top">
+      <svg class="brand-mark" viewBox="0 0 32 32" fill="none">
+        <circle cx="16" cy="16" r="15" stroke="#2fe3c4" stroke-width="1.5" opacity="0.35"/>
+        <path d="M4 17h5l2.5-7 4 14 3-10 1.5 3H28" stroke="#2fe3c4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      </svg>
+      LinuxVitals
+    </a>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#demo">Live Demo</a>
+      <a href="#workflow">Workflow</a>
+      <a href="#roadmap">Roadmap</a>
+      <a href="https://github.com/sameeralam3127/linux-vitals" target="_blank" rel="noopener">GitHub</a>
+      <a class="nav-cta" href="#install">Install</a>
+    </div>
+  </div>
+</nav>
+
+<main id="top">
+  <header class="hero">
+    <div class="wrap">
+      <span class="eyebrow"><span class="dot"></span> sameeralam3127.linux_vitals · Ansible Galaxy collection</span>
+      <h1>Your Linux fleet has a pulse.<br>Now you can <em>see</em> it.</h1>
+      <p class="lede">LinuxVitals is an agentless Ansible collection that scans, opt-in self-heals, and reports on your Linux servers — with a baseline → postcheck comparison built for real maintenance windows, rendered into one self-contained HTML dashboard.</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="#demo">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 5v14l11-7z"/></svg>
+          See the live dashboard
+        </a>
+        <a class="btn btn-ghost" href="https://github.com/sameeralam3127/linux-vitals" target="_blank" rel="noopener">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.57.1.79-.25.79-.55 0-.27-.01-1.16-.02-2.11-3.2.7-3.88-1.36-3.88-1.36-.52-1.34-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.7 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.47.11-3.06 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.79 0c2.2-1.49 3.17-1.18 3.17-1.18.64 1.59.24 2.77.12 3.06.74.8 1.18 1.83 1.18 3.09 0 4.43-2.69 5.4-5.25 5.69.42.36.78 1.07.78 2.15 0 1.56-.01 2.81-.01 3.19 0 .3.21.66.8.55A10.52 10.52 0 0 0 23.5 12c0-6.35-5.15-11.5-11.5-11.5z"/></svg>
+          View source
+        </a>
+      </div>
+      <div class="install-snippet">
+        <span class="prompt">$</span>
+        <code id="install-cmd">ansible-galaxy collection install sameeralam3127.linux_vitals</code>
+        <button class="copy-btn" id="copy-install" type="button">Copy</button>
+      </div>
+
+      <div class="stat-strip reveal">
+        <div class="stat"><div class="stat-value">3</div><div class="stat-label">composable roles</div></div>
+        <div class="stat"><div class="stat-value">0</div><div class="stat-label">external JS/CSS deps in the report</div></div>
+        <div class="stat"><div class="stat-value">100+</div><div class="stat-label">hosts per dashboard, built for scale</div></div>
+        <div class="stat"><div class="stat-value">MIT</div><div class="stat-label">licensed, source available</div></div>
+      </div>
+    </div>
+    <svg class="hero-pulse" id="pulse-svg" viewBox="0 0 1200 220" preserveAspectRatio="none" aria-hidden="true">
+      <path id="pulse-path" d="M0,150 L200,150 L230,150 L250,40 L280,200 L310,150 L340,150 L1200,150"
+        fill="none" stroke="#2fe3c4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.65"/>
+    </svg>
+  </header>
+
+  <section id="features">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="section-tag">What it does</span>
+        <h2>Deep OS posture, not just uptime pings</h2>
+        <p>Six things LinuxVitals does out of the box, across RHEL, Fedora, Ubuntu, and SUSE.</p>
+      </div>
+      <div class="feature-grid">
+        <div class="feature-card reveal">
+          <div class="feature-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/><circle cx="12" cy="12" r="3"/></svg></div>
+          <h3>Read-only scan</h3>
+          <p>Kernel &amp; bootloader validation, boot-partition health, SELinux/AppArmor, failed logins, journal errors, memory pressure. Nothing is changed unless you opt in.</p>
+          <span class="tag">vitals_scan</span>
+        </div>
+        <div class="feature-card reveal">
+          <div class="feature-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
+          <h3>Opt-in self-healing</h3>
+          <p>One restart attempt per systemd-enabled failed service. Disabled by default (<code>linux_vitals_heal_enabled: false</code>) — nothing on managed hosts changes unless you flip the switch.</p>
+          <span class="tag">vitals_heal</span>
+        </div>
+        <div class="feature-card reveal">
+          <div class="feature-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg></div>
+          <h3>Baseline → postcheck comparison</h3>
+          <p>Snapshot before a maintenance window, snapshot after — correlated by a maintenance id. Get status changes, RAM deltas, kernel changes, and new/resolved findings automatically.</p>
+          <span class="tag">vitals_report</span>
+        </div>
+        <div class="feature-card reveal">
+          <div class="feature-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 9h18M8 4v14"/></svg></div>
+          <h3>Self-contained dashboard</h3>
+          <p>One HTML file. No CDN, no build step, no server. Search, sort, filter, and expandable host rows — opens in any browser, forever, offline.</p>
+          <span class="tag">dashboard.html.j2</span>
+        </div>
+        <div class="feature-card reveal">
+          <div class="feature-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/></svg></div>
+          <h3>Multi-channel notifications</h3>
+          <p>Slack, email, and generic webhook — configurable independently, with secrets resolved from inventory, <code>group_vars</code>, or a local <code>.env</code> file.</p>
+          <span class="tag">vitals_report</span>
+        </div>
+        <div class="feature-card reveal">
+          <div class="feature-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12"/></svg></div>
+          <h3>A real Galaxy collection</h3>
+          <p>Three composable roles sharing one variable namespace. Install once, run <code>healthcheck</code>, <code>baseline</code>, or <code>postcheck</code> via FQCN from anywhere.</p>
+          <span class="tag">sameeralam3127.linux_vitals</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="demo">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="section-tag">Not a mockup</span>
+        <h2>This is the actual dashboard</h2>
+        <p>Real template, sample fleet data. Search a hostname, click a column to sort, expand a row for the full picture — including a live before/after maintenance comparison.</p>
+      </div>
+      <div class="browser-frame reveal">
+        <div class="browser-chrome">
+          <div class="browser-dots"><span></span><span></span><span></span></div>
+          <div class="browser-url">reports / linux_vitals_report.html</div>
+          <a class="browser-open" href="demo-dashboard.html" target="_blank" rel="noopener">Open full screen ↗</a>
+        </div>
+        <div class="demo-frame-wrap">
+          <iframe src="demo-dashboard.html" title="LinuxVitals sample dashboard" loading="lazy"></iframe>
+        </div>
+      </div>
+      <div class="demo-callouts reveal">
+        <span class="callout-pill"><span class="dot accent"></span> Health-score ring &amp; KPI row</span>
+        <span class="callout-pill"><span class="dot good"></span> Improved / <span class="dot crit"></span> Regressed filters</span>
+        <span class="callout-pill"><span class="dot warn"></span> Per-host expandable detail</span>
+        <span class="callout-pill"><span class="dot accent"></span> Light &amp; dark themes</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="workflow">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="section-tag">The workflow</span>
+        <h2>Built around real maintenance windows</h2>
+        <p>Three playbooks, one shared maintenance id.</p>
+      </div>
+      <div class="workflow">
+        <div class="workflow-step reveal">
+          <div class="workflow-num">01 / Before</div>
+          <h3>Capture a baseline</h3>
+          <p>Run <code>sameeralam3127.linux_vitals.baseline</code> with a <code>linux_vitals_maintenance_id</code> before your window opens. Full posture, snapshotted per host.</p>
+          <span class="workflow-arrow">→</span>
+        </div>
+        <div class="workflow-step reveal">
+          <div class="workflow-num">02 / During</div>
+          <h3>Do your maintenance</h3>
+          <p>Patch, reboot, reconfigure — however you normally do it. LinuxVitals stays out of the way; it only observes and, if you've enabled it, self-heals.</p>
+          <span class="workflow-arrow">→</span>
+        </div>
+        <div class="workflow-step reveal">
+          <div class="workflow-num">03 / After</div>
+          <h3>Run postcheck, get the diff</h3>
+          <p>Run <code>sameeralam3127.linux_vitals.postcheck</code> with the same id. The dashboard shows exactly what changed — per host, per finding.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="roadmap">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="section-tag">What's next</span>
+        <h2>Roadmap</h2>
+        <p>Directions being explored for future releases. Nothing here is a commitment or a shipping date — track progress and weigh in on <a href="https://github.com/sameeralam3127/linux-vitals/issues" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:underline;">GitHub Issues</a>.</p>
+      </div>
+      <div class="roadmap-grid">
+        <div class="roadmap-card reveal">
+          <span class="roadmap-status exploring">Exploring</span>
+          <div>
+            <h3>Prometheus / OpenMetrics exporter</h3>
+            <p>Expose the JSON report as scrapeable metrics for long-term trend dashboards in Grafana.</p>
+          </div>
+        </div>
+        <div class="roadmap-card reveal">
+          <span class="roadmap-status exploring">Exploring</span>
+          <div>
+            <h3>Multi-window trend view</h3>
+            <p>Compare more than two snapshots over time — not just one baseline/postcheck pair, but a rolling history per host.</p>
+          </div>
+        </div>
+        <div class="roadmap-card reveal">
+          <span class="roadmap-status planned">Planned</span>
+          <div>
+            <h3>Ansible Automation Platform packaging</h3>
+            <p>Execution-environment-friendly job templates for running LinuxVitals from AAP/AWX on a schedule.</p>
+          </div>
+        </div>
+        <div class="roadmap-card reveal">
+          <span class="roadmap-status exploring">Exploring</span>
+          <div>
+            <h3>CSV / spreadsheet export</h3>
+            <p>A flat export of the fleet table for teams that need to paste findings into a ticket or a report deck.</p>
+          </div>
+        </div>
+        <div class="roadmap-card reveal">
+          <span class="roadmap-status exploring">Exploring</span>
+          <div>
+            <h3>Configurable finding rules</h3>
+            <p>Let teams enable/disable or reweight individual findings (e.g. treat a low-priority host's reboot-required differently than a database primary's).</p>
+          </div>
+        </div>
+        <div class="roadmap-card reveal">
+          <span class="roadmap-status exploring">Exploring</span>
+          <div>
+            <h3>Serial / asset drilldown</h3>
+            <p>The dashboard already surfaces each host's serial number — a dedicated per-asset history view is the natural next step.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="install">
+    <div class="wrap">
+      <div class="cta-band reveal">
+        <h2>Point it at an inventory. See what's actually going on.</h2>
+        <p>No agents, no daemons — just SSH and Ansible.</p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="https://galaxy.ansible.com/ui/repo/published/sameeralam3127/linux_vitals/" target="_blank" rel="noopener">
+            Get it from Ansible Galaxy
+          </a>
+          <a class="btn btn-ghost" href="https://github.com/sameeralam3127/linux-vitals#readme" target="_blank" rel="noopener">Read the docs</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <a class="brand" href="#top">
+          <svg class="brand-mark" viewBox="0 0 32 32" fill="none">
+            <circle cx="16" cy="16" r="15" stroke="#2fe3c4" stroke-width="1.5" opacity="0.35"/>
+            <path d="M4 17h5l2.5-7 4 14 3-10 1.5 3H28" stroke="#2fe3c4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          </svg>
+          LinuxVitals
+        </a>
+        <p>An agentless Ansible collection for Linux fleet health checks. Built and maintained in the open.</p>
+      </div>
+      <div class="footer-links">
+        <div class="footer-col">
+          <h4>Project</h4>
+          <a href="https://github.com/sameeralam3127/linux-vitals" target="_blank" rel="noopener">GitHub</a>
+          <a href="https://galaxy.ansible.com/ui/repo/published/sameeralam3127/linux_vitals/" target="_blank" rel="noopener">Ansible Galaxy</a>
+          <a href="https://github.com/sameeralam3127/linux-vitals/releases" target="_blank" rel="noopener">Releases</a>
+          <a href="https://github.com/sameeralam3127/linux-vitals/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a>
+        </div>
+        <div class="footer-col">
+          <h4>Docs</h4>
+          <a href="https://github.com/sameeralam3127/linux-vitals/blob/main/docs/quickstart.md" target="_blank" rel="noopener">Quick Start</a>
+          <a href="https://github.com/sameeralam3127/linux-vitals/blob/main/docs/variable-reference.md" target="_blank" rel="noopener">Variable Reference</a>
+          <a href="https://github.com/sameeralam3127/linux-vitals/blob/main/docs/report-guide.md" target="_blank" rel="noopener">Report Guide</a>
+          <a href="https://github.com/sameeralam3127/linux-vitals/blob/main/docs/architecture.md" target="_blank" rel="noopener">Architecture</a>
+        </div>
+        <div class="footer-col">
+          <h4>Community</h4>
+          <a href="https://github.com/sameeralam3127/linux-vitals/issues" target="_blank" rel="noopener">Issues</a>
+          <a href="https://github.com/sameeralam3127/linux-vitals/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">Contributing</a>
+          <a href="https://github.com/sameeralam3127/linux-vitals/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 Sameer Alam · LinuxVitals</span>
+      <span>Roadmap items are directions, not commitments.</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  var nav = document.getElementById("nav");
+  window.addEventListener("scroll", function () {
+    nav.classList.toggle("is-scrolled", window.scrollY > 8);
+  }, { passive: true });
+
+  var copyBtn = document.getElementById("copy-install");
+  var installCmd = document.getElementById("install-cmd");
+  if (copyBtn) {
+    copyBtn.addEventListener("click", function () {
+      var text = installCmd.textContent;
+      var done = function () {
+        var original = copyBtn.textContent;
+        copyBtn.textContent = "Copied";
+        setTimeout(function () { copyBtn.textContent = original; }, 1600);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done).catch(function () {});
+      } else {
+        var ta = document.createElement("textarea");
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand("copy"); done(); } catch (e) {}
+        document.body.removeChild(ta);
+      }
+    });
+  }
+
+  var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  if (!reduceMotion && "IntersectionObserver" in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("is-visible");
+          io.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.12 });
+    document.querySelectorAll(".reveal").forEach(function (el) { io.observe(el); });
+  } else {
+    document.querySelectorAll(".reveal").forEach(function (el) { el.classList.add("is-visible"); });
+  }
+
+  if (!reduceMotion) {
+    var path = document.getElementById("pulse-path");
+    if (path) {
+      var len = path.getTotalLength();
+      path.style.strokeDasharray = len;
+      path.style.strokeDashoffset = len;
+      var start = null;
+      var duration = 2600;
+      function tick(ts) {
+        if (!start) start = ts;
+        var elapsed = (ts - start) % (duration * 1.6);
+        var progress = Math.min(elapsed / duration, 1);
+        path.style.strokeDashoffset = len * (1 - progress);
+        requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    }
+  }
+})();
+</script>
+</body>
+</html>
