@@ -13,8 +13,22 @@ Collection: `sameeralam3127.linux_vitals`
 - Network-aware host inventory with hostname and IP address reporting
 - Kernel, reboot, boot-space, rescue image, security-control, and login-failure checks
 - Opt-in one-shot self-healing for failed enabled services
-- Consolidated HTML dashboard and JSON report generation with optional archive retention
+- Pre-maintenance baseline / post-maintenance comparison workflow, correlated by a maintenance id
+- Consolidated, self-contained HTML dashboard (health score, search/filter/sort, expandable host detail, before/after comparison) and JSON report generation with optional archive retention
 - Slack, email, and generic webhook notifications for run summaries
+
+## Documentation
+
+- [Installation](docs/installation.md)
+- [Quick Start](docs/quickstart.md)
+- [Configuration Reference](docs/configuration-reference.md)
+- [Variable Reference](docs/variable-reference.md)
+- [Report Guide](docs/report-guide.md) -- dashboard tour, JSON schema, findings reference
+- [Examples](docs/examples.md)
+- [Troubleshooting](docs/troubleshooting.md)
+- [Architecture](docs/architecture.md)
+- [Contributing](CONTRIBUTING.md)
+- [Changelog](CHANGELOG.md)
 
 ## Architecture
 
@@ -37,7 +51,9 @@ flowchart LR
 ├── galaxy.yml
 ├── meta/runtime.yml
 ├── playbooks/
-│   └── healthcheck.yml
+│   ├── healthcheck.yml       # one-shot, standalone
+│   ├── baseline.yml          # pre-maintenance snapshot
+│   └── postcheck.yml         # post-maintenance snapshot + comparison
 ├── roles/
 │   ├── vitals_scan/
 │   ├── vitals_heal/
@@ -46,7 +62,9 @@ flowchart LR
 │   ├── inventory/
 │   └── group_vars/
 ├── docs/
-└── tests/
+├── tests/
+├── CONTRIBUTING.md
+└── CHANGELOG.md
 ```
 
 ## Requirements
@@ -132,9 +150,13 @@ linux_vitals_boot_warning_threshold: 20
 linux_vitals_heal_enabled: false
 ```
 
-`vitals_report` (output, archiving, notifications) -- [roles/vitals_report/defaults/main.yml](roles/vitals_report/defaults/main.yml):
+`vitals_report` (maintenance workflow, output, archiving, notifications) -- [roles/vitals_report/defaults/main.yml](roles/vitals_report/defaults/main.yml):
 
 ```yaml
+linux_vitals_phase: "adhoc"  # or "baseline" / "postcheck", set by the matching playbook
+linux_vitals_maintenance_id: ""  # required for baseline/postcheck, pass with -e
+linux_vitals_snapshot_dir: "{{ inventory_dir }}/reports/snapshots"
+
 linux_vitals_output_path: "{{ inventory_dir }}/reports/linux_vitals_report.html"
 linux_vitals_archive_html_reports: true
 linux_vitals_archive_json_reports: false
@@ -187,6 +209,24 @@ Resolution order for every channel is the same: an explicit inventory/`group_var
 
 `vitals_heal` runs every time the playbook does, but its tasks are skipped unless `linux_vitals_heal_enabled: true` is set. With it enabled, LinuxVitals attempts exactly one restart per systemd-enabled service found in a `failed` state, then re-checks the required-service status (`sssd`, `systemd-journald`, time sync) so the dashboard reflects the post-restart state.
 
+## Maintenance Workflow: Baseline / Postcheck Comparison
+
+Run before and after a maintenance window with the same maintenance id to get an automatic before/after comparison in the dashboard:
+
+```bash
+# Before maintenance
+ansible-playbook -i inventory.ini sameeralam3127.linux_vitals.baseline \
+  -e linux_vitals_maintenance_id=2026-07-12-patch-window
+
+# ... do your maintenance ...
+
+# After maintenance, same id
+ansible-playbook -i inventory.ini sameeralam3127.linux_vitals.postcheck \
+  -e linux_vitals_maintenance_id=2026-07-12-patch-window
+```
+
+The postcheck dashboard adds a "Change" column, Regressed/Improved/New-hosts filter chips, and a per-host before/after panel (status, RAM delta, kernel change, reboot-required change, new/resolved findings). Hosts with no matching baseline snapshot (e.g. newly added servers) are marked "New" rather than failing the run. Full details in [docs/report-guide.md](docs/report-guide.md) and [docs/quickstart.md](docs/quickstart.md).
+
 ## Usage
 
 ```bash
@@ -229,11 +269,15 @@ A GitHub Actions workflow at [.github/workflows/ci.yml](.github/workflows/ci.yml
 
 ## Troubleshooting
 
+See [docs/troubleshooting.md](docs/troubleshooting.md) for the full list. Quick pointers:
+
 - If `reports/` is missing, run the playbook once; report files are generated next to your inventory and ignored by git.
-- If Slack or generic webhook notifications do not send, confirm the matching webhook URL is set in inventory, `group_vars`, extra vars, or `.env` (next to your inventory).
-- If email does not send, confirm `linux_vitals_email_enabled: true`, at least one recipient in `linux_vitals_email_to`, and valid SMTP settings.
 - If tagged runs skip expected output, include `reporting` with your focused tags, for example `--tags discovery,kernel,reporting`.
-- If `ansible-playbook sameeralam3127.linux_vitals.healthcheck` can't find the collection, confirm it's installed (`ansible-galaxy collection list | grep linux_vitals`) or symlinked for local dev (see Installation above).
+- If `ansible-playbook sameeralam3127.linux_vitals.healthcheck` can't find the collection, confirm it's installed (`ansible-galaxy collection list | grep linux_vitals`) or symlinked for local dev (see [docs/installation.md](docs/installation.md)).
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup, test suite, and Galaxy publishing process.
 
 ## License
 
