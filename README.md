@@ -65,11 +65,11 @@ Once published, install from Ansible Galaxy:
 ansible-galaxy collection install sameeralam3127.linux_vitals
 ```
 
-For local development, symlink this repo into your collections path so it resolves as `sameeralam3127.linux_vitals`:
+For local development, symlink this repo into a repo-local dev collections root so it resolves as `sameeralam3127.linux_vitals` (this path is already wired into `ansible.cfg`'s `collections_path`, and is gitignored):
 
 ```bash
-mkdir -p ~/.ansible/collections/ansible_collections/sameeralam3127
-ln -s "$(pwd)" ~/.ansible/collections/ansible_collections/sameeralam3127/linux_vitals
+mkdir -p .dev-collections/ansible_collections/sameeralam3127
+ln -s "$(pwd)" .dev-collections/ansible_collections/sameeralam3127/linux_vitals
 ```
 
 ## Quick Start

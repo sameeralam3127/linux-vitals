@@ -68,6 +68,8 @@
       healing_results: []
       final_status: "Pass"
       findings: []
+      comparison:
+        baseline_available: false
   tasks:
     - name: Ensure latest and archive directories exist
       ansible.builtin.file:

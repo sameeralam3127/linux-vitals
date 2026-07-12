@@ -10,6 +10,24 @@
     - always
     - config
 
+- name: Persist a snapshot of this run for baseline/postcheck comparison
+  ansible.builtin.include_tasks:
+    file: snapshot.yml
+    apply:
+      tags:
+        - reporting
+  tags:
+    - reporting
+
+- name: Compare this run against a prior baseline snapshot
+  ansible.builtin.include_tasks:
+    file: compare.yml
+    apply:
+      tags:
+        - reporting
+  tags:
+    - reporting
+
 - name: Build reports
   ansible.builtin.include_tasks:
     file: render.yml

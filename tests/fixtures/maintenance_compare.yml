@@ -1,0 +1,127 @@
+---
+- name: Baseline phase -- persist snapshots for host-a and host-b
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    output_dir: "{{ lookup('ansible.builtin.env', 'TEST_OUTPUT_DIR') }}"
+    linux_vitals_phase: "baseline"
+    linux_vitals_maintenance_id: "test-window"
+    linux_vitals_snapshot_dir: "{{ output_dir }}/snapshots"
+  tasks:
+    - name: Seed baseline result for host-a (failing, high ram, old kernel)
+      ansible.builtin.set_fact:
+        linux_vitals_result:
+          final_status: "Fail"
+          ram_used_pct: 91.0
+          running_kernel: "5.14.0-old"
+          reboot_required: true
+          findings: ["RAM usage is critical", "System reboot is required"]
+          comparison: {baseline_available: false}
+
+    - name: Snapshot host-a baseline
+      ansible.builtin.include_role:
+        name: sameeralam3127.linux_vitals.vitals_report
+        tasks_from: snapshot
+      vars:
+        inventory_hostname: "host-a"
+
+    - name: Seed baseline result for host-b (passing)
+      ansible.builtin.set_fact:
+        linux_vitals_result:
+          final_status: "Pass"
+          ram_used_pct: 40.0
+          running_kernel: "6.8.0-new"
+          reboot_required: false
+          findings: []
+          comparison: {baseline_available: false}
+
+    - name: Snapshot host-b baseline
+      ansible.builtin.include_role:
+        name: sameeralam3127.linux_vitals.vitals_report
+        tasks_from: snapshot
+      vars:
+        inventory_hostname: "host-b"
+
+- name: Postcheck phase -- compare host-a (improved), host-b (regressed), host-c (new)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    output_dir: "{{ lookup('ansible.builtin.env', 'TEST_OUTPUT_DIR') }}"
+    linux_vitals_phase: "postcheck"
+    linux_vitals_maintenance_id: "test-window"
+    linux_vitals_snapshot_dir: "{{ output_dir }}/snapshots"
+  tasks:
+    - name: Seed postcheck result for host-a (now passing, rebooted, kernel updated)
+      ansible.builtin.set_fact:
+        linux_vitals_result:
+          final_status: "Pass"
+          ram_used_pct: 55.0
+          running_kernel: "6.8.0-new"
+          reboot_required: false
+          findings: []
+
+    - name: Compare host-a against its baseline
+      ansible.builtin.include_role:
+        name: sameeralam3127.linux_vitals.vitals_report
+        tasks_from: compare
+      vars:
+        inventory_hostname: "host-a"
+
+    - name: Capture host-a comparison
+      ansible.builtin.set_fact:
+        comparison_host_a: "{{ linux_vitals_result.comparison }}"
+
+    - name: Seed postcheck result for host-b (now failing -- regression)
+      ansible.builtin.set_fact:
+        linux_vitals_result:
+          final_status: "Fail"
+          ram_used_pct: 96.0
+          running_kernel: "6.8.0-new"
+          reboot_required: false
+          findings: ["RAM usage is critical"]
+
+    - name: Compare host-b against its baseline
+      ansible.builtin.include_role:
+        name: sameeralam3127.linux_vitals.vitals_report
+        tasks_from: compare
+      vars:
+        inventory_hostname: "host-b"
+
+    - name: Capture host-b comparison
+      ansible.builtin.set_fact:
+        comparison_host_b: "{{ linux_vitals_result.comparison }}"
+
+    - name: Seed postcheck result for host-c (no baseline snapshot exists)
+      ansible.builtin.set_fact:
+        linux_vitals_result:
+          final_status: "Pass"
+          ram_used_pct: 30.0
+          running_kernel: "6.8.0-new"
+          reboot_required: false
+          findings: []
+
+    - name: Compare host-c against a nonexistent baseline
+      ansible.builtin.include_role:
+        name: sameeralam3127.linux_vitals.vitals_report
+        tasks_from: compare
+      vars:
+        inventory_hostname: "host-c"
+
+    - name: Capture host-c comparison
+      ansible.builtin.set_fact:
+        comparison_host_c: "{{ linux_vitals_result.comparison }}"
+
+    - name: Write all comparisons to a single JSON file for test assertions
+      ansible.builtin.copy:
+        dest: "{{ output_dir }}/comparisons.json"
+        content: >-
+          {{
+            {
+              'host-a': comparison_host_a,
+              'host-b': comparison_host_b,
+              'host-c': comparison_host_c
+            } | to_nice_json
+          }}
+        mode: "0644"

@@ -1,0 +1,43 @@
+---
+- name: Require a maintenance id for baseline/postcheck snapshots
+  ansible.builtin.assert:
+    that:
+      - linux_vitals_maintenance_id | default('', true) | trim | length > 0
+    fail_msg: >-
+      linux_vitals_maintenance_id is required when linux_vitals_phase is
+      '{{ linux_vitals_phase }}'. Pass one with, for example,
+      -e linux_vitals_maintenance_id=2026-07-12-patch-window
+      and reuse the same id for both the baseline and postcheck runs.
+    quiet: true
+  when: linux_vitals_phase in ['baseline', 'postcheck']
+  tags:
+    - reporting
+
+- name: Compute the snapshot directory for this maintenance id and phase
+  ansible.builtin.set_fact:
+    linux_vitals_snapshot_phase_dir: >-
+      {{ linux_vitals_snapshot_dir }}/{{ linux_vitals_maintenance_id }}/{{ linux_vitals_phase }}
+  when: linux_vitals_phase in ['baseline', 'postcheck']
+  tags:
+    - reporting
+
+- name: Ensure the snapshot directory exists
+  ansible.builtin.file:
+    path: "{{ linux_vitals_snapshot_phase_dir }}"
+    state: directory
+    mode: "0755"
+  delegate_to: localhost
+  run_once: true
+  when: linux_vitals_phase in ['baseline', 'postcheck']
+  tags:
+    - reporting
+
+- name: Persist this host's snapshot for the current phase
+  ansible.builtin.copy:
+    content: "{{ linux_vitals_result | to_nice_json }}\n"
+    dest: "{{ linux_vitals_snapshot_phase_dir }}/{{ inventory_hostname }}.json"
+    mode: "0644"
+  delegate_to: localhost
+  when: linux_vitals_phase in ['baseline', 'postcheck']
+  tags:
+    - reporting

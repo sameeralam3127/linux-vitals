@@ -9,6 +9,7 @@ __pycache__/
 .DS_Store
 reports
 collections/
+.dev-collections/
 *.tar.gz
 # C extensions
 *.so

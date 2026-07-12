@@ -32,8 +32,8 @@ jobs:
 
       - name: Symlink repository as the sameeralam3127.linux_vitals collection
         run: |
-          mkdir -p ~/.ansible/collections/ansible_collections/sameeralam3127
-          ln -s "$GITHUB_WORKSPACE" ~/.ansible/collections/ansible_collections/sameeralam3127/linux_vitals
+          mkdir -p .dev-collections/ansible_collections/sameeralam3127
+          ln -s "$GITHUB_WORKSPACE" .dev-collections/ansible_collections/sameeralam3127/linux_vitals
 
       - name: Run playbook syntax check
         run: ansible-playbook playbooks/healthcheck.yml --syntax-check

@@ -1,0 +1,19 @@
+---
+# Run after a maintenance window to capture post-maintenance health state
+# and automatically compare it against the matching baseline snapshot.
+# Requires the same linux_vitals_maintenance_id used for playbooks/baseline.yml:
+#   ansible-playbook -i inventory.ini sameeralam3127.linux_vitals.postcheck \
+#     -e linux_vitals_maintenance_id=2026-07-12-patch-window
+#
+# Hosts with no matching baseline snapshot (e.g. newly added servers) still
+# get a full result; the dashboard just marks them as having no baseline.
+- name: LinuxVitals postcheck health check (post-maintenance)
+  hosts: linux_servers
+  gather_facts: true
+  vars:
+    linux_vitals_phase: "postcheck"
+
+  roles:
+    - role: sameeralam3127.linux_vitals.vitals_scan
+    - role: sameeralam3127.linux_vitals.vitals_heal
+    - role: sameeralam3127.linux_vitals.vitals_report

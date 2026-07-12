@@ -41,6 +41,7 @@ build_ignore:
   - .facts
   - .ansible
   - venv
+  - .dev-collections
   - '*.retry'
   - reports
   - inventory

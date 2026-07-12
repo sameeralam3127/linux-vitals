@@ -69,6 +69,8 @@
           result: "Fixed"
       final_status: "Pass"
       findings: []
+      comparison:
+        baseline_available: false
   tasks:
     - name: Ensure temporary test output directory exists
       ansible.builtin.file:

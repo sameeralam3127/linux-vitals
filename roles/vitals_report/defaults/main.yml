@@ -1,4 +1,13 @@
 ---
+# Maintenance workflow: "adhoc" (default) is a one-shot standalone health
+# check with no snapshot/comparison bookkeeping -- the classic single-run
+# behavior. Set "baseline" before a maintenance window and "postcheck"
+# after it, passing the same linux_vitals_maintenance_id both times, to get
+# an automatic before/after comparison in the dashboard.
+linux_vitals_phase: "adhoc"
+linux_vitals_maintenance_id: ""
+linux_vitals_snapshot_dir: "{{ inventory_dir }}/reports/snapshots"
+
 linux_vitals_output_path: "{{ inventory_dir }}/reports/linux_vitals_report.html"
 linux_vitals_archive_html_reports: true
 linux_vitals_archive_json_reports: false

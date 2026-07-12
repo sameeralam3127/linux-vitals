@@ -74,12 +74,33 @@
 
 - name: Determine hosts with completed health results
   ansible.builtin.set_fact:
-    linux_vitals_reporting_hosts: >-
+    linux_vitals_reporting_hosts: "{{ ansible_play_hosts | list }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: Collect per-host results for the fleet summary
+  ansible.builtin.set_fact:
+    linux_vitals_result_list: >-
       {{
-        ansible_play_hosts
-        | select('in', hostvars.keys())
-        | select('in', ansible_play_hosts)
+        linux_vitals_reporting_hosts
+        | map('extract', hostvars, 'linux_vitals_result')
         | list
+      }}
+  delegate_to: localhost
+  run_once: true
+
+- name: Compute the fleet pass ratio for the health score
+  ansible.builtin.set_fact:
+    linux_vitals_pass_ratio_pct: >-
+      {{
+        (
+          (
+            (linux_vitals_result_list | selectattr('final_status', 'equalto', 'Pass') | list | length)
+            / (linux_vitals_result_list | length)
+          ) * 100
+        ) | round(1)
+        if linux_vitals_result_list | length > 0
+        else 0
       }}
   delegate_to: localhost
   run_once: true
@@ -98,9 +119,46 @@
         }}
       critical_error_count: >-
         {{
-          linux_vitals_reporting_hosts
-          | map('extract', hostvars, 'linux_vitals_result')
+          linux_vitals_result_list
           | selectattr('final_status', 'equalto', 'Fail')
+          | list
+          | length
+        }}
+      health_score_pct: "{{ linux_vitals_pass_ratio_pct }}"
+      health_score_band: >-
+        {{
+          'Excellent'
+          if linux_vitals_pass_ratio_pct | float >= 95
+          else 'Good'
+          if linux_vitals_pass_ratio_pct | float >= 80
+          else 'Fair'
+          if linux_vitals_pass_ratio_pct | float >= 60
+          else 'Poor'
+        }}
+      comparison_active: "{{ linux_vitals_phase == 'postcheck' }}"
+      regressed_count: >-
+        {{
+          linux_vitals_result_list
+          | map(attribute='comparison')
+          | selectattr('status_regressed', 'defined')
+          | selectattr('status_regressed')
+          | list
+          | length
+        }}
+      improved_count: >-
+        {{
+          linux_vitals_result_list
+          | map(attribute='comparison')
+          | selectattr('status_improved', 'defined')
+          | selectattr('status_improved')
+          | list
+          | length
+        }}
+      new_hosts_count: >-
+        {{
+          linux_vitals_result_list
+          | map(attribute='comparison')
+          | selectattr('baseline_available', 'equalto', false)
           | list
           | length
         }}

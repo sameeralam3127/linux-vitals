@@ -10,22 +10,44 @@ from shutil import which
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PLAYBOOK = REPO_ROOT / "tests" / "fixtures" / "render_templates.yml"
 ARCHIVE_PLAYBOOK = REPO_ROOT / "tests" / "fixtures" / "report_archiving.yml"
+COMPARE_PLAYBOOK = REPO_ROOT / "tests" / "fixtures" / "maintenance_compare.yml"
 
 
-def test_templates_render_with_representative_health_data(tmp_path: Path) -> None:
+def _ensure_dev_collection_symlink() -> None:
+    # FQCN roles (sameeralam3127.linux_vitals.*) resolve via
+    # ansible.cfg's collections_path, which points at this repo-local
+    # symlink -- create it on demand so a fresh clone/CI needs no manual
+    # setup step.
+    link = REPO_ROOT / ".dev-collections" / "ansible_collections" / "sameeralam3127" / "linux_vitals"
+    if link.is_symlink() or link.exists():
+        return
+    link.parent.mkdir(parents=True, exist_ok=True)
+    link.symlink_to(REPO_ROOT, target_is_directory=True)
+
+
+def _ansible_playbook_bin() -> str:
+    ansible_playbook = os.environ.get("ANSIBLE_PLAYBOOK_BIN") or which("ansible-playbook")
+    assert ansible_playbook, "ansible-playbook must be installed and available on PATH"
+    return ansible_playbook
+
+
+def _base_env(tmp_path: Path) -> dict[str, str]:
+    _ensure_dev_collection_symlink()
     env = os.environ.copy()
     env["TEST_OUTPUT_DIR"] = str(tmp_path)
     env["ANSIBLE_CONFIG"] = str(REPO_ROOT / "ansible.cfg")
     env["ANSIBLE_LOCAL_TEMP"] = str(REPO_ROOT / ".ansible" / "tmp")
     env["ANSIBLE_REMOTE_TEMP"] = str(REPO_ROOT / ".ansible" / "tmp")
     env["ANSIBLE_HOME"] = str(REPO_ROOT / ".ansible")
-    ansible_playbook = os.environ.get("ANSIBLE_PLAYBOOK_BIN") or which("ansible-playbook")
+    return env
 
-    assert ansible_playbook, "ansible-playbook must be installed and available on PATH"
+
+def test_templates_render_with_representative_health_data(tmp_path: Path) -> None:
+    env = _base_env(tmp_path)
 
     subprocess.run(
         [
-            ansible_playbook,
+            _ansible_playbook_bin(),
             str(PLAYBOOK),
         ],
         check=True,
@@ -58,19 +80,11 @@ def test_templates_render_with_representative_health_data(tmp_path: Path) -> Non
 
 
 def test_reporting_archives_timestamped_outputs_and_prunes_old_reports(tmp_path: Path) -> None:
-    env = os.environ.copy()
-    env["TEST_OUTPUT_DIR"] = str(tmp_path)
-    env["ANSIBLE_CONFIG"] = str(REPO_ROOT / "ansible.cfg")
-    env["ANSIBLE_LOCAL_TEMP"] = str(REPO_ROOT / ".ansible" / "tmp")
-    env["ANSIBLE_REMOTE_TEMP"] = str(REPO_ROOT / ".ansible" / "tmp")
-    env["ANSIBLE_HOME"] = str(REPO_ROOT / ".ansible")
-    ansible_playbook = os.environ.get("ANSIBLE_PLAYBOOK_BIN") or which("ansible-playbook")
-
-    assert ansible_playbook, "ansible-playbook must be installed and available on PATH"
+    env = _base_env(tmp_path)
 
     subprocess.run(
         [
-            ansible_playbook,
+            _ansible_playbook_bin(),
             str(ARCHIVE_PLAYBOOK),
         ],
         check=True,
@@ -94,3 +108,33 @@ def test_reporting_archives_timestamped_outputs_and_prunes_old_reports(tmp_path:
         "linux_vitals_report-20260428T120000Z.json",
         "linux_vitals_report-20260429T120000Z.json",
     ]
+
+
+def test_baseline_postcheck_comparison_detects_improvement_and_regression(tmp_path: Path) -> None:
+    env = _base_env(tmp_path)
+
+    subprocess.run(
+        [
+            _ansible_playbook_bin(),
+            str(COMPARE_PLAYBOOK),
+        ],
+        check=True,
+        cwd=REPO_ROOT,
+        env=env,
+    )
+
+    comparisons = json.loads((tmp_path / "comparisons.json").read_text(encoding="utf-8"))
+
+    assert comparisons["host-a"]["baseline_available"] is True
+    assert comparisons["host-a"]["status_improved"] is True
+    assert comparisons["host-a"]["status_regressed"] is False
+    assert comparisons["host-a"]["kernel_changed"] is True
+    assert comparisons["host-a"]["ram_used_pct_delta"] == -36.0
+    assert "RAM usage is critical" in comparisons["host-a"]["resolved_findings"]
+
+    assert comparisons["host-b"]["baseline_available"] is True
+    assert comparisons["host-b"]["status_regressed"] is True
+    assert comparisons["host-b"]["status_improved"] is False
+    assert "RAM usage is critical" in comparisons["host-b"]["new_findings"]
+
+    assert comparisons["host-c"]["baseline_available"] is False

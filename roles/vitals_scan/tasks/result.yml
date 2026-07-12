@@ -107,6 +107,8 @@
       healing_results: "{{ linux_vitals_healing_results | default([]) }}"
       final_status: "{{ 'Pass' if linux_vitals_findings | length == 0 else 'Fail' }}"
       findings: "{{ linux_vitals_findings }}"
+      comparison:
+        baseline_available: false
   tags:
     - result
     - reporting

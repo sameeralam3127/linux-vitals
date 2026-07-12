@@ -1,0 +1,18 @@
+---
+# Run before a maintenance window to capture pre-maintenance health state.
+# Requires linux_vitals_maintenance_id, e.g.:
+#   ansible-playbook -i inventory.ini sameeralam3127.linux_vitals.baseline \
+#     -e linux_vitals_maintenance_id=2026-07-12-patch-window
+#
+# Run playbooks/postcheck.yml with the same maintenance id after the window
+# to get an automatic before/after comparison in the dashboard.
+- name: LinuxVitals baseline health check (pre-maintenance)
+  hosts: linux_servers
+  gather_facts: true
+  vars:
+    linux_vitals_phase: "baseline"
+
+  roles:
+    - role: sameeralam3127.linux_vitals.vitals_scan
+    - role: sameeralam3127.linux_vitals.vitals_heal
+    - role: sameeralam3127.linux_vitals.vitals_report

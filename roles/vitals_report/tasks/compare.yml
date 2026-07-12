@@ -1,0 +1,86 @@
+---
+- name: Determine baseline snapshot path for comparison
+  ansible.builtin.set_fact:
+    linux_vitals_baseline_snapshot_path: >-
+      {{ linux_vitals_snapshot_dir }}/{{ linux_vitals_maintenance_id }}/baseline/{{ inventory_hostname }}.json
+  when: linux_vitals_phase == 'postcheck'
+  tags:
+    - reporting
+
+- name: Check whether a baseline snapshot exists for this host
+  ansible.builtin.stat:
+    path: "{{ linux_vitals_baseline_snapshot_path }}"
+  register: linux_vitals_baseline_snapshot_file
+  delegate_to: localhost
+  when: linux_vitals_phase == 'postcheck'
+  tags:
+    - reporting
+
+- name: Load baseline snapshot when available
+  ansible.builtin.set_fact:
+    linux_vitals_baseline_result: >-
+      {{ lookup('ansible.builtin.file', linux_vitals_baseline_snapshot_path) | from_json }}
+  when:
+    - linux_vitals_phase == 'postcheck'
+    - linux_vitals_baseline_snapshot_file.stat.exists | default(false)
+  tags:
+    - reporting
+
+- name: Build before/after comparison for this host
+  ansible.builtin.set_fact:
+    linux_vitals_comparison:
+      baseline_available: true
+      status_before: "{{ linux_vitals_baseline_result.final_status }}"
+      status_after: "{{ linux_vitals_result.final_status }}"
+      status_changed: "{{ linux_vitals_baseline_result.final_status != linux_vitals_result.final_status }}"
+      status_improved: >-
+        {{
+          linux_vitals_baseline_result.final_status == 'Fail'
+          and linux_vitals_result.final_status == 'Pass'
+        }}
+      status_regressed: >-
+        {{
+          linux_vitals_baseline_result.final_status == 'Pass'
+          and linux_vitals_result.final_status == 'Fail'
+        }}
+      ram_used_pct_before: "{{ linux_vitals_baseline_result.ram_used_pct }}"
+      ram_used_pct_after: "{{ linux_vitals_result.ram_used_pct }}"
+      ram_used_pct_delta: >-
+        {{
+          (
+            (linux_vitals_result.ram_used_pct | float)
+            - (linux_vitals_baseline_result.ram_used_pct | float)
+          ) | round(1)
+        }}
+      running_kernel_before: "{{ linux_vitals_baseline_result.running_kernel }}"
+      running_kernel_after: "{{ linux_vitals_result.running_kernel }}"
+      kernel_changed: >-
+        {{ linux_vitals_baseline_result.running_kernel != linux_vitals_result.running_kernel }}
+      reboot_required_before: "{{ linux_vitals_baseline_result.reboot_required }}"
+      reboot_required_after: "{{ linux_vitals_result.reboot_required }}"
+      new_findings: >-
+        {{ linux_vitals_result.findings | difference(linux_vitals_baseline_result.findings) }}
+      resolved_findings: >-
+        {{ linux_vitals_baseline_result.findings | difference(linux_vitals_result.findings) }}
+  when:
+    - linux_vitals_phase == 'postcheck'
+    - linux_vitals_baseline_snapshot_file.stat.exists | default(false)
+  tags:
+    - reporting
+
+- name: Default comparison facts when no baseline snapshot is available
+  ansible.builtin.set_fact:
+    linux_vitals_comparison:
+      baseline_available: false
+  when:
+    - linux_vitals_phase == 'postcheck'
+    - not (linux_vitals_baseline_snapshot_file.stat.exists | default(false))
+  tags:
+    - reporting
+
+- name: Merge the comparison into this host's result
+  ansible.builtin.set_fact:
+    linux_vitals_result: "{{ linux_vitals_result | combine({'comparison': linux_vitals_comparison}) }}"
+  when: linux_vitals_phase == 'postcheck'
+  tags:
+    - reporting
