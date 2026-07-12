@@ -38,7 +38,7 @@ def test_templates_render_with_representative_health_data(tmp_path: Path) -> Non
     generic_webhook = json.loads((tmp_path / "generic_webhook.json").read_text(encoding="utf-8"))
     json_report = json.loads((tmp_path / "report.json").read_text(encoding="utf-8"))
 
-    assert "Smart OS Health Check Test Dashboard" in report
+    assert "LinuxVitals Test Dashboard" in report
     assert "localhost" in report
     assert "Bootloader Check: Default boot entry selects the latest installed kernel" in report
     assert "chronyd.service: Fixed" in report
@@ -78,19 +78,19 @@ def test_reporting_archives_timestamped_outputs_and_prunes_old_reports(tmp_path:
         env=env,
     )
 
-    latest_report = tmp_path / "latest" / "smart_os_health_report.html"
-    latest_json_report = tmp_path / "latest" / "smart_os_health_report.json"
-    archived_html = sorted((tmp_path / "archive").glob("smart_os_health_report-*.html"))
-    archived_json = sorted((tmp_path / "archive").glob("smart_os_health_report-*.json"))
+    latest_report = tmp_path / "latest" / "linux_vitals_report.html"
+    latest_json_report = tmp_path / "latest" / "linux_vitals_report.json"
+    archived_html = sorted((tmp_path / "archive").glob("linux_vitals_report-*.html"))
+    archived_json = sorted((tmp_path / "archive").glob("linux_vitals_report-*.json"))
 
     assert latest_report.exists()
     assert latest_json_report.exists()
     assert json.loads(latest_json_report.read_text(encoding="utf-8"))["summary"]["overall_status"] == "PASS"
     assert [path.name for path in archived_html] == [
-        "smart_os_health_report-20260428T120000Z.html",
-        "smart_os_health_report-20260429T120000Z.html",
+        "linux_vitals_report-20260428T120000Z.html",
+        "linux_vitals_report-20260429T120000Z.html",
     ]
     assert [path.name for path in archived_json] == [
-        "smart_os_health_report-20260428T120000Z.json",
-        "smart_os_health_report-20260429T120000Z.json",
+        "linux_vitals_report-20260428T120000Z.json",
+        "linux_vitals_report-20260429T120000Z.json",
     ]

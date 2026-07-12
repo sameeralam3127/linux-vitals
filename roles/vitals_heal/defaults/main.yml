@@ -1,0 +1,6 @@
+---
+# Self-healing is opt-in: set this to true (globally or per-group) to let the
+# role attempt one restart of each systemd-enabled service it finds in a
+# failed state. Leave it false to run linux_vitals as a read-only health
+# check with no write actions against managed hosts.
+linux_vitals_heal_enabled: false

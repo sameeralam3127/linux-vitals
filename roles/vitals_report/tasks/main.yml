@@ -1,0 +1,30 @@
+---
+- name: Load controller-side configuration
+  ansible.builtin.include_tasks:
+    file: config.yml
+    apply:
+      tags:
+        - always
+        - config
+  tags:
+    - always
+    - config
+
+- name: Build reports
+  ansible.builtin.include_tasks:
+    file: render.yml
+    apply:
+      tags:
+        - reporting
+  tags:
+    - reporting
+
+- name: Send notifications
+  ansible.builtin.include_tasks:
+    file: notify.yml
+    apply:
+      tags:
+        - reporting
+  tags:
+    - reporting
+    - notifications

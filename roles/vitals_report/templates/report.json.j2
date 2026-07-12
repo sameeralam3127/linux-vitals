@@ -1,21 +1,21 @@
 {
   "schema_version": "1.0",
-  "generated_at": {{ smart_os_health_check_effective_archive_timestamp | default(now(utc=true, fmt='%Y%m%dT%H%M%SZ')) | to_json }},
+  "generated_at": {{ linux_vitals_effective_archive_timestamp | default(now(utc=true, fmt='%Y%m%dT%H%M%SZ')) | to_json }},
   "report": {
-    "title": {{ smart_os_health_check_report_title | to_json }},
-    "html_output_path": {{ smart_os_health_check_output_path | to_json }},
-    "json_output_path": {{ smart_os_health_check_json_output_path | to_json }}
+    "title": {{ linux_vitals_report_title | to_json }},
+    "html_output_path": {{ linux_vitals_output_path | to_json }},
+    "json_output_path": {{ linux_vitals_json_output_path | to_json }}
   },
   "summary": {
-    "overall_status": {{ ('PASS' if smart_os_health_check_summary.critical_error_count | int == 0 else 'FAIL') | to_json }},
-    "servers_checked": {{ smart_os_health_check_summary.servers_checked | int }},
-    "auto_fixed_count": {{ smart_os_health_check_summary.auto_fixed_count | int }},
-    "critical_error_count": {{ smart_os_health_check_summary.critical_error_count | int }},
-    "snippet": {{ smart_os_health_check_summary.snippet | to_json }}
+    "overall_status": {{ ('PASS' if linux_vitals_summary.critical_error_count | int == 0 else 'FAIL') | to_json }},
+    "servers_checked": {{ linux_vitals_summary.servers_checked | int }},
+    "auto_fixed_count": {{ linux_vitals_summary.auto_fixed_count | int }},
+    "critical_error_count": {{ linux_vitals_summary.critical_error_count | int }},
+    "snippet": {{ linux_vitals_summary.snippet | to_json }}
   },
   "hosts": [
-    {% for host in smart_os_health_check_reporting_hosts | default(ansible_play_hosts_all) %}
-    {% set result = hostvars[host]['smart_os_health_check_result'] %}
+    {% for host in linux_vitals_reporting_hosts | default(ansible_play_hosts_all) %}
+    {% set result = hostvars[host]['linux_vitals_result'] %}
     {
       "inventory_name": {{ host | to_json }},
       "hostname": {{ result.hostname | to_json }},

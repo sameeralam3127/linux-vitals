@@ -1,10 +1,10 @@
-# Smart OS Health Check & Self-Healing
+# LinuxVitals
 
-Enterprise-focused Ansible automation for Linux VM fleets running RHEL, Fedora, Ubuntu, and SUSE. This project performs smart OS health checks, captures deeper system posture, attempts one-shot self-healing for failed enabled services, generates an HTML dashboard, and sends Slack, email, or generic webhook summaries for operations teams.
+Agentless Ansible collection for Linux fleet health checks across RHEL, Fedora, Ubuntu, and SUSE. LinuxVitals performs deep OS posture checks, attempts one-shot self-healing for failed enabled services (opt-in), and renders a consolidated, self-contained HTML dashboard plus a JSON report for downstream automation -- with Slack, email, and generic webhook summaries for operations teams.
+
+Collection: `sameeralam3127.linux_vitals`
 
 ## What This Does
-
-Automated OS health checks using Ansible:
 
 - CPU and platform-aware system discovery through Ansible facts
 - Memory usage monitoring with warning and critical thresholds
@@ -12,84 +12,40 @@ Automated OS health checks using Ansible:
 - Running service validation for `sssd`, `systemd-journald`, and `chronyd` or `ntp`
 - Network-aware host inventory with hostname and IP address reporting
 - Kernel, reboot, boot-space, rescue image, security-control, and login-failure checks
-- HTML and JSON report generation with optional archive retention
+- Opt-in one-shot self-healing for failed enabled services
+- Consolidated HTML dashboard and JSON report generation with optional archive retention
 - Slack, email, and generic webhook notifications for run summaries
-
-## Features
-
-- Agentless Linux health checks across RHEL, Fedora, Ubuntu, and SUSE
-- Lightweight role-based design with modular task files
-- Customizable thresholds using inventory, `group_vars`, or `.env`
-- One-shot self-healing for failed enabled services
-- HTML dashboard export for management-friendly reporting
-- JSON report export for ingestion into observability or automation pipelines
-- Report archive retention for historical run comparison
-- Slack webhook, email, and generic webhook summaries for operational visibility
-- CI validation with playbook syntax checks, Ansible linting, and template tests
-- Detailed host-level findings including:
-  - uptime
-  - VM vs physical classification
-  - running kernel vs latest installed kernel
-  - default boot entry vs latest installed kernel
-  - reboot required state
-  - SELinux and AppArmor status
-  - boot partition health
-  - rescue image availability
-  - failed login attempts
-  - kernel install or bootloader related failures
-
-## Why This Repo Stands Out
-
-Many Ansible health-check projects stop at basic CPU, memory, and disk metrics. This one goes further by combining:
-
-- deep OS posture checks
-- self-healing for enabled failed services
-- HTML and JSON reporting
-- report retention
-- Slack, email, and generic webhook notifications
-- automated validation in CI
-
-That makes it closer to an SRE-style operational health framework than a simple check script.
 
 ## Architecture
 
+LinuxVitals is a small pipeline of three composable roles, sharing one `linux_vitals_*` variable namespace so they can be run together (via `playbooks/healthcheck.yml`) or independently in your own playbooks:
+
 ```mermaid
 flowchart LR
-    A["Control Node<br/>Ansible Playbook"] --> B["Managed Linux Nodes<br/>RHEL / Ubuntu / SUSE / Fedora"]
-    B --> C["Discovery & Validation<br/>facts, logs, services, kernel, boot, security"]
-    C --> D["Self-Healing<br/>restart enabled failed services once"]
-    C --> E["Result Aggregation"]
-    D --> E["Result Aggregation"]
-    E --> F["HTML Dashboard<br/>reports/smart_os_health_report.html"]
-    E --> G["JSON Report<br/>reports/smart_os_health_report.json"]
-    F --> H["Archive Retention<br/>timestamped HTML and JSON history"]
-    G --> H
-    E --> I["Notifications<br/>Slack, email, generic webhook"]
+    A["vitals_scan<br/>read-only discovery, findings"] --> B["vitals_heal<br/>opt-in self-healing (disabled by default)"]
+    B --> C["vitals_report<br/>HTML/JSON dashboard, notifications"]
 ```
 
-## Repo Structure
+- **`vitals_scan`** -- gathers facts, logs, kernel/boot/security posture, and builds a per-host findings + `final_status` result. Read-only.
+- **`vitals_heal`** -- attempts one restart per systemd-enabled failed service. Disabled by default (`linux_vitals_heal_enabled: false`); nothing on managed hosts changes unless you opt in.
+- **`vitals_report`** -- loads notification config, renders the consolidated HTML/JSON dashboard, archives historical reports, and sends Slack/email/generic-webhook summaries.
+
+## Repo Layout
 
 ```text
 .
-├── smart_os_health_check.yml
-├── ansible.cfg
-├── requirements.yml
-├── requirements-dev.txt
-├── inventory/hosts.ini
-├── group_vars/all.yml
-├── roles/smart_os_health_check/
-│   ├── defaults/main.yml
-│   ├── tasks/
-│   │   ├── config.yml
-│   │   ├── discovery.yml
-│   │   ├── self_healing.yml
-│   │   ├── result.yml
-│   │   └── reporting.yml
-│   └── templates/
-│       ├── report.html.j2
-│       ├── report.json.j2
-│       ├── slack_message.txt.j2
-│       └── generic_webhook_payload.json.j2
+├── galaxy.yml
+├── meta/runtime.yml
+├── playbooks/
+│   └── healthcheck.yml
+├── roles/
+│   ├── vitals_scan/
+│   ├── vitals_heal/
+│   └── vitals_report/
+├── examples/
+│   ├── inventory/
+│   └── group_vars/
+├── docs/
 └── tests/
 ```
 
@@ -101,6 +57,21 @@ flowchart LR
 - SSH access from the Ansible control node to each managed host
 - Privilege escalation rights for checks that need `become`
 
+## Installation
+
+Once published, install from Ansible Galaxy:
+
+```bash
+ansible-galaxy collection install sameeralam3127.linux_vitals
+```
+
+For local development, symlink this repo into your collections path so it resolves as `sameeralam3127.linux_vitals`:
+
+```bash
+mkdir -p ~/.ansible/collections/ansible_collections/sameeralam3127
+ln -s "$(pwd)" ~/.ansible/collections/ansible_collections/sameeralam3127/linux_vitals
+```
+
 ## Quick Start
 
 ```bash
@@ -108,24 +79,33 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements-dev.txt
 ansible-galaxy collection install -r requirements.yml
-cp .env.example .env
-ansible-playbook -i inventory/hosts.ini smart_os_health_check.yml --syntax-check
+
+cp examples/inventory/hosts.example.ini inventory.ini   # edit hosts for your fleet
+cp .env.example .env                                    # only if you plan to enable notifications
+
+ansible-playbook -i inventory.ini playbooks/healthcheck.yml --syntax-check
 pytest -q
-ansible-playbook -i inventory/hosts.ini smart_os_health_check.yml
+ansible-playbook -i inventory.ini playbooks/healthcheck.yml
 ```
 
-Edit `.env` only if you plan to enable Slack, email, or generic webhook notifications.
+Once installed as a collection, run it without cloning this repo:
+
+```bash
+ansible-playbook -i inventory.ini sameeralam3127.linux_vitals.healthcheck
+```
+
+`.env` and report output are resolved relative to your **inventory directory** (`inventory_dir`), not the collection's own install path -- so both the dev workflow and the installed-collection workflow read/write files in your project, never inside the installed package.
 
 ## Inventory Example
 
-Edit [inventory/hosts.ini](inventory/hosts.ini):
+See [examples/inventory/hosts.example.ini](examples/inventory/hosts.example.ini):
 
 ```ini
 [linux_servers]
-rhel01 ansible_host=192.168.1.10
-ubuntu01 ansible_host=192.168.1.11
-fedora01 ansible_host=192.168.1.12
-sles01 ansible_host=192.168.1.13
+rhel01 ansible_host=192.0.2.10
+ubuntu01 ansible_host=192.0.2.11
+fedora01 ansible_host=192.0.2.12
+sles01 ansible_host=192.0.2.13
 
 [linux_servers:vars]
 ansible_user=automation
@@ -134,49 +114,46 @@ ansible_become=true
 
 ## Configuration
 
-The role defaults are intentionally conservative and can be overridden in inventory, `group_vars`, or extra vars:
+Role defaults are conservative and can be overridden in inventory, `group_vars`, or extra vars. See [examples/group_vars/all.yml.example](examples/group_vars/all.yml.example) for a copy-paste starting point.
+
+`vitals_scan` (thresholds, log windows) -- [roles/vitals_scan/defaults/main.yml](roles/vitals_scan/defaults/main.yml):
 
 ```yaml
-smart_os_health_check_output_path: "{{ playbook_dir }}/reports/smart_os_health_report.html"
-smart_os_health_check_archive_html_reports: true
-smart_os_health_check_archive_json_reports: false
-smart_os_health_check_json_output_path: "{{ playbook_dir }}/reports/smart_os_health_report.json"
-smart_os_health_check_report_archive_dir: "{{ smart_os_health_check_output_path | dirname }}/archive"
-smart_os_health_check_report_retention_count: 10
-smart_os_health_check_archive_timestamp: ""
-smart_os_health_check_report_title: "Smart OS Health Check & Self-Healing Dashboard"
-smart_os_health_check_log_window: "30 minutes ago"
-smart_os_health_check_audit_log_window: "7 days ago"
-smart_os_health_check_ram_warning_threshold: 80
-smart_os_health_check_ram_critical_threshold: 95
-smart_os_health_check_boot_warning_threshold: 20
-smart_os_health_check_slack_webhook_url: ""
-smart_os_health_check_slack_message_header: "Standard Maintenance Summary"
-smart_os_health_check_slack_message_footer: ""
-smart_os_health_check_slack_include_host_breakdown: true
-smart_os_health_check_email_enabled: false
-smart_os_health_check_email_to: []
-smart_os_health_check_email_cc: []
-smart_os_health_check_email_from: "smart-os-health-check@example.com"
-smart_os_health_check_email_host: "localhost"
-smart_os_health_check_email_port: 25
-smart_os_health_check_email_secure: "never"
-smart_os_health_check_email_username: ""
-smart_os_health_check_email_password: ""
-smart_os_health_check_email_subject: "Smart OS Health Check Summary"
-smart_os_health_check_generic_webhook_enabled: false
-smart_os_health_check_generic_webhook_url: ""
-smart_os_health_check_generic_webhook_headers: {}
-smart_os_health_check_generic_webhook_status_code: 200
+linux_vitals_log_window: "30 minutes ago"
+linux_vitals_audit_log_window: "7 days ago"
+linux_vitals_ram_warning_threshold: 80
+linux_vitals_ram_critical_threshold: 95
+linux_vitals_boot_warning_threshold: 20
 ```
 
-Shared overrides for all hosts can be placed in [group_vars/all.yml](group_vars/all.yml). Full role defaults live in [roles/smart_os_health_check/defaults/main.yml](roles/smart_os_health_check/defaults/main.yml).
+`vitals_heal` (opt-in self-healing) -- [roles/vitals_heal/defaults/main.yml](roles/vitals_heal/defaults/main.yml):
 
-`group_vars/all.yml` ships with every override commented out by default. Uncomment `smart_os_health_check_generic_webhook_enabled: true` (and supply a URL) to enable the generic webhook channel; leaving it commented keeps the channel disabled, matching the role default.
+```yaml
+linux_vitals_heal_enabled: false
+```
+
+`vitals_report` (output, archiving, notifications) -- [roles/vitals_report/defaults/main.yml](roles/vitals_report/defaults/main.yml):
+
+```yaml
+linux_vitals_output_path: "{{ inventory_dir }}/reports/linux_vitals_report.html"
+linux_vitals_archive_html_reports: true
+linux_vitals_archive_json_reports: false
+linux_vitals_json_output_path: "{{ inventory_dir }}/reports/linux_vitals_report.json"
+linux_vitals_report_archive_dir: "{{ linux_vitals_output_path | dirname }}/archive"
+linux_vitals_report_retention_count: 10
+linux_vitals_report_title: "LinuxVitals Health Check Dashboard"
+linux_vitals_slack_webhook_url: ""
+linux_vitals_slack_message_header: "Standard Maintenance Summary"
+linux_vitals_slack_include_host_breakdown: true
+linux_vitals_email_enabled: false
+linux_vitals_email_to: []
+linux_vitals_generic_webhook_enabled: false
+linux_vitals_generic_webhook_url: ""
+```
 
 ## Notification Examples
 
-Slack through `.env`:
+Slack through `.env` (placed next to your inventory):
 
 ```dotenv
 SLACK_WEBHOOK_URL="https://hooks.slack.com/services/your/team/webhook"
@@ -191,12 +168,11 @@ GENERIC_WEBHOOK_URL="https://example.com/health-events"
 Email through `group_vars/all.yml` plus `.env` SMTP secrets:
 
 ```yaml
-smart_os_health_check_email_enabled: true
-smart_os_health_check_email_to:
+linux_vitals_email_enabled: true
+linux_vitals_email_to:
   - "ops@example.com"
-smart_os_health_check_email_from: "smart-os-health-check@example.com"
-smart_os_health_check_email_port: 587
-smart_os_health_check_email_secure: "starttls"
+linux_vitals_email_port: 587
+linux_vitals_email_secure: "starttls"
 ```
 
 ```dotenv
@@ -205,294 +181,59 @@ EMAIL_SMTP_USERNAME="smtp-user"
 EMAIL_SMTP_PASSWORD="smtp-password"
 ```
 
-## Report Retention
+Resolution order for every channel is the same: an explicit inventory/`group_vars`/extra-vars value wins; otherwise the matching `.env` value is used; otherwise the channel is skipped. You can enable more than one channel at once.
 
-Historical report retention:
+## Self-Healing (Opt-In)
 
-- The latest HTML dashboard is still written to `smart_os_health_check_output_path`
-- The latest JSON report is written to `smart_os_health_check_json_output_path` when the value is not empty
-- Archived HTML copies are stored with UTC timestamps in `smart_os_health_check_report_archive_dir`, for example `smart_os_health_report-20260429T120000Z.html`
-- Set `smart_os_health_check_report_retention_count` to keep only the last `N` archived files
-- Set `smart_os_health_check_archive_json_reports: true` to archive matching JSON outputs
-- Set `smart_os_health_check_archive_html_reports: false` when you only want to update the latest dashboard file
-
-Example that keeps the last 14 HTML reports:
-
-```yaml
-smart_os_health_check_archive_html_reports: true
-smart_os_health_check_report_archive_dir: "{{ playbook_dir }}/reports/archive"
-smart_os_health_check_report_retention_count: 14
-```
-
-Example that keeps the last 7 HTML and JSON reports:
-
-```yaml
-smart_os_health_check_archive_html_reports: true
-smart_os_health_check_archive_json_reports: true
-smart_os_health_check_json_output_path: "{{ playbook_dir }}/reports/smart_os_health_report.json"
-smart_os_health_check_report_retention_count: 7
-```
-
-## `.env` Setup
-
-The role can read controller-side secrets from a local `.env` file in the repository root.
-
-Create `.env` from [.env.example](.env.example):
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env` and set only the values you actually plan to use:
-
-```dotenv
-SLACK_WEBHOOK_URL="https://hooks.slack.com/services/your/team/webhook"
-GENERIC_WEBHOOK_URL="https://example.com/health-events"
-EMAIL_SMTP_HOST="smtp.example.com"
-EMAIL_SMTP_USERNAME="smtp-user"
-EMAIL_SMTP_PASSWORD="smtp-password"
-```
-
-What the role reads from `.env`:
-
-- `SLACK_WEBHOOK_URL`
-- `GENERIC_WEBHOOK_URL`
-- `EMAIL_SMTP_HOST`
-- `EMAIL_SMTP_USERNAME`
-- `EMAIL_SMTP_PASSWORD`
-
-Important notes:
-
-- `.env` is read on the Ansible control node from `{{ playbook_dir }}/.env`
-- values set in inventory, `group_vars`, or extra vars still take precedence over `.env`
-- `.env` is only used for secret-like controller settings, not for every role variable
-- email delivery still requires `smart_os_health_check_email_enabled: true` and at least one recipient in `smart_os_health_check_email_to`
-- generic webhook delivery still requires `smart_os_health_check_generic_webhook_enabled: true`
-
-Example mixed configuration:
-
-```yaml
-# group_vars/all.yml
-smart_os_health_check_slack_message_header: "Nightly Health Summary"
-smart_os_health_check_email_enabled: true
-smart_os_health_check_email_to:
-  - "ops@example.com"
-smart_os_health_check_generic_webhook_enabled: true
-smart_os_health_check_report_retention_count: 14
-```
-
-Resolution order by channel:
-
-Slack:
-
-- `group_vars` / inventory / extra vars value in `smart_os_health_check_slack_webhook_url`
-- `.env` value from `SLACK_WEBHOOK_URL`
-- if neither is set, Slack is skipped
-
-Generic webhook:
-
-- `group_vars` / inventory / extra vars value in `smart_os_health_check_generic_webhook_url`
-- `.env` value from `GENERIC_WEBHOOK_URL`
-- if neither is set, the generic webhook task is skipped
-
-Email SMTP:
-
-- inventory, `group_vars`, or extra vars values
-- `.env` values for `EMAIL_SMTP_HOST`, `EMAIL_SMTP_USERNAME`, and `EMAIL_SMTP_PASSWORD`
-- if email is not enabled or `smart_os_health_check_email_to` is empty, the email task is skipped
-
-You can enable one or more notification channels at the same time.
+`vitals_heal` runs every time the playbook does, but its tasks are skipped unless `linux_vitals_heal_enabled: true` is set. With it enabled, LinuxVitals attempts exactly one restart per systemd-enabled service found in a `failed` state, then re-checks the required-service status (`sssd`, `systemd-journald`, time sync) so the dashboard reflects the post-restart state.
 
 ## Usage
 
-Run the playbook:
-
 ```bash
-ansible-playbook -i inventory/hosts.ini smart_os_health_check.yml
+ansible-playbook -i inventory.ini playbooks/healthcheck.yml
 ```
 
-Run targeted health-check slices with Ansible tags:
+Targeted slices with tags:
 
 ```bash
 # Discovery facts, service state, memory, logs, kernel, boot, and security posture
-ansible-playbook -i inventory/hosts.ini smart_os_health_check.yml --tags discovery
+ansible-playbook -i inventory.ini playbooks/healthcheck.yml --tags discovery
 
 # Kernel and reboot-required checks
-ansible-playbook -i inventory/hosts.ini smart_os_health_check.yml --tags kernel
+ansible-playbook -i inventory.ini playbooks/healthcheck.yml --tags kernel
 
 # SELinux, AppArmor, and failed-login checks
-ansible-playbook -i inventory/hosts.ini smart_os_health_check.yml --tags security
+ansible-playbook -i inventory.ini playbooks/healthcheck.yml --tags security
 
 # Boot partition and rescue image checks
-ansible-playbook -i inventory/hosts.ini smart_os_health_check.yml --tags boot
+ansible-playbook -i inventory.ini playbooks/healthcheck.yml --tags boot
 
-# Failed enabled service restart attempts
-ansible-playbook -i inventory/hosts.ini smart_os_health_check.yml --tags self_healing
+# Self-healing restart attempts (only acts if linux_vitals_heal_enabled: true)
+ansible-playbook -i inventory.ini playbooks/healthcheck.yml --tags self_healing
 
 # Rebuild report artifacts and send configured notifications from current run data
-ansible-playbook -i inventory/hosts.ini smart_os_health_check.yml --tags reporting
+ansible-playbook -i inventory.ini playbooks/healthcheck.yml --tags reporting,notifications
 ```
 
-The `config` setup runs automatically for tagged executions so controller-side `.env` values are still loaded. Combine tags with commas for focused workflows, such as `--tags discovery,kernel,reporting`.
-
-Validate before running:
-
-```bash
-ANSIBLE_LOCAL_TEMP=/tmp/ansible-local ANSIBLE_REMOTE_TEMP=/tmp/ansible-remote ansible-lint smart_os_health_check.yml
-ansible-playbook -i inventory/hosts.ini smart_os_health_check.yml --syntax-check
-pytest -q
-```
-
-## Sample Output
-
-Generated HTML dashboard:
-
-```text
-reports/smart_os_health_report.html
-```
-
-Generated JSON report:
-
-```text
-reports/smart_os_health_report.json
-```
-
-The `reports/` directory is generated at runtime and ignored by git, so a fresh clone will not include sample report artifacts until you run the playbook.
-
-Sample Slack output:
-
-```text
-Standard Maintenance Summary
-Overall Status: FAIL
-Servers Checked: 2 | Auto-Fixed: 0 | Critical Errors: 2
-Summary: 2 Servers Checked, 0 Auto-Fixed, 2 Critical Errors
-Host Breakdown:
-- server1 (192.168.2.19) | Status: Pass | Type: Virtual Machine | Uptime: 12d 4h 21m | Kernel: 5.14.0-503.35.1.el9_5.x86_64 | Reboot: No | Boot: Healthy | Failed Logins: 0
-- server2 (192.168.2.20) | Status: Fail | Type: Physical | Uptime: 48d 7h 13m | Kernel: 6.8.0-60-generic (latest installed not active) | Reboot: Required | Boot: Low | Failed Logins: 3
-Generated by Ansible
-```
-
-## Reporting
-
-HTML dashboard summary table includes:
-
-- Hostname
-- IP Address
-- OS
-- RAM Status
-- Log Errors
-- Services Healed
-- Final Status
-
-Extended host detail cards include:
-
-- Uptime and last reboot
-- VM or physical platform classification
-- Running kernel vs latest installed kernel
-- Default boot entry validation when GRUB data is available
-- Reboot required state
-- SELinux and AppArmor status
-- Boot partition status and free space
-- Rescue image availability
-- Last failed login attempt
-- Kernel install failure excerpts
-
-JSON report export includes:
-
-- run metadata and overall PASS/FAIL summary
-- host findings and final status
-- kernel state, bootloader validation, and reboot-required state
-- SELinux, AppArmor, and failed-login security controls
-- boot partition health, rescue image state, memory usage, log excerpts, and self-healing results
-
-Minimal JSON shape:
-
-```json
-{
-  "schema_version": "1.0",
-  "generated_at": "20260429T120000Z",
-  "summary": {
-    "overall_status": "PASS",
-    "servers_checked": 2,
-    "auto_fixed_count": 1,
-    "critical_error_count": 0
-  },
-  "hosts": [
-    {
-      "inventory_name": "ubuntu01",
-      "hostname": "ubuntu01",
-      "status": "Pass",
-      "kernel": {
-        "running": "6.8.0-60-generic",
-        "latest_installed": "6.8.0-60-generic"
-      },
-      "reboot": {
-        "required": false
-      },
-      "security": {
-        "selinux_status": "not_applicable",
-        "apparmor_status": "enabled",
-        "failed_login_count": 0
-      },
-      "findings": [
-        "RAM status: Healthy"
-      ]
-    }
-  ]
-}
-```
-
-Sample ingestion use cases:
-
-- ship `reports/smart_os_health_report.json` with Filebeat or Fluent Bit into ELK/OpenSearch
-- scrape the JSON artifact from CI or Ansible Automation Platform jobs for downstream automation
-- load the host records into Grafana-compatible observability storage for fleet trend dashboards
-
-## Automation Workflow
-
-Recommended operator workflow:
-
-1. Update inventory and shared overrides in `inventory/hosts.ini` and `group_vars/all.yml`.
-2. Put notification secrets in `.env`, or inject them through your automation platform.
-3. Run `ansible-playbook --syntax-check`, `ansible-lint`, and `pytest -q` before production runs.
-4. Execute the playbook against the fleet.
-5. Review the HTML dashboard for human triage and the JSON report for downstream automation.
-6. Keep archived reports enabled when you need historical evidence for audits or trend analysis.
-
----
-
-## Quality Checks
-
-Install hooks:
+## Validation
 
 ```bash
 pre-commit install
-```
-
-Validation coverage in this branch includes:
-
-- `ansible-playbook --syntax-check` for the top-level playbook
-- `ansible-lint` for repo linting
-- `pytest` template rendering checks for the HTML dashboard, notification payloads, and report archiving retention
-
-A GitHub Actions workflow at [.github/workflows/ci.yml](.github/workflows/ci.yml) runs the same checks on pushes and pull requests.
-
-Run validation:
-
-```bash
 pre-commit run --all-files
-ANSIBLE_LOCAL_TEMP=/tmp/ansible-local ANSIBLE_REMOTE_TEMP=/tmp/ansible-remote ansible-lint smart_os_health_check.yml
-ansible-playbook -i inventory/hosts.ini smart_os_health_check.yml --syntax-check
+ANSIBLE_LOCAL_TEMP=.ansible/tmp ANSIBLE_REMOTE_TEMP=.ansible/tmp ansible-lint roles/ playbooks/
+ansible-playbook playbooks/healthcheck.yml --syntax-check
 pytest -q
 ```
 
+A GitHub Actions workflow at [.github/workflows/ci.yml](.github/workflows/ci.yml) runs the same checks on pushes and pull requests.
+
 ## Troubleshooting
 
-- If `reports/` is missing, run the playbook once; report files are generated locally and ignored by git.
-- If Slack or generic webhook notifications do not send, confirm the matching webhook URL is set in inventory, `group_vars`, extra vars, or `.env`.
-- If email does not send, confirm `smart_os_health_check_email_enabled: true`, at least one recipient in `smart_os_health_check_email_to`, and valid SMTP settings.
-- If Ansible writes temp-file permission errors, run with writable temp paths, for example `ANSIBLE_LOCAL_TEMP=/tmp/ansible-local ANSIBLE_REMOTE_TEMP=/tmp/ansible-remote`.
+- If `reports/` is missing, run the playbook once; report files are generated next to your inventory and ignored by git.
+- If Slack or generic webhook notifications do not send, confirm the matching webhook URL is set in inventory, `group_vars`, extra vars, or `.env` (next to your inventory).
+- If email does not send, confirm `linux_vitals_email_enabled: true`, at least one recipient in `linux_vitals_email_to`, and valid SMTP settings.
 - If tagged runs skip expected output, include `reporting` with your focused tags, for example `--tags discovery,kernel,reporting`.
+- If `ansible-playbook sameeralam3127.linux_vitals.healthcheck` can't find the collection, confirm it's installed (`ansible-galaxy collection list | grep linux_vitals`) or symlinked for local dev (see Installation above).
 
 ## License
 

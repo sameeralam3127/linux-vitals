@@ -1,0 +1,22 @@
+---
+galaxy_info:
+  role_name: vitals_report
+  author: Sameer Alam
+  description: Fleet-wide HTML/JSON reporting, baseline comparison, and notifications for LinuxVitals
+  license: MIT
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Ubuntu
+      versions: [focal, jammy, noble]
+    - name: EL
+      versions: ["8", "9"]
+    - name: Fedora
+      versions: [all]
+    - name: opensuse
+      versions: [all]
+  galaxy_tags:
+    - linux
+    - reporting
+    - dashboard
+
+dependencies: []

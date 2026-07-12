@@ -1,0 +1,112 @@
+---
+- name: Build host health findings
+  ansible.builtin.set_fact:
+    linux_vitals_findings: >-
+      {%- set findings = [] -%}
+      {%- if linux_vitals_ram_status == 'Critical' -%}
+      {%- set _ = findings.append('RAM usage is critical') -%}
+      {%- endif -%}
+      {%- if linux_vitals_log_errors | int > 0 -%}
+      {%- set _ = findings.append('Recent logs contain error or failed entries') -%}
+      {%- endif -%}
+      {%- if linux_vitals_service_status.sssd.state != 'running' -%}
+      {%- set _ = findings.append('sssd is not active') -%}
+      {%- endif -%}
+      {%- if linux_vitals_service_status.systemd_journald.state != 'running' -%}
+      {%- set _ = findings.append('systemd-journald is not active') -%}
+      {%- endif -%}
+      {%- if linux_vitals_service_status.time_sync.service_name == 'absent' -%}
+      {%- set _ = findings.append('chronyd or ntp is not installed') -%}
+      {%- elif linux_vitals_service_status.time_sync.state != 'running' -%}
+      {%- set _ = findings.append('Time synchronization service is not active') -%}
+      {%- endif -%}
+      {%- if linux_vitals_reboot_required -%}
+      {%- set _ = findings.append('System reboot is required') -%}
+      {%- endif -%}
+      {%- if not linux_vitals_latest_kernel_selected -%}
+      {%- set _ = findings.append('Latest installed kernel is not currently running') -%}
+      {%- endif -%}
+      {%- if linux_vitals_bootloader_default_status == 'resolved' and not linux_vitals_bootloader_default_matches_latest -%}
+      {%- set _ = findings.append('Default boot entry does not select the latest installed kernel') -%}
+      {%- endif -%}
+      {%- if linux_vitals_boot_space_status == 'Low' -%}
+      {%- set _ = findings.append('Boot partition free space is low') -%}
+      {%- endif -%}
+      {%- if linux_vitals_kernel_install_failures | int > 0 -%}
+      {%- set _ = findings.append('Kernel installation or bootloader related failures found in logs') -%}
+      {%- endif -%}
+      {%- if linux_vitals_failed_login_attempts | length > 0 -%}
+      {%- set _ = findings.append('Recent failed login attempts detected') -%}
+      {%- endif -%}
+      {%- if linux_vitals_selinux_status not in ['Enforcing', 'Permissive'] and ansible_facts['os_family'] == 'RedHat' -%}
+      {%- set _ = findings.append('SELinux is disabled or unavailable') -%}
+      {%- endif -%}
+      {%- if ansible_facts['os_family'] == 'Debian' and linux_vitals_apparmor_status != 'enabled' -%}
+      {%- set _ = findings.append('AppArmor is disabled or unavailable') -%}
+      {%- endif -%}
+      {%- for item in linux_vitals_healing_results | default([]) -%}
+      {%- if item.result != 'Fixed' -%}
+      {%- set _ = findings.append(item.service ~ ' requires manual follow-up') -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{ findings }}
+  tags:
+    - result
+    - reporting
+
+- name: Build per-host report object
+  ansible.builtin.set_fact:
+    linux_vitals_result:
+      hostname: "{{ ansible_facts.hostname | default(inventory_hostname) }}"
+      ip_address: >-
+        {{
+          ansible_facts['default_ipv4']['address']
+          | default(ansible_host | default('unavailable'), true)
+        }}
+      os: "{{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}"
+      os_family: "{{ ansible_facts['os_family'] }}"
+      package_manager: "{{ linux_vitals_pkg_manager }}"
+      log_source: "{{ linux_vitals_log_source }}"
+      platform_type: "{{ linux_vitals_platform_type }}"
+      virtualization_type: "{{ linux_vitals_virtualization_type }}"
+      uptime: "{{ linux_vitals_uptime_readable }}"
+      last_reboot: "{{ linux_vitals_last_reboot }}"
+      running_kernel: "{{ linux_vitals_running_kernel }}"
+      latest_installed_kernel: "{{ linux_vitals_latest_installed_kernel }}"
+      latest_kernel_updated_at: "{{ linux_vitals_latest_kernel_updated_at }}"
+      latest_kernel_selected: "{{ linux_vitals_latest_kernel_selected }}"
+      bootloader_supported: "{{ linux_vitals_bootloader_supported }}"
+      bootloader_default_source: "{{ linux_vitals_bootloader_default_source }}"
+      bootloader_default_entry: "{{ linux_vitals_bootloader_default_entry }}"
+      bootloader_default_kernel: "{{ linux_vitals_bootloader_default_kernel }}"
+      bootloader_default_status: "{{ linux_vitals_bootloader_default_status }}"
+      bootloader_default_matches_latest: "{{ linux_vitals_bootloader_default_matches_latest }}"
+      bootloader_validation_message: "{{ linux_vitals_bootloader_validation_message }}"
+      reboot_required: "{{ linux_vitals_reboot_required }}"
+      selinux_status: "{{ linux_vitals_selinux_status }}"
+      apparmor_status: "{{ linux_vitals_apparmor_status }}"
+      boot_mount: "{{ linux_vitals_boot_mount_point }}"
+      boot_free_mb: "{{ linux_vitals_boot_free_mb }}"
+      boot_total_mb: "{{ linux_vitals_boot_total_mb }}"
+      boot_free_pct: "{{ linux_vitals_boot_free_pct }}"
+      boot_space_status: "{{ linux_vitals_boot_space_status }}"
+      rescue_image_available: "{{ linux_vitals_rescue_image_available }}"
+      rescue_image_paths: "{{ linux_vitals_rescue_image_paths }}"
+      last_failed_login: "{{ linux_vitals_last_failed_login }}"
+      failed_login_count: "{{ linux_vitals_failed_login_attempts | length }}"
+      kernel_install_failures: "{{ linux_vitals_kernel_install_failures }}"
+      kernel_install_failure_excerpt: "{{ linux_vitals_kernel_install_failure_excerpt }}"
+      ram_status: "{{ linux_vitals_ram_status }}"
+      ram_used_pct: "{{ linux_vitals_ram_used_pct }}"
+      ram_used_mb: "{{ linux_vitals_memory_used_mb | round(1) }}"
+      ram_total_mb: "{{ linux_vitals_memory_total_mb | round(1) }}"
+      log_errors: "{{ linux_vitals_log_errors }}"
+      log_excerpt: "{{ linux_vitals_log_excerpt }}"
+      asset_serial: "{{ ansible_facts['product_serial'] | default('unavailable') }}"
+      services_healed: "{{ linux_vitals_services_healed | default([]) }}"
+      healing_results: "{{ linux_vitals_healing_results | default([]) }}"
+      final_status: "{{ 'Pass' if linux_vitals_findings | length == 0 else 'Fail' }}"
+      findings: "{{ linux_vitals_findings }}"
+  tags:
+    - result
+    - reporting

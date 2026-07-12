@@ -1,0 +1,13 @@
+{{ linux_vitals_slack_message_header }}
+Overall Status: {{ 'PASS' if linux_vitals_summary.critical_error_count | int == 0 else 'FAIL' }}
+Servers Checked: {{ linux_vitals_summary.servers_checked }} | Auto-Fixed: {{ linux_vitals_summary.auto_fixed_count }} | Critical Errors: {{ linux_vitals_summary.critical_error_count }}
+Summary: {{ linux_vitals_summary.snippet }}
+{% if linux_vitals_slack_include_host_breakdown %}
+Host Breakdown:
+{% for host in linux_vitals_reporting_hosts | default(ansible_play_hosts_all) %}
+- {{ hostvars[host]['linux_vitals_result'].hostname }} ({{ hostvars[host]['linux_vitals_result'].ip_address }}) | Status: {{ hostvars[host]['linux_vitals_result'].final_status }} | Type: {{ hostvars[host]['linux_vitals_result'].platform_type }} | Uptime: {{ hostvars[host]['linux_vitals_result'].uptime }} | Kernel: {{ hostvars[host]['linux_vitals_result'].running_kernel }}{% if not hostvars[host]['linux_vitals_result'].latest_kernel_selected %} (latest installed not active){% endif %} | Bootloader: {% if hostvars[host]['linux_vitals_result'].bootloader_default_status == 'resolved' %}{{ hostvars[host]['linux_vitals_result'].bootloader_default_kernel }}{% if hostvars[host]['linux_vitals_result'].bootloader_default_matches_latest %} (latest selected){% else %} (latest not selected){% endif %}{% elif hostvars[host]['linux_vitals_result'].bootloader_default_status == 'entry-only' %}{{ hostvars[host]['linux_vitals_result'].bootloader_default_entry }} (kernel unresolved){% else %}Not Available{% endif %} | Reboot: {{ 'Required' if hostvars[host]['linux_vitals_result'].reboot_required else 'No' }} | Boot: {{ hostvars[host]['linux_vitals_result'].boot_space_status }} | Failed Logins: {{ hostvars[host]['linux_vitals_result'].failed_login_count }}
+{% endfor %}
+{% endif %}
+{% if linux_vitals_slack_message_footer | trim %}
+{{ linux_vitals_slack_message_footer }}
+{% endif %}

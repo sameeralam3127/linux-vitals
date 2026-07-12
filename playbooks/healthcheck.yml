@@ -1,0 +1,9 @@
+---
+- name: LinuxVitals health check
+  hosts: linux_servers
+  gather_facts: true
+
+  roles:
+    - role: sameeralam3127.linux_vitals.vitals_scan
+    - role: sameeralam3127.linux_vitals.vitals_heal
+    - role: sameeralam3127.linux_vitals.vitals_report

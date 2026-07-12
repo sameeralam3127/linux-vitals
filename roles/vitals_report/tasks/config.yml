@@ -1,0 +1,100 @@
+---
+- name: Load Slack webhook from local .env when present
+  ansible.builtin.set_fact:
+    linux_vitals_dotenv_contents: "{{ lookup('ansible.builtin.file', inventory_dir ~ '/.env', errors='ignore') }}"
+    linux_vitals_dotenv_slack_webhook_url: >-
+      {{
+        (
+          linux_vitals_dotenv_contents
+          | regex_findall("(?m)^SLACK_WEBHOOK_URL=[\"']?([^\"'\\n#]+)[\"']?$")
+          | first
+        ) | default('', true) | trim
+      }}
+    linux_vitals_dotenv_generic_webhook_url: >-
+      {{
+        (
+          linux_vitals_dotenv_contents
+          | regex_findall("(?m)^GENERIC_WEBHOOK_URL=[\"']?([^\"'\\n#]+)[\"']?$")
+          | first
+        ) | default('', true) | trim
+      }}
+    linux_vitals_dotenv_email_host: >-
+      {{
+        (
+          linux_vitals_dotenv_contents
+          | regex_findall("(?m)^EMAIL_SMTP_HOST=[\"']?([^\"'\\n#]+)[\"']?$")
+          | first
+        ) | default('', true) | trim
+      }}
+    linux_vitals_dotenv_email_username: >-
+      {{
+        (
+          linux_vitals_dotenv_contents
+          | regex_findall("(?m)^EMAIL_SMTP_USERNAME=[\"']?([^\"'\\n#]+)[\"']?$")
+          | first
+        ) | default('', true) | trim
+      }}
+    linux_vitals_dotenv_email_password: >-
+      {{
+        (
+          linux_vitals_dotenv_contents
+          | regex_findall("(?m)^EMAIL_SMTP_PASSWORD=[\"']?([^\"'\\n#]+)[\"']?$")
+          | first
+        ) | default('', true) | trim
+      }}
+  no_log: true
+  tags:
+    - always
+    - config
+
+- name: Finalize effective notification configuration
+  ansible.builtin.set_fact:
+    linux_vitals_effective_slack_webhook_url: >-
+      {{
+        (
+          linux_vitals_slack_webhook_url | default('', true) | trim
+        ) if (
+          linux_vitals_slack_webhook_url | default('', true) | trim | length > 0
+        ) else linux_vitals_dotenv_slack_webhook_url
+      }}
+    linux_vitals_effective_generic_webhook_url: >-
+      {{
+        (
+          linux_vitals_generic_webhook_url | default('', true) | trim
+        ) if (
+          linux_vitals_generic_webhook_url | default('', true) | trim | length > 0
+        ) else linux_vitals_dotenv_generic_webhook_url
+      }}
+    linux_vitals_effective_email_host: >-
+      {{
+        (
+          linux_vitals_email_host | default('', true) | trim
+        ) if (
+          linux_vitals_email_host | default('', true) | trim | length > 0
+          and linux_vitals_email_host | default('', true) | trim != 'localhost'
+        ) else (
+          linux_vitals_dotenv_email_host
+          if linux_vitals_dotenv_email_host | length > 0
+          else linux_vitals_email_host
+        )
+      }}
+    linux_vitals_effective_email_username: >-
+      {{
+        (
+          linux_vitals_email_username | default('', true) | trim
+        ) if (
+          linux_vitals_email_username | default('', true) | trim | length > 0
+        ) else linux_vitals_dotenv_email_username
+      }}
+    linux_vitals_effective_email_password: >-
+      {{
+        (
+          linux_vitals_email_password | default('', true) | trim
+        ) if (
+          linux_vitals_email_password | default('', true) | trim | length > 0
+        ) else linux_vitals_dotenv_email_password
+      }}
+  no_log: true
+  tags:
+    - always
+    - config

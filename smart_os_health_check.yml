@@ -1,7 +1,0 @@
----
-- name: Smart OS Health Check and Self-Healing
-  hosts: linux_servers
-  gather_facts: true
-
-  roles:
-    - smart_os_health_check

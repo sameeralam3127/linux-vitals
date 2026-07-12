@@ -1,2 +1,8 @@
 skip_list:
   - fqcn-builtins
+  # vitals_scan, vitals_heal, and vitals_report are a single cohesive
+  # pipeline (scan -> heal -> report) that share one collection-wide
+  # linux_vitals_* variable and fact namespace by design, so cross-role
+  # data (e.g. vitals_heal's healing_results consumed by vitals_scan's
+  # result.yml) needs no per-role translation layer. See docs/architecture.md.
+  - var-naming[no-role-prefix]

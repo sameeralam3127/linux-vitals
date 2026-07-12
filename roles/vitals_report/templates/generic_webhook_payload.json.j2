@@ -1,16 +1,16 @@
 {
   "summary": {
-    "header": {{ smart_os_health_check_slack_message_header | to_json }},
-    "overall_status": {{ ('PASS' if smart_os_health_check_summary.critical_error_count | int == 0 else 'FAIL') | to_json }},
-    "servers_checked": {{ smart_os_health_check_summary.servers_checked | int }},
-    "auto_fixed_count": {{ smart_os_health_check_summary.auto_fixed_count | int }},
-    "critical_error_count": {{ smart_os_health_check_summary.critical_error_count | int }},
-    "snippet": {{ smart_os_health_check_summary.snippet | to_json }}
+    "header": {{ linux_vitals_slack_message_header | to_json }},
+    "overall_status": {{ ('PASS' if linux_vitals_summary.critical_error_count | int == 0 else 'FAIL') | to_json }},
+    "servers_checked": {{ linux_vitals_summary.servers_checked | int }},
+    "auto_fixed_count": {{ linux_vitals_summary.auto_fixed_count | int }},
+    "critical_error_count": {{ linux_vitals_summary.critical_error_count | int }},
+    "snippet": {{ linux_vitals_summary.snippet | to_json }}
   },
-  "message": {{ smart_os_health_check_notification_message | to_json }},
+  "message": {{ linux_vitals_notification_message | to_json }},
   "hosts": [
-    {% for host in smart_os_health_check_reporting_hosts | default(ansible_play_hosts_all) %}
-    {% set result = hostvars[host]['smart_os_health_check_result'] %}
+    {% for host in linux_vitals_reporting_hosts | default(ansible_play_hosts_all) %}
+    {% set result = hostvars[host]['linux_vitals_result'] %}
     {
       "hostname": {{ result.hostname | to_json }},
       "ip_address": {{ result.ip_address | to_json }},

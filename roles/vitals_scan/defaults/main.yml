@@ -1,0 +1,6 @@
+---
+linux_vitals_log_window: "30 minutes ago"
+linux_vitals_audit_log_window: "7 days ago"
+linux_vitals_ram_warning_threshold: 80
+linux_vitals_ram_critical_threshold: 95
+linux_vitals_boot_warning_threshold: 20

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{ smart_os_health_check_report_title }}</title>
+  <title>{{ linux_vitals_report_title }}</title>
   <style>
     :root {
       --bg: #f3f7fb;
@@ -203,23 +203,23 @@
 <body>
   <div class="page">
     <section class="hero">
-      <h1>{{ smart_os_health_check_report_title }}</h1>
-      <p>Generated on {{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S UTC') }} for {{ smart_os_health_check_summary.servers_checked }} managed hosts.</p>
-      <p>Maintenance Summary: {{ smart_os_health_check_summary.snippet }}</p>
+      <h1>{{ linux_vitals_report_title }}</h1>
+      <p>Generated on {{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S UTC') }} for {{ linux_vitals_summary.servers_checked }} managed hosts.</p>
+      <p>Maintenance Summary: {{ linux_vitals_summary.snippet }}</p>
     </section>
 
     <section class="summary">
       <div class="card">
         <div class="label">Servers Checked</div>
-        <div class="value">{{ smart_os_health_check_summary.servers_checked }}</div>
+        <div class="value">{{ linux_vitals_summary.servers_checked }}</div>
       </div>
       <div class="card">
         <div class="label">Auto-Fixed</div>
-        <div class="value">{{ smart_os_health_check_summary.auto_fixed_count }}</div>
+        <div class="value">{{ linux_vitals_summary.auto_fixed_count }}</div>
       </div>
       <div class="card">
         <div class="label">Critical Errors</div>
-        <div class="value">{{ smart_os_health_check_summary.critical_error_count }}</div>
+        <div class="value">{{ linux_vitals_summary.critical_error_count }}</div>
       </div>
     </section>
 
@@ -235,8 +235,8 @@
         </tr>
       </thead>
       <tbody>
-        {% for host in smart_os_health_check_reporting_hosts | default(ansible_play_hosts_all) %}
-        {% set result = hostvars[host]['smart_os_health_check_result'] %}
+        {% for host in linux_vitals_reporting_hosts | default(ansible_play_hosts_all) %}
+        {% set result = hostvars[host]['linux_vitals_result'] %}
         <tr>
           <td>
             <strong>{{ result.hostname | e }}</strong><br>
@@ -291,8 +291,8 @@
     </table>
 
     <section class="details">
-      {% for host in smart_os_health_check_reporting_hosts | default(ansible_play_hosts_all) %}
-      {% set result = hostvars[host]['smart_os_health_check_result'] %}
+      {% for host in linux_vitals_reporting_hosts | default(ansible_play_hosts_all) %}
+      {% set result = hostvars[host]['linux_vitals_result'] %}
       <article class="detail-card">
         <h2>{{ result.hostname | e }}</h2>
         <div class="detail-grid">

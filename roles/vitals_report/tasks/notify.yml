@@ -1,0 +1,64 @@
+---
+- name: Render reusable notification summary message
+  ansible.builtin.set_fact:
+    linux_vitals_notification_message: "{{ lookup('ansible.builtin.template', 'slack_message.txt.j2') }}"
+  delegate_to: localhost
+  run_once: true
+  tags:
+    - reporting
+    - notifications
+
+- name: Send Slack maintenance summary
+  ansible.builtin.uri:
+    url: "{{ linux_vitals_effective_slack_webhook_url }}"
+    method: POST
+    body_format: json
+    body:
+      text: "{{ linux_vitals_notification_message }}"
+    status_code: 200
+    return_content: true
+  delegate_to: localhost
+  run_once: true
+  when: linux_vitals_effective_slack_webhook_url | length > 0
+  tags:
+    - reporting
+    - notifications
+
+- name: Send email maintenance summary
+  community.general.mail:
+    host: "{{ linux_vitals_effective_email_host }}"
+    port: "{{ linux_vitals_email_port | int }}"
+    secure: "{{ linux_vitals_email_secure }}"
+    username: "{{ linux_vitals_effective_email_username | default(omit, true) }}"
+    password: "{{ linux_vitals_effective_email_password | default(omit, true) }}"
+    to: "{{ linux_vitals_email_to }}"
+    cc: "{{ linux_vitals_email_cc if linux_vitals_email_cc | length > 0 else omit }}"
+    from: "{{ linux_vitals_email_from }}"
+    subject: "{{ linux_vitals_email_subject }}"
+    body: "{{ linux_vitals_notification_message }}"
+  delegate_to: localhost
+  run_once: true
+  when:
+    - linux_vitals_email_enabled
+    - linux_vitals_email_to | length > 0
+  tags:
+    - reporting
+    - notifications
+
+- name: Send generic webhook maintenance summary
+  ansible.builtin.uri:
+    url: "{{ linux_vitals_effective_generic_webhook_url }}"
+    method: POST
+    body_format: json
+    body: "{{ lookup('ansible.builtin.template', 'generic_webhook_payload.json.j2') | from_json }}"
+    headers: "{{ linux_vitals_generic_webhook_headers if linux_vitals_generic_webhook_headers | length > 0 else omit }}"
+    status_code: "{{ linux_vitals_generic_webhook_status_code | int }}"
+    return_content: true
+  delegate_to: localhost
+  run_once: true
+  when:
+    - linux_vitals_generic_webhook_enabled
+    - linux_vitals_effective_generic_webhook_url | length > 0
+  tags:
+    - reporting
+    - notifications

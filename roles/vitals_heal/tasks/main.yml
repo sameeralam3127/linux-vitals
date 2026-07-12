@@ -1,0 +1,122 @@
+---
+- name: Attempt self-healing for failed enabled services
+  when: linux_vitals_heal_enabled | bool
+  tags:
+    - self_healing
+  block:
+    - name: Identify enabled failed services
+      ansible.builtin.set_fact:
+        linux_vitals_failed_enabled_services: >-
+          {{
+            ansible_facts.services
+            | dict2items
+            | selectattr('value.state', 'equalto', 'failed')
+            | selectattr('value.status', 'defined')
+            | selectattr('value.status', 'search', 'enabled')
+            | map(attribute='key')
+            | list
+          }}
+
+    - name: Attempt one restart for enabled failed services
+      ansible.builtin.service:
+        name: "{{ item | regex_replace('\\.service$', '') }}"
+        state: restarted
+      loop: "{{ linux_vitals_failed_enabled_services }}"
+      register: linux_vitals_restart_attempts
+      failed_when: false
+      when: linux_vitals_failed_enabled_services | length > 0
+
+    - name: Refresh service facts after self-healing attempts
+      ansible.builtin.service_facts:
+      when: linux_vitals_failed_enabled_services | length > 0
+
+    - name: Summarize self-healing outcomes
+      ansible.builtin.set_fact:
+        linux_vitals_healing_results: >-
+          {%- set outcomes = [] -%}
+          {%- for attempt in linux_vitals_restart_attempts.results | default([]) -%}
+          {%- set key = attempt.item -%}
+          {%- set current = ansible_facts.services.get(key, ansible_facts.services.get(key | regex_replace('\.service$', ''), {})) -%}
+          {%- set result = 'Manual Intervention Required' -%}
+          {%- if attempt.failed | default(false) -%}
+          {%- set result = 'Manual Intervention Required' -%}
+          {%- elif current.state | default('unknown') == 'running' -%}
+          {%- set result = 'Fixed' -%}
+          {%- elif current.state | default('unknown') == 'failed' -%}
+          {%- set result = 'Failed to Fix' -%}
+          {%- else -%}
+          {%- set result = 'Manual Intervention Required' -%}
+          {%- endif -%}
+          {%- set _ = outcomes.append({'service': key, 'result': result}) -%}
+          {%- endfor -%}
+          {{ outcomes }}
+
+    - name: Finalize healing counters
+      ansible.builtin.set_fact:
+        linux_vitals_services_healed: >-
+          {{
+            linux_vitals_healing_results
+            | selectattr('result', 'equalto', 'Fixed')
+            | map(attribute='service')
+            | list
+          }}
+        linux_vitals_auto_fixed_count: >-
+          {{
+            linux_vitals_healing_results
+            | selectattr('result', 'equalto', 'Fixed')
+            | list
+            | length
+          }}
+
+    - name: Refresh required service status after healing
+      ansible.builtin.set_fact:
+        linux_vitals_service_status:
+          sssd:
+            service_name: >-
+              {{
+                (
+                  ['sssd.service', 'sssd']
+                  | intersect(ansible_facts.services.keys() | list)
+                  | first
+                ) | default('absent', true)
+              }}
+            state: >-
+              {{
+                ansible_facts.services.get(
+                  (
+                    ['sssd.service', 'sssd']
+                    | intersect(ansible_facts.services.keys() | list)
+                    | first
+                  ) | default('absent', true),
+                  {}
+                ).state | default('missing')
+              }}
+          systemd_journald:
+            service_name: >-
+              {{
+                (
+                  ['systemd-journald.service', 'systemd-journald']
+                  | intersect(ansible_facts.services.keys() | list)
+                  | first
+                ) | default('absent', true)
+              }}
+            state: >-
+              {{
+                ansible_facts.services.get(
+                  (
+                    ['systemd-journald.service', 'systemd-journald']
+                    | intersect(ansible_facts.services.keys() | list)
+                    | first
+                  ) | default('absent', true),
+                  {}
+                ).state | default('missing')
+              }}
+          time_sync:
+            service_name: "{{ linux_vitals_time_sync_service }}"
+            state: >-
+              {{
+                ansible_facts.services.get(
+                  linux_vitals_time_sync_service,
+                  {}
+                ).state | default('missing')
+              }}

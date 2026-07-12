@@ -1,0 +1,54 @@
+namespace: sameeralam3127
+name: linux_vitals
+version: 1.0.0
+readme: README.md
+authors:
+  - Sameer Alam <sameeralam3127@gmail.com>
+
+description: >-
+  Agentless Linux fleet health checks for RHEL, Fedora, Ubuntu, and SUSE:
+  baseline and post-maintenance snapshots, before/after comparison, one-shot
+  self-healing, and a self-contained HTML dashboard for hundreds of servers.
+
+license:
+  - MIT
+
+tags:
+  - linux
+  - monitoring
+  - healthcheck
+  - maintenance
+  - reporting
+  - dashboard
+  - infrastructure
+  - sysadmin
+  - observability
+  - selfhealing
+
+repository: https://github.com/sameeralam3127/linux-vitals
+documentation: https://github.com/sameeralam3127/linux-vitals/tree/main/docs
+homepage: https://github.com/sameeralam3127/linux-vitals
+issues: https://github.com/sameeralam3127/linux-vitals/issues
+
+build_ignore:
+  - '*.tar.gz'
+  - .github
+  - .gitignore
+  - .ansible-lint
+  - .pre-commit-config.yaml
+  - .env
+  - .env.example
+  - .facts
+  - .ansible
+  - venv
+  - '*.retry'
+  - reports
+  - inventory
+  - ansible.cfg
+  - requirements-dev.txt
+  - tests/__pycache__
+  - .pytest_cache
+  - .DS_Store
+
+dependencies:
+  community.general: ">=9.0.0"

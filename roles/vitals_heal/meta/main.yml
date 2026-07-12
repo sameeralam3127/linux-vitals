@@ -1,0 +1,22 @@
+---
+galaxy_info:
+  role_name: vitals_heal
+  author: Sameer Alam
+  description: Opt-in one-shot self-healing for failed enabled services, part of LinuxVitals
+  license: MIT
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Ubuntu
+      versions: [focal, jammy, noble]
+    - name: EL
+      versions: ["8", "9"]
+    - name: Fedora
+      versions: [all]
+    - name: opensuse
+      versions: [all]
+  galaxy_tags:
+    - linux
+    - remediation
+    - healthcheck
+
+dependencies: []

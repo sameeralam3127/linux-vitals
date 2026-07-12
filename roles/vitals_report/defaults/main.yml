@@ -1,0 +1,27 @@
+---
+linux_vitals_output_path: "{{ inventory_dir }}/reports/linux_vitals_report.html"
+linux_vitals_archive_html_reports: true
+linux_vitals_archive_json_reports: false
+linux_vitals_json_output_path: "{{ inventory_dir }}/reports/linux_vitals_report.json"
+linux_vitals_report_archive_dir: "{{ linux_vitals_output_path | dirname }}/archive"
+linux_vitals_report_retention_count: 10
+linux_vitals_archive_timestamp: ""
+linux_vitals_report_title: "LinuxVitals Health Check Dashboard"
+linux_vitals_slack_webhook_url: ""
+linux_vitals_slack_message_header: "Standard Maintenance Summary"
+linux_vitals_slack_message_footer: ""
+linux_vitals_slack_include_host_breakdown: true
+linux_vitals_email_enabled: false
+linux_vitals_email_to: []
+linux_vitals_email_cc: []
+linux_vitals_email_from: "linux-vitals@example.com"
+linux_vitals_email_host: "localhost"
+linux_vitals_email_port: 25
+linux_vitals_email_secure: "never"
+linux_vitals_email_username: ""
+linux_vitals_email_password: ""
+linux_vitals_email_subject: "LinuxVitals Health Check Summary"
+linux_vitals_generic_webhook_enabled: false
+linux_vitals_generic_webhook_url: ""
+linux_vitals_generic_webhook_headers: {}
+linux_vitals_generic_webhook_status_code: 200

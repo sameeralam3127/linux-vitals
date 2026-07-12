@@ -1,0 +1,283 @@
+---
+- name: Build report output metadata
+  ansible.builtin.set_fact:
+    linux_vitals_reports_dir: "{{ linux_vitals_output_path | dirname }}"
+    linux_vitals_effective_archive_dir: "{{ linux_vitals_report_archive_dir }}"
+    linux_vitals_effective_archive_timestamp: >-
+      {{
+        linux_vitals_archive_timestamp | trim
+        if linux_vitals_archive_timestamp | trim | length > 0
+        else now(utc=true, fmt='%Y%m%dT%H%M%SZ')
+      }}
+    linux_vitals_output_filename: "{{ linux_vitals_output_path | basename }}"
+    linux_vitals_output_stem: "{{ (linux_vitals_output_path | basename | splitext)[0] }}"
+    linux_vitals_output_ext: >-
+      {{ (linux_vitals_output_path | basename | splitext)[1] | default('.html', true) }}
+    linux_vitals_json_output_filename: "{{ linux_vitals_json_output_path | default('', true) | basename }}"
+    linux_vitals_json_output_stem: "{{ (linux_vitals_json_output_path | default('', true) | basename | splitext)[0] }}"
+    linux_vitals_json_output_ext: >-
+      {{ (linux_vitals_json_output_path | default('', true) | basename | splitext)[1] | default('.json', true) }}
+  delegate_to: localhost
+  run_once: true
+
+- name: Finalize archive file paths
+  ansible.builtin.set_fact:
+    linux_vitals_archive_html_path: >-
+      {{
+        linux_vitals_effective_archive_dir ~ '/'
+        ~ linux_vitals_output_stem
+        ~ '-'
+        ~ linux_vitals_effective_archive_timestamp
+        ~ linux_vitals_output_ext
+      }}
+    linux_vitals_archive_json_path: >-
+      {{
+        linux_vitals_effective_archive_dir ~ '/'
+        ~ linux_vitals_json_output_stem
+        ~ '-'
+        ~ linux_vitals_effective_archive_timestamp
+        ~ linux_vitals_json_output_ext
+      }}
+  delegate_to: localhost
+  run_once: true
+
+- name: Ensure reports directory exists
+  ansible.builtin.file:
+    path: "{{ linux_vitals_reports_dir }}"
+    state: directory
+    mode: "0755"
+  delegate_to: localhost
+  run_once: true
+  tags:
+    - reporting
+
+- name: Ensure JSON report directory exists
+  ansible.builtin.file:
+    path: "{{ linux_vitals_json_output_path | dirname }}"
+    state: directory
+    mode: "0755"
+  delegate_to: localhost
+  run_once: true
+  when: linux_vitals_json_output_path | trim | length > 0
+  tags:
+    - reporting
+
+- name: Ensure archive directory exists
+  ansible.builtin.file:
+    path: "{{ linux_vitals_effective_archive_dir }}"
+    state: directory
+    mode: "0755"
+  delegate_to: localhost
+  run_once: true
+  when:
+    - linux_vitals_archive_html_reports or linux_vitals_archive_json_reports
+
+- name: Determine hosts with completed health results
+  ansible.builtin.set_fact:
+    linux_vitals_reporting_hosts: >-
+      {{
+        ansible_play_hosts
+        | select('in', hostvars.keys())
+        | select('in', ansible_play_hosts)
+        | list
+      }}
+  delegate_to: localhost
+  run_once: true
+
+- name: Build consolidated maintenance summary
+  ansible.builtin.set_fact:
+    linux_vitals_summary:
+      servers_checked: "{{ linux_vitals_reporting_hosts | length }}"
+      auto_fixed_count: >-
+        {{
+          linux_vitals_reporting_hosts
+          | map('extract', hostvars, 'linux_vitals_auto_fixed_count')
+          | map('default', 0)
+          | map('int')
+          | sum
+        }}
+      critical_error_count: >-
+        {{
+          linux_vitals_reporting_hosts
+          | map('extract', hostvars, 'linux_vitals_result')
+          | selectattr('final_status', 'equalto', 'Fail')
+          | list
+          | length
+        }}
+      snippet: >-
+        {{
+          (
+            linux_vitals_reporting_hosts | length | string
+          ) ~ ' Servers Checked, '
+          ~ (
+            linux_vitals_reporting_hosts
+            | map('extract', hostvars, 'linux_vitals_auto_fixed_count')
+            | map('default', 0)
+            | map('int')
+            | sum
+            | string
+          ) ~ ' Auto-Fixed, '
+          ~ (
+            linux_vitals_reporting_hosts
+            | map('extract', hostvars, 'linux_vitals_result')
+            | selectattr('final_status', 'equalto', 'Fail')
+            | list
+            | length
+            | string
+          ) ~ ' Critical '
+          ~ (
+            'Errors' if (
+              linux_vitals_reporting_hosts
+              | map('extract', hostvars, 'linux_vitals_result')
+              | selectattr('final_status', 'equalto', 'Fail')
+              | list
+              | length
+            ) != 1 else 'Error'
+          )
+        }}
+  delegate_to: localhost
+  run_once: true
+  tags:
+    - reporting
+
+- name: Generate consolidated HTML dashboard
+  ansible.builtin.template:
+    src: dashboard.html.j2
+    dest: "{{ linux_vitals_output_path }}"
+    mode: "0644"
+  delegate_to: localhost
+  run_once: true
+  tags:
+    - reporting
+
+- name: Generate consolidated JSON report
+  ansible.builtin.template:
+    src: report.json.j2
+    dest: "{{ linux_vitals_json_output_path }}"
+    mode: "0644"
+  delegate_to: localhost
+  run_once: true
+  when: linux_vitals_json_output_path | trim | length > 0
+  tags:
+    - reporting
+
+- name: Archive consolidated HTML dashboard
+  ansible.builtin.copy:
+    src: "{{ linux_vitals_output_path }}"
+    dest: "{{ linux_vitals_archive_html_path }}"
+    mode: "0644"
+    remote_src: true
+  delegate_to: localhost
+  run_once: true
+  when: linux_vitals_archive_html_reports
+
+- name: Check whether JSON report exists for archiving
+  ansible.builtin.stat:
+    path: "{{ linux_vitals_json_output_path }}"
+  register: linux_vitals_json_output_file
+  delegate_to: localhost
+  run_once: true
+  when: linux_vitals_archive_json_reports
+
+- name: Archive JSON report when present
+  ansible.builtin.copy:
+    src: "{{ linux_vitals_json_output_path }}"
+    dest: "{{ linux_vitals_archive_json_path }}"
+    mode: "0644"
+    remote_src: true
+  delegate_to: localhost
+  run_once: true
+  when:
+    - linux_vitals_archive_json_reports
+    - linux_vitals_json_output_path | trim | length > 0
+    - linux_vitals_json_output_file.stat.exists | default(false)
+
+- name: Find archived HTML reports
+  ansible.builtin.find:
+    paths: "{{ linux_vitals_effective_archive_dir }}"
+    file_type: file
+    patterns:
+      - "{{ linux_vitals_output_stem }}-*{{ linux_vitals_output_ext }}"
+  register: linux_vitals_archived_html_reports
+  delegate_to: localhost
+  run_once: true
+  when:
+    - linux_vitals_archive_html_reports
+    - linux_vitals_report_retention_count | int > 0
+
+- name: Find archived JSON reports
+  ansible.builtin.find:
+    paths: "{{ linux_vitals_effective_archive_dir }}"
+    file_type: file
+    patterns:
+      - "{{ linux_vitals_json_output_stem }}-*{{ linux_vitals_json_output_ext }}"
+  register: linux_vitals_archived_json_reports
+  delegate_to: localhost
+  run_once: true
+  when:
+    - linux_vitals_archive_json_reports
+    - linux_vitals_json_output_path | trim | length > 0
+    - linux_vitals_report_retention_count | int > 0
+
+- name: Sort archived HTML report paths for retention pruning
+  ansible.builtin.set_fact:
+    linux_vitals_archived_html_report_paths: >-
+      {{
+        linux_vitals_archived_html_reports.files
+        | map(attribute='path')
+        | sort
+        | reverse
+        | list
+      }}
+  delegate_to: localhost
+  run_once: true
+  when:
+    - linux_vitals_archive_html_reports
+    - linux_vitals_report_retention_count | int > 0
+
+- name: Sort archived JSON report paths for retention pruning
+  ansible.builtin.set_fact:
+    linux_vitals_archived_json_report_paths: >-
+      {{
+        linux_vitals_archived_json_reports.files
+        | default([])
+        | map(attribute='path')
+        | sort
+        | reverse
+        | list
+      }}
+  delegate_to: localhost
+  run_once: true
+  when:
+    - linux_vitals_archive_json_reports
+    - linux_vitals_json_output_path | trim | length > 0
+    - linux_vitals_report_retention_count | int > 0
+
+- name: Remove archived HTML reports beyond retention limit
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ linux_vitals_archived_html_report_paths }}"
+  loop_control:
+    extended: true
+  delegate_to: localhost
+  run_once: true
+  when:
+    - linux_vitals_archive_html_reports
+    - linux_vitals_report_retention_count | int > 0
+    - ansible_loop.index0 >= (linux_vitals_report_retention_count | int)
+
+- name: Remove archived JSON reports beyond retention limit
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ linux_vitals_archived_json_report_paths }}"
+  loop_control:
+    extended: true
+  delegate_to: localhost
+  run_once: true
+  when:
+    - linux_vitals_archive_json_reports
+    - linux_vitals_json_output_path | trim | length > 0
+    - linux_vitals_report_retention_count | int > 0
+    - ansible_loop.index0 >= (linux_vitals_report_retention_count | int)

@@ -1,0 +1,22 @@
+---
+galaxy_info:
+  role_name: vitals_scan
+  author: Sameer Alam
+  description: Read-only Linux host discovery, posture checks, and findings for LinuxVitals
+  license: MIT
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Ubuntu
+      versions: [focal, jammy, noble]
+    - name: EL
+      versions: ["8", "9"]
+    - name: Fedora
+      versions: [all]
+    - name: opensuse
+      versions: [all]
+  galaxy_tags:
+    - linux
+    - monitoring
+    - healthcheck
+
+dependencies: []
