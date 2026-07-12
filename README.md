@@ -44,29 +44,6 @@ flowchart LR
 - **`vitals_heal`** -- attempts one restart per systemd-enabled failed service. Disabled by default (`linux_vitals_heal_enabled: false`); nothing on managed hosts changes unless you opt in.
 - **`vitals_report`** -- loads notification config, renders the consolidated HTML/JSON dashboard, archives historical reports, and sends Slack/email/generic-webhook summaries.
 
-## Repo Layout
-
-```text
-.
-├── galaxy.yml
-├── meta/runtime.yml
-├── playbooks/
-│   ├── healthcheck.yml       # one-shot, standalone
-│   ├── baseline.yml          # pre-maintenance snapshot
-│   └── postcheck.yml         # post-maintenance snapshot + comparison
-├── roles/
-│   ├── vitals_scan/
-│   ├── vitals_heal/
-│   └── vitals_report/
-├── examples/
-│   ├── inventory/
-│   └── group_vars/
-├── docs/
-├── tests/
-├── CONTRIBUTING.md
-└── CHANGELOG.md
-```
-
 ## Requirements
 
 - Python 3.10+
@@ -77,7 +54,7 @@ flowchart LR
 
 ## Installation
 
-Once published, install from Ansible Galaxy:
+Install from Ansible Galaxy:
 
 ```bash
 ansible-galaxy collection install sameeralam3127.linux_vitals
