@@ -1,5 +1,7 @@
 # LinuxVitals
 
+**[Website & Live Demo](https://sameeralam3127.github.io/linux-vitals/)** · **[Ansible Galaxy](https://galaxy.ansible.com/ui/repo/published/sameeralam3127/linux_vitals/)**
+
 Agentless Ansible collection for Linux fleet health checks across RHEL, Fedora, Ubuntu, and SUSE. LinuxVitals performs deep OS posture checks, attempts one-shot self-healing for failed enabled services (opt-in), and renders a consolidated, self-contained HTML dashboard plus a JSON report for downstream automation -- with Slack, email, and generic webhook summaries for operations teams.
 
 Collection: `sameeralam3127.linux_vitals`
