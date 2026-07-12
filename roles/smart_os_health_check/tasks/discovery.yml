@@ -126,24 +126,79 @@
             printf '%s' "$kernel_value"
           }
 
+          # Portable POSIX sh state machine (no gawk-only 3-arg match()) so this
+          # works under mawk/dash/BusyBox targets, not just gawk-equipped hosts.
           resolve_kernel_from_grubcfg() {
             entry_name="$1"
             config_path="$2"
             [ -n "$entry_name" ] || return 0
             [ -f "$config_path" ] || return 0
-            awk -v entry="$entry_name" '
-              BEGIN { in_entry = 0 }
-              /^menuentry / {
-                in_entry = 0
-                if (match($0, /^menuentry '\''([^'\'']+)'\''/, match_group) && match_group[1] == entry) {
-                  in_entry = 1
-                }
-              }
-              in_entry && match($0, /^[[:space:]]*(linux|linuxefi)[[:space:]]+([^[:space:]]+)/, match_group) {
-                print match_group[2]
-                exit
-              }
-            ' "$config_path"
+            in_entry=0
+            while IFS= read -r line; do
+              case "$line" in
+                menuentry\ *)
+                  in_entry=0
+                  rest="${line#menuentry }"
+                  case "$rest" in
+                    \'*)
+                      title="${rest#\'}"
+                      title="${title%%\'*}"
+                      ;;
+                    \"*)
+                      title="${rest#\"}"
+                      title="${title%%\"*}"
+                      ;;
+                    *)
+                      title=""
+                      ;;
+                  esac
+                  if [ "$title" = "$entry_name" ]; then
+                    in_entry=1
+                  fi
+                  ;;
+                *)
+                  if [ "$in_entry" -eq 1 ]; then
+                    set -f
+                    set -- $line
+                    set +f
+                    if [ "$1" = "linux" ] || [ "$1" = "linuxefi" ] || [ "$1" = "linux16" ]; then
+                      printf '%s\n' "$2"
+                      return 0
+                    fi
+                  fi
+                  ;;
+              esac
+            done < "$config_path"
+          }
+
+          resolve_kernel_from_grubcfg_by_index() {
+            target_index="$1"
+            config_path="$2"
+            [ -f "$config_path" ] || return 0
+            current_index=-1
+            in_entry=0
+            while IFS= read -r line; do
+              case "$line" in
+                menuentry\ *)
+                  current_index=$((current_index + 1))
+                  in_entry=0
+                  if [ "$current_index" -eq "$target_index" ]; then
+                    in_entry=1
+                  fi
+                  ;;
+                *)
+                  if [ "$in_entry" -eq 1 ]; then
+                    set -f
+                    set -- $line
+                    set +f
+                    if [ "$1" = "linux" ] || [ "$1" = "linuxefi" ] || [ "$1" = "linux16" ]; then
+                      printf '%s\n' "$2"
+                      return 0
+                    fi
+                  fi
+                  ;;
+              esac
+            done < "$config_path"
           }
 
           print_result() {
@@ -217,12 +272,24 @@
             if [ -n "$grub_default_raw" ] && [ "$grub_default_raw" != "saved" ]; then
               resolved_kernel=""
               case "$grub_default_raw" in
-                *vmlinuz*|*linux*)
-                  resolved_kernel="$(sanitize_kernel "$grub_default_raw")"
+                ''|*[!0-9]*)
+                  case "$grub_default_raw" in
+                    *vmlinuz*|*linux*)
+                      resolved_kernel="$(sanitize_kernel "$grub_default_raw")"
+                      ;;
+                    *)
+                      if [ -n "$grub_cfg" ]; then
+                        resolved_path="$(resolve_kernel_from_grubcfg "$grub_default_raw" "$grub_cfg")"
+                        if [ -n "$resolved_path" ]; then
+                          resolved_kernel="$(sanitize_kernel "$resolved_path")"
+                        fi
+                      fi
+                      ;;
+                  esac
                   ;;
                 *)
                   if [ -n "$grub_cfg" ]; then
-                    resolved_path="$(resolve_kernel_from_grubcfg "$grub_default_raw" "$grub_cfg")"
+                    resolved_path="$(resolve_kernel_from_grubcfg_by_index "$grub_default_raw" "$grub_cfg")"
                     if [ -n "$resolved_path" ]; then
                       resolved_kernel="$(sanitize_kernel "$resolved_path")"
                     fi
@@ -242,137 +309,9 @@
   register: smart_os_health_check_bootloader_default_cmd
   changed_when: false
   failed_when: false
-
-- name: Collect bootloader default kernel information
-  ansible.builtin.command:
-    argv:
-      - sh
-      - -c
-      - |
-          sanitize_kernel() {
-            kernel_value="$1"
-            kernel_value="${kernel_value##*/}"
-            kernel_value="${kernel_value#vmlinuz-}"
-            kernel_value="${kernel_value#linux-}"
-            printf '%s' "$kernel_value"
-          }
-
-          resolve_kernel_from_grubcfg() {
-            entry_name="$1"
-            config_path="$2"
-            [ -n "$entry_name" ] || return 0
-            [ -f "$config_path" ] || return 0
-            awk -v entry="$entry_name" '
-              BEGIN { in_entry = 0 }
-              /^menuentry / {
-                in_entry = 0
-                if (match($0, /^menuentry '\''([^'\'']+)'\''/, match_group) && match_group[1] == entry) {
-                  in_entry = 1
-                }
-              }
-              in_entry && match($0, /^[[:space:]]*(linux|linuxefi)[[:space:]]+([^[:space:]]+)/, match_group) {
-                print match_group[2]
-                exit
-              }
-            ' "$config_path"
-          }
-
-          print_result() {
-            printf 'supported=%s\n' "$1"
-            printf 'source=%s\n' "$2"
-            printf 'default_entry=%s\n' "$3"
-            printf 'default_kernel=%s\n' "$4"
-            printf 'status=%s\n' "$5"
-          }
-
-          grub_cfg=""
-          for candidate in /boot/grub2/grub.cfg /boot/grub/grub.cfg /boot/efi/EFI/*/grub.cfg /efi/EFI/*/grub.cfg; do
-            if [ -f "$candidate" ]; then
-              grub_cfg="$candidate"
-              break
-            fi
-          done
-
-          if command -v grubby >/dev/null 2>&1; then
-            default_kernel_path="$(grubby --default-kernel 2>/dev/null || true)"
-            if [ -n "$default_kernel_path" ]; then
-              print_result "true" "grubby" "$default_kernel_path" "$(sanitize_kernel "$default_kernel_path")" "resolved"
-              exit 0
-            fi
-          fi
-
-          grub_editenv_cmd=""
-          for candidate_cmd in grub2-editenv grub-editenv; do
-            if command -v "$candidate_cmd" >/dev/null 2>&1; then
-              grub_editenv_cmd="$candidate_cmd"
-              break
-            fi
-          done
-
-          grub_env=""
-          for candidate in /boot/grub2/grubenv /boot/grub/grubenv /boot/efi/EFI/*/grubenv /efi/EFI/*/grubenv; do
-            if [ -f "$candidate" ]; then
-              grub_env="$candidate"
-              break
-            fi
-          done
-
-          if [ -n "$grub_editenv_cmd" ] && [ -n "$grub_env" ]; then
-            saved_entry="$("$grub_editenv_cmd" "$grub_env" list 2>/dev/null | sed -n 's/^saved_entry=//p' | head -n 1)"
-            if [ -n "$saved_entry" ]; then
-              resolved_kernel=""
-              case "$saved_entry" in
-                *vmlinuz*|*linux*)
-                  resolved_kernel="$(sanitize_kernel "$saved_entry")"
-                  ;;
-                *)
-                  if [ -n "$grub_cfg" ]; then
-                    resolved_path="$(resolve_kernel_from_grubcfg "$saved_entry" "$grub_cfg")"
-                    if [ -n "$resolved_path" ]; then
-                      resolved_kernel="$(sanitize_kernel "$resolved_path")"
-                    fi
-                  fi
-                  ;;
-              esac
-              result_status="entry-only"
-              if [ -n "$resolved_kernel" ]; then
-                result_status="resolved"
-              fi
-              print_result "true" "grubenv" "$saved_entry" "$resolved_kernel" "$result_status"
-              exit 0
-            fi
-          fi
-
-          if [ -f /etc/default/grub ]; then
-            grub_default_raw="$(sed -n 's/^GRUB_DEFAULT=//p' /etc/default/grub | head -n 1 | tr -d '"' | tr -d "'")"
-            if [ -n "$grub_default_raw" ] && [ "$grub_default_raw" != "saved" ]; then
-              resolved_kernel=""
-              case "$grub_default_raw" in
-                *vmlinuz*|*linux*)
-                  resolved_kernel="$(sanitize_kernel "$grub_default_raw")"
-                  ;;
-                *)
-                  if [ -n "$grub_cfg" ]; then
-                    resolved_path="$(resolve_kernel_from_grubcfg "$grub_default_raw" "$grub_cfg")"
-                    if [ -n "$resolved_path" ]; then
-                      resolved_kernel="$(sanitize_kernel "$resolved_path")"
-                    fi
-                  fi
-                  ;;
-              esac
-              result_status="entry-only"
-              if [ -n "$resolved_kernel" ]; then
-                result_status="resolved"
-              fi
-              print_result "true" "grub_default" "$grub_default_raw" "$resolved_kernel" "$result_status"
-              exit 0
-            fi
-          fi
-
-          print_result "false" "unavailable" "" "" "unavailable"
-  register: smart_os_health_check_bootloader_default_cmd
-  changed_when: false
-  failed_when: false
+  tags:
+    - discovery
+    - kernel
 
 - name: Check if reboot is required on Debian family
   ansible.builtin.stat:
@@ -471,11 +410,12 @@
       {{
         (
           (
-            (ansible_facts.memtotal_mb | float)
-            - (ansible_facts.memavailable_mb | default(ansible_facts.memfree_mb, true) | float)
-          ) / (ansible_facts.memtotal_mb | float)
-        ) * 100
-        | round(1)
+            (
+              (ansible_facts.memtotal_mb | float)
+              - (ansible_facts.memavailable_mb | default(ansible_facts.memfree_mb, true) | float)
+            ) / (ansible_facts.memtotal_mb | float)
+          ) * 100
+        ) | round(1)
       }}
     smart_os_health_check_log_matches: >-
       {{
@@ -613,15 +553,18 @@
         smart_os_health_check_failed_login_attempts_cmd.stdout_lines
         | default([])
         | reject('equalto', '')
+        | reject('match', '^btmp begins ')
         | list
       }}
     smart_os_health_check_last_failed_login: >-
       {{
-        smart_os_health_check_failed_login_attempts_cmd.stdout_lines
-        | default([])
-        | reject('equalto', '')
-        | first
-        | default('No failed login attempts found')
+        (
+          smart_os_health_check_failed_login_attempts_cmd.stdout_lines
+          | default([])
+          | reject('equalto', '')
+          | reject('match', '^btmp begins ')
+          | list
+        ) | first | default('No failed login attempts found')
       }}
     smart_os_health_check_last_reboot: >-
       {{
@@ -703,12 +646,13 @@
       {{
         (
           (
-            smart_os_health_check_boot_mount.size_available | default(0) | float
-          ) / (
-            smart_os_health_check_boot_mount.size_total | default(1) | float
-          )
-        ) * 100
-        | round(1)
+            (
+              smart_os_health_check_boot_mount.size_available | default(0) | float
+            ) / (
+              smart_os_health_check_boot_mount.size_total | default(1) | float
+            )
+          ) * 100
+        ) | round(1)
       }}
     smart_os_health_check_boot_space_status: >-
       {{

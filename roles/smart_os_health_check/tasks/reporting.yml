@@ -287,6 +287,9 @@
     smart_os_health_check_notification_message: "{{ lookup('ansible.builtin.template', 'slack_message.txt.j2') }}"
   delegate_to: localhost
   run_once: true
+  tags:
+    - reporting
+    - notifications
 
 - name: Send Slack maintenance summary
   ansible.builtin.uri:

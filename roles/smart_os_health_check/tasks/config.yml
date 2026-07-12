@@ -42,6 +42,7 @@
           | first
         ) | default('', true) | trim
       }}
+  no_log: true
   tags:
     - always
     - config
@@ -93,6 +94,7 @@
           smart_os_health_check_email_password | default('', true) | trim | length > 0
         ) else smart_os_health_check_dotenv_email_password
       }}
+  no_log: true
   tags:
     - always
     - config

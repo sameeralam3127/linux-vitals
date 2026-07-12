@@ -172,13 +172,7 @@ smart_os_health_check_generic_webhook_status_code: 200
 
 Shared overrides for all hosts can be placed in [group_vars/all.yml](group_vars/all.yml). Full role defaults live in [roles/smart_os_health_check/defaults/main.yml](roles/smart_os_health_check/defaults/main.yml).
 
-Current repository override:
-
-```yaml
-smart_os_health_check_generic_webhook_enabled: true
-```
-
-That setting only sends a generic webhook when a URL is also supplied through `smart_os_health_check_generic_webhook_url` or `GENERIC_WEBHOOK_URL` in `.env`. If no URL is present, the webhook task is skipped.
+`group_vars/all.yml` ships with every override commented out by default. Uncomment `smart_os_health_check_generic_webhook_enabled: true` (and supply a URL) to enable the generic webhook channel; leaving it commented keeps the channel disabled, matching the role default.
 
 ## Notification Examples
 

@@ -239,11 +239,11 @@
         {% set result = hostvars[host]['smart_os_health_check_result'] %}
         <tr>
           <td>
-            <strong>{{ result.hostname }}</strong><br>
-            <span class="muted">{{ result.ip_address }}</span><br>
-            <span class="muted">{{ result.os_family }} / {{ result.package_manager }}</span>
+            <strong>{{ result.hostname | e }}</strong><br>
+            <span class="muted">{{ result.ip_address | e }}</span><br>
+            <span class="muted">{{ result.os_family | e }} / {{ result.package_manager | e }}</span>
           </td>
-          <td>{{ result.os }}</td>
+          <td>{{ result.os | e }}</td>
           <td>
             {% set ram_class = 'ok' if result.ram_status == 'OK' else 'warning' if result.ram_status == 'Warning' else 'critical' %}
             <span class="status-pill {{ ram_class }}">{{ result.ram_status }}</span><br>
@@ -255,7 +255,7 @@
             {% if result.log_excerpt %}
             <ul class="list">
               {% for line in result.log_excerpt %}
-              <li>{{ line }}</li>
+              <li>{{ line | e }}</li>
               {% endfor %}
             </ul>
             {% endif %}
@@ -267,7 +267,7 @@
             {% if result.healing_results %}
             <ul class="list">
               {% for service in result.healing_results %}
-              <li>{{ service.service }}: {{ service.result }}</li>
+              <li>{{ service.service | e }}: {{ service.result | e }}</li>
               {% endfor %}
             </ul>
             {% else %}
@@ -280,7 +280,7 @@
             {% if result.findings %}
             <ul class="list">
               {% for finding in result.findings %}
-              <li>{{ finding }}</li>
+              <li>{{ finding | e }}</li>
               {% endfor %}
             </ul>
             {% endif %}
@@ -294,34 +294,34 @@
       {% for host in smart_os_health_check_reporting_hosts | default(ansible_play_hosts_all) %}
       {% set result = hostvars[host]['smart_os_health_check_result'] %}
       <article class="detail-card">
-        <h2>{{ result.hostname }}</h2>
+        <h2>{{ result.hostname | e }}</h2>
         <div class="detail-grid">
           <div class="detail-item">
             <strong>IP Address</strong>
-            <span>{{ result.ip_address }}</span>
+            <span>{{ result.ip_address | e }}</span>
           </div>
           <div class="detail-item">
             <strong>Platform</strong>
-            <span>{{ result.platform_type }} / {{ result.virtualization_type }}</span>
+            <span>{{ result.platform_type | e }} / {{ result.virtualization_type | e }}</span>
           </div>
           <div class="detail-item">
             <strong>Uptime</strong>
-            <span>{{ result.uptime }}</span>
+            <span>{{ result.uptime | e }}</span>
           </div>
           <div class="detail-item">
             <strong>Last Reboot</strong>
-            <span>{{ result.last_reboot }}</span>
+            <span>{{ result.last_reboot | e }}</span>
           </div>
           <div class="detail-item">
             <strong>Kernel</strong>
-            <span>Running: {{ result.running_kernel }}</span><br>
-            <span>Latest Installed: {{ result.latest_installed_kernel }}</span><br>
-            <span>Updated: {{ result.latest_kernel_updated_at }}</span><br>
+            <span>Running: {{ result.running_kernel | e }}</span><br>
+            <span>Latest Installed: {{ result.latest_installed_kernel | e }}</span><br>
+            <span>Updated: {{ result.latest_kernel_updated_at | e }}</span><br>
             <span>Latest Selected: {{ 'Yes' if result.latest_kernel_selected else 'No' }}</span><br>
-            <span>Bootloader Check: {{ result.bootloader_validation_message }}</span><br>
-            <span>Bootloader Source: {{ result.bootloader_default_source }}</span><br>
-            <span>Default Entry: {{ result.bootloader_default_entry if result.bootloader_default_entry else 'Not Available' }}</span><br>
-            <span>Default Kernel: {{ result.bootloader_default_kernel if result.bootloader_default_kernel else 'Not Resolved' }}</span>
+            <span>Bootloader Check: {{ result.bootloader_validation_message | e }}</span><br>
+            <span>Bootloader Source: {{ result.bootloader_default_source | e }}</span><br>
+            <span>Default Entry: {{ (result.bootloader_default_entry if result.bootloader_default_entry else 'Not Available') | e }}</span><br>
+            <span>Default Kernel: {{ (result.bootloader_default_kernel if result.bootloader_default_kernel else 'Not Resolved') | e }}</span>
           </div>
           <div class="detail-item">
             <strong>Reboot Requirement</strong>
@@ -329,13 +329,13 @@
           </div>
           <div class="detail-item">
             <strong>Security Controls</strong>
-            <span>SELinux: {{ result.selinux_status }}</span><br>
-            <span>AppArmor: {{ result.apparmor_status }}</span>
+            <span>SELinux: {{ result.selinux_status | e }}</span><br>
+            <span>AppArmor: {{ result.apparmor_status | e }}</span>
           </div>
           <div class="detail-item">
             <strong>Boot Space</strong>
-            <span>Mount: {{ result.boot_mount }}</span><br>
-            <span>Status: {{ result.boot_space_status }}</span><br>
+            <span>Mount: {{ result.boot_mount | e }}</span><br>
+            <span>Status: {{ result.boot_space_status | e }}</span><br>
             <span>Free: {{ result.boot_free_mb }} MB / {{ result.boot_total_mb }} MB ({{ result.boot_free_pct }}%)</span>
           </div>
           <div class="detail-item">
@@ -344,7 +344,7 @@
             {% if result.rescue_image_paths %}
             <ul class="list">
               {% for item in result.rescue_image_paths %}
-              <li>{{ item }}</li>
+              <li>{{ item | e }}</li>
               {% endfor %}
             </ul>
             {% endif %}
@@ -352,7 +352,7 @@
           <div class="detail-item">
             <strong>Failed Logins</strong>
             <span>Count: {{ result.failed_login_count }}</span><br>
-            <span>Last Seen: {{ result.last_failed_login }}</span>
+            <span>Last Seen: {{ result.last_failed_login | e }}</span>
           </div>
           <div class="detail-item">
             <strong>Kernel Install Failures</strong>
@@ -360,7 +360,7 @@
             {% if result.kernel_install_failure_excerpt %}
             <ul class="list">
               {% for item in result.kernel_install_failure_excerpt %}
-              <li>{{ item }}</li>
+              <li>{{ item | e }}</li>
               {% endfor %}
             </ul>
             {% endif %}
