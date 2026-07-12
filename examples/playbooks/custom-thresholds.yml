@@ -1,0 +1,22 @@
+---
+# Example: override health thresholds and enable self-healing for a single
+# ad-hoc run, without touching group_vars. Copy this into your own project
+# and adjust the vars, or pass the same overrides with -e on the command
+# line instead.
+#
+#   ansible-playbook -i inventory.ini examples/playbooks/custom-thresholds.yml
+
+- name: LinuxVitals health check with tighter production thresholds
+  hosts: linux_servers
+  gather_facts: true
+  vars:
+    linux_vitals_ram_warning_threshold: 70
+    linux_vitals_ram_critical_threshold: 90
+    linux_vitals_boot_warning_threshold: 25
+    linux_vitals_heal_enabled: true
+    linux_vitals_report_title: "Production Fleet Health Check"
+
+  roles:
+    - role: sameeralam3127.linux_vitals.vitals_scan
+    - role: sameeralam3127.linux_vitals.vitals_heal
+    - role: sameeralam3127.linux_vitals.vitals_report

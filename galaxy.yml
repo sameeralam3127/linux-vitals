@@ -47,7 +47,9 @@ build_ignore:
   - inventory
   - ansible.cfg
   - requirements-dev.txt
-  - tests/__pycache__
+  - requirements.yml
+  - pytest.ini
+  - tests
   - .pytest_cache
   - .DS_Store
 
