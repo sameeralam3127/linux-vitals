@@ -9,15 +9,15 @@
       {%- if linux_vitals_log_errors | int > 0 -%}
       {%- set _ = findings.append('Recent logs contain error or failed entries') -%}
       {%- endif -%}
-      {%- if linux_vitals_service_status.sssd.state != 'running' -%}
+      {%- if linux_vitals_service_status.sssd.state not in ['running', 'active'] -%}
       {%- set _ = findings.append('sssd is not active') -%}
       {%- endif -%}
-      {%- if linux_vitals_service_status.systemd_journald.state != 'running' -%}
+      {%- if linux_vitals_service_status.systemd_journald.state not in ['running', 'active'] -%}
       {%- set _ = findings.append('systemd-journald is not active') -%}
       {%- endif -%}
       {%- if linux_vitals_service_status.time_sync.service_name == 'absent' -%}
       {%- set _ = findings.append('chronyd or ntp is not installed') -%}
-      {%- elif linux_vitals_service_status.time_sync.state != 'running' -%}
+      {%- elif linux_vitals_service_status.time_sync.state not in ['running', 'active'] -%}
       {%- set _ = findings.append('Time synchronization service is not active') -%}
       {%- endif -%}
       {%- if linux_vitals_reboot_required -%}

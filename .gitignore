@@ -10,6 +10,9 @@ __pycache__/
 reports
 collections/
 .dev-collections/
+/inventory.ini
+/inventory.yml
+/inventory/
 *.tar.gz
 # C extensions
 *.so

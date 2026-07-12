@@ -26,10 +26,14 @@
     linux_vitals_time_sync_candidates:
       - chronyd.service
       - chronyd
+      - chrony.service
+      - chrony
       - ntpd.service
       - ntpd
       - ntp.service
       - ntp
+      - systemd-timesyncd.service
+      - systemd-timesyncd
   tags:
     - discovery
 
@@ -39,7 +43,7 @@
       {{
         (
           linux_vitals_time_sync_candidates
-          | intersect(linux_vitals_service_names)
+          | select('in', linux_vitals_service_names) | list
           | first
         ) | default('absent', true)
       }}
@@ -586,13 +590,16 @@
     - security
     - boot
 
-- name: Finalize bootloader validation facts
+- name: Finalize bootloader default-kernel match fact
   ansible.builtin.set_fact:
     linux_vitals_bootloader_default_matches_latest: >-
       {{
         linux_vitals_bootloader_default_status == 'resolved'
         and linux_vitals_bootloader_default_kernel == linux_vitals_latest_installed_kernel
       }}
+
+- name: Finalize bootloader validation message
+  ansible.builtin.set_fact:
     linux_vitals_bootloader_validation_message: >-
       {{
         'Default boot entry selects the latest installed kernel'
@@ -682,7 +689,7 @@
           {{
             (
               ['sssd.service', 'sssd']
-              | intersect(linux_vitals_service_names)
+              | select('in', linux_vitals_service_names) | list
               | first
             ) | default('absent', true)
           }}
@@ -691,7 +698,7 @@
             ansible_facts.services.get(
               (
                 ['sssd.service', 'sssd']
-                | intersect(linux_vitals_service_names)
+                | select('in', linux_vitals_service_names) | list
                 | first
               ) | default('absent', true),
               {}
@@ -702,7 +709,7 @@
           {{
             (
               ['systemd-journald.service', 'systemd-journald']
-              | intersect(linux_vitals_service_names)
+              | select('in', linux_vitals_service_names) | list
               | first
             ) | default('absent', true)
           }}
@@ -711,7 +718,7 @@
             ansible_facts.services.get(
               (
                 ['systemd-journald.service', 'systemd-journald']
-                | intersect(linux_vitals_service_names)
+                | select('in', linux_vitals_service_names) | list
                 | first
               ) | default('absent', true),
               {}

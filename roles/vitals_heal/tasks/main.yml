@@ -40,7 +40,7 @@
           {%- set result = 'Manual Intervention Required' -%}
           {%- if attempt.failed | default(false) -%}
           {%- set result = 'Manual Intervention Required' -%}
-          {%- elif current.state | default('unknown') == 'running' -%}
+          {%- elif current.state | default('unknown') in ['running', 'active'] -%}
           {%- set result = 'Fixed' -%}
           {%- elif current.state | default('unknown') == 'failed' -%}
           {%- set result = 'Failed to Fix' -%}
@@ -76,7 +76,7 @@
               {{
                 (
                   ['sssd.service', 'sssd']
-                  | intersect(ansible_facts.services.keys() | list)
+                  | select('in', ansible_facts.services.keys() | list) | list
                   | first
                 ) | default('absent', true)
               }}
@@ -85,7 +85,7 @@
                 ansible_facts.services.get(
                   (
                     ['sssd.service', 'sssd']
-                    | intersect(ansible_facts.services.keys() | list)
+                    | select('in', ansible_facts.services.keys() | list) | list
                     | first
                   ) | default('absent', true),
                   {}
@@ -96,7 +96,7 @@
               {{
                 (
                   ['systemd-journald.service', 'systemd-journald']
-                  | intersect(ansible_facts.services.keys() | list)
+                  | select('in', ansible_facts.services.keys() | list) | list
                   | first
                 ) | default('absent', true)
               }}
@@ -105,7 +105,7 @@
                 ansible_facts.services.get(
                   (
                     ['systemd-journald.service', 'systemd-journald']
-                    | intersect(ansible_facts.services.keys() | list)
+                    | select('in', ansible_facts.services.keys() | list) | list
                     | first
                   ) | default('absent', true),
                   {}
