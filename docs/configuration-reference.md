@@ -85,6 +85,25 @@ the same order: an explicit inventory/`group_vars`/extra-vars value wins;
 otherwise the matching `.env` value is used; otherwise the channel is
 skipped.
 
+**Webhook URLs are credentials.** A Slack incoming-webhook URL is all anyone
+needs to post to that channel, and `linux_vitals_generic_webhook_headers` is
+where an `Authorization` header goes. Keep both out of anything committed to
+git -- use `.env` next to your inventory, or a vaulted variable.
+
+The sending tasks run with `no_log`, so a failed notification reports the
+channel and the HTTP status without printing the URL, the headers, or the
+response. That means a failure looks like this:
+
+```text
+TASK [Fail when the Slack notification did not arrive] ***
+[ERROR]: Task failed: Action failed: Slack notification failed: HTTP status -1
+(the endpoint could not be reached). The webhook URL is withheld from this
+message because it is a credential.
+```
+
+To debug the URL itself, exercise it by hand (`curl -X POST ...`) rather than
+re-running with `-v`, which will not reveal it either.
+
 ### Slack
 
 ```yaml
