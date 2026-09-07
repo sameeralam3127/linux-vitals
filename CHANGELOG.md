@@ -4,6 +4,44 @@ All notable changes to the `sameeralam3127.linux_vitals` collection are document
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.2.1] - 2026-08-21
+
+### Security
+
+- **A failed notification printed the credential it was sent with.** Neither
+  webhook task in `vitals_report`'s `notify.yml` set `no_log`, and
+  `ansible.builtin.uri` does not treat `url` or `headers` as secret. A Slack
+  incoming-webhook URL *is* the bearer token for that channel, so any non-2xx
+  response, DNS failure, timeout, or `-v` run published it -- along with any
+  `Authorization` header configured through
+  `linux_vitals_generic_webhook_headers` -- into CI logs, terminal scrollback,
+  and any callback plugin or ARA database. Reproduced against the shipped code:
+  a post to an unreachable endpoint printed the token verbatim
+  ([#22](https://github.com/sameeralam3127/linux-vitals/issues/22)).
+
+  All three sends now run with `no_log`, and each is followed by a task that
+  reports the failure quoting only the channel and the HTTP status, so a broken
+  notification is still diagnosable without disclosing the secret. The module's
+  own `msg` is deliberately not echoed, because some failure modes embed the
+  URL in it.
+
+  The email send did not leak in testing -- `community.general.mail` masks
+  `password` through its own argspec and does not echo its arguments on this
+  path -- but it now carries the same treatment as defence in depth, covering
+  the SMTP username and the message body.
+
+### Changed
+
+- `return_content: true` dropped from both webhook posts. Nothing consumed the
+  response, and capturing it only widened what a careless `debug` could print.
+
+### Added
+
+- `tests/test_notification_redaction.py` drives the real `notify.yml` at a dead
+  endpoint, once per channel and at `-vv`, and asserts the credential never
+  appears in the output while the failure stays actionable. Verified to fail
+  against the pre-fix code, so it cannot rot into a test that passes either way.
+
 ## [1.2.0] - 2026-08-16
 
 Molecule scenarios that run the roles against a live systemd host of every

@@ -8,6 +8,17 @@
     - reporting
     - notifications
 
+# Every send below is no_log because its arguments are credentials: an incoming
+# webhook URL *is* the bearer token for that channel, linux_vitals_generic_
+# webhook_headers is the documented place to put an Authorization header, and
+# the SMTP username sits next to a password the module already masks. Ansible
+# prints a failing task's arguments, so without this a single failed post
+# publishes the secret to CI logs, scrollback, and any callback plugin.
+#
+# Each send therefore records its outcome instead of failing, and the task after
+# it reports the failure quoting only the channel and the status code. The
+# module's own msg is never echoed: for some failure modes it embeds the URL.
+
 - name: Send Slack maintenance summary
   ansible.builtin.uri:
     url: "{{ linux_vitals_effective_slack_webhook_url }}"
@@ -16,10 +27,31 @@
     body:
       text: "{{ linux_vitals_notification_message }}"
     status_code: 200
-    return_content: true
+  register: linux_vitals_slack_delivery
+  no_log: true
+  failed_when: false
   delegate_to: localhost
   run_once: true
   when: linux_vitals_effective_slack_webhook_url | length > 0
+  tags:
+    - reporting
+    - notifications
+
+- name: Fail when the Slack notification did not arrive
+  ansible.builtin.fail:
+    msg: >-
+      Slack notification failed: HTTP status
+      {{ linux_vitals_slack_delivery.status | default(-1) }}
+      ({{ 'the endpoint could not be reached' if
+      (linux_vitals_slack_delivery.status | default(-1) | int) == -1
+      else 'the endpoint rejected the request' }}).
+      The webhook URL is withheld from this message because it is a credential.
+  when:
+    - linux_vitals_slack_delivery is defined
+    - not (linux_vitals_slack_delivery.skipped | default(false))
+    - (linux_vitals_slack_delivery.status | default(-1) | int) != 200
+  delegate_to: localhost
+  run_once: true
   tags:
     - reporting
     - notifications
@@ -36,11 +68,31 @@
     from: "{{ linux_vitals_email_from }}"
     subject: "{{ linux_vitals_email_subject }}"
     body: "{{ linux_vitals_notification_message }}"
+  register: linux_vitals_email_delivery
+  no_log: true
+  failed_when: false
   delegate_to: localhost
   run_once: true
   when:
     - linux_vitals_email_enabled
     - linux_vitals_email_to | length > 0
+  tags:
+    - reporting
+    - notifications
+
+- name: Fail when the email notification did not send
+  # The mail module reports success by changing; on any failure it does not.
+  ansible.builtin.fail:
+    msg: >-
+      Email notification failed while talking to
+      {{ linux_vitals_effective_email_host }}:{{ linux_vitals_email_port }}.
+      SMTP credentials are withheld from this message.
+  when:
+    - linux_vitals_email_delivery is defined
+    - not (linux_vitals_email_delivery.skipped | default(false))
+    - not (linux_vitals_email_delivery.changed | default(false))
+  delegate_to: localhost
+  run_once: true
   tags:
     - reporting
     - notifications
@@ -53,12 +105,34 @@
     body: "{{ lookup('ansible.builtin.template', 'generic_webhook_payload.json.j2') | from_json }}"
     headers: "{{ linux_vitals_generic_webhook_headers if linux_vitals_generic_webhook_headers | length > 0 else omit }}"
     status_code: "{{ linux_vitals_generic_webhook_status_code | int }}"
-    return_content: true
+  register: linux_vitals_generic_webhook_delivery
+  no_log: true
+  failed_when: false
   delegate_to: localhost
   run_once: true
   when:
     - linux_vitals_generic_webhook_enabled
     - linux_vitals_effective_generic_webhook_url | length > 0
+  tags:
+    - reporting
+    - notifications
+
+- name: Fail when the generic webhook notification did not arrive
+  ansible.builtin.fail:
+    msg: >-
+      Generic webhook notification failed: HTTP status
+      {{ linux_vitals_generic_webhook_delivery.status | default(-1) }}, expected
+      {{ linux_vitals_generic_webhook_status_code | int }}.
+      The webhook URL and request headers are withheld from this message
+      because they are credentials.
+  when:
+    - linux_vitals_generic_webhook_delivery is defined
+    - not (linux_vitals_generic_webhook_delivery.skipped | default(false))
+    - >-
+      (linux_vitals_generic_webhook_delivery.status | default(-1) | int)
+      != (linux_vitals_generic_webhook_status_code | int)
+  delegate_to: localhost
+  run_once: true
   tags:
     - reporting
     - notifications

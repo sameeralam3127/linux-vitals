@@ -229,8 +229,14 @@ def test_galaxy_version_matches_changelog_latest_entry() -> None:
     changelog = (REPO_ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
 
     version = galaxy["version"]
-    assert version == "1.2.0"
-    assert re.search(rf"^## \[{re.escape(version)}\]", changelog, re.MULTILINE)
+    # Deliberately not pinned to a literal: this asserts the release bookkeeping
+    # stays consistent, so a version bump with no changelog entry (or vice
+    # versa) fails, while an ordinary bump does not.
+    headings = re.findall(r"^## \[([^\]]+)\]", changelog, re.MULTILINE)
+    assert headings, "CHANGELOG.md has no version headings"
+    assert version == headings[0], (
+        f"galaxy.yml is {version} but the newest CHANGELOG entry is {headings[0]}"
+    )
 
 
 def test_galaxy_build_ignore_excludes_molecule_directory() -> None:
