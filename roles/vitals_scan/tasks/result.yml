@@ -102,8 +102,15 @@
       kernel_install_failure_excerpt: "{{ linux_vitals_kernel_install_failure_excerpt }}"
       ram_status: "{{ linux_vitals_ram_status }}"
       ram_used_pct: "{{ linux_vitals_ram_used_pct }}"
-      ram_used_mb: "{{ linux_vitals_memory_used_mb | round(1) }}"
-      ram_total_mb: "{{ linux_vitals_memory_total_mb | round(1) }}"
+      # Coerced with `float` before rounding: both facts are produced by a
+      # set_fact template in discovery.yml, so whether they arrive here as a
+      # number or as text depends on the ansible-core version and on whether
+      # the source facts carry an unsafe tag (cached facts do). `round` has no
+      # string handling, so without this an unsafe/text value raises
+      # "type AnsibleUnsafeText doesn't define __round__ method" and fails the
+      # whole scan. `float` is a no-op on a value that is already a number.
+      ram_used_mb: "{{ linux_vitals_memory_used_mb | float | round(1) }}"
+      ram_total_mb: "{{ linux_vitals_memory_total_mb | float | round(1) }}"
       log_errors: "{{ linux_vitals_log_errors }}"
       log_excerpt: "{{ linux_vitals_log_excerpt }}"
       asset_serial: "{{ ansible_facts['product_serial'] | default('unavailable') }}"
