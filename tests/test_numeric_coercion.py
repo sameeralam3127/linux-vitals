@@ -1,13 +1,18 @@
 """`round()` must never be applied to an uncoerced variable.
 
-Jinja's `round` filter has no string handling. Whether a `set_fact`-derived
-value reaches a later task as a number or as text depends on the ansible-core
-version and on whether the source facts carry an unsafe tag -- facts restored
-from the jsonfile cache do. When it arrives as text the run dies with
+Jinja's `round` filter has no string handling. On ansible-core 2.16 -- the
+floor this collection declares in `meta/runtime.yml` -- a `set_fact` whose
+template renders a number stores a plain string. (List, dict and boolean
+results are converted back to real types; numeric scalars are the gap.) So a
+later `round()` on that fact dies with
 
-    type AnsibleUnsafeText doesn't define __round__ method
+    type str doesn't define __round__ method
 
+or `AnsibleUnsafeText` in its place where the source facts are unsafe-tagged,
 and the whole scan fails at `Build per-host report object`.
+
+Verified against 2.16.3 (fails) and 2.20.4 (passes, because newer cores
+coerce).
 
 A runtime test cannot catch this: on a core that coerces implicitly, the
 unfixed expression passes. So this asserts the *shape* of the source instead --

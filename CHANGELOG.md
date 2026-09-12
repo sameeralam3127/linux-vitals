@@ -12,13 +12,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `type AnsibleUnsafeText doesn't define __round__ method`.**
   `vitals_scan`'s `result.yml` rounded `linux_vitals_memory_used_mb` and
   `linux_vitals_memory_total_mb` directly. Both are produced by a `set_fact`
-  template in `discovery.yml`, so whether they arrive as a number or as text
-  depends on the ansible-core version and on whether the source facts carry an
-  unsafe tag -- facts restored from the jsonfile cache do. Jinja's `round` has
-  no string handling, so on an affected host the run died at the last task of
-  the scan, after all preceding tasks had succeeded, producing no dashboard,
-  no JSON report, and no notification
-  ([#45](https://github.com/sameeralam3127/linux-vitals/issues/45)).
+  template in `discovery.yml`, and on ansible-core 2.16 -- the floor declared
+  in `meta/runtime.yml` -- a numeric template result is stored as a plain
+  string. Jinja's `round` has no string handling, so the run died at the last
+  task of the scan, after all thirty preceding tasks had succeeded, producing
+  no dashboard, no JSON report and no notification. This was not intermittent
+  and did not depend on fact caching: on 2.16 it failed every run, on every
+  host ([#45](https://github.com/sameeralam3127/linux-vitals/issues/45)).
 
   Both are now coerced with `float` before rounding, which is a no-op on a
   value that is already numeric. These were the only two of the collection's
