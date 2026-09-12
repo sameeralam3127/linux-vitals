@@ -28,10 +28,12 @@ the one check whose absence is hardest to defend.
 | Journal scans are unbounded and ship whole-window logs to the control node | [#23](https://github.com/sameeralam3127/linux-vitals/issues/23) | high |
 | Running with `--check` fails immediately on every host | [#38](https://github.com/sameeralam3127/linux-vitals/issues/38) | high |
 | Failed-login check reports a clean host when `lastb` cannot run | [#39](https://github.com/sameeralam3127/linux-vitals/issues/39) | high |
+| ~~Scan fails at `Build per-host report object` on ansible-core 2.16~~ | [#45](https://github.com/sameeralam3127/linux-vitals/issues/45) | done (1.3.0) |
+| CI never tests the declared minimum ansible-core | [#47](https://github.com/sameeralam3127/linux-vitals/issues/47) | high |
 | Fact cache has no explicit expiry, so a run can report stale facts | [#25](https://github.com/sameeralam3127/linux-vitals/issues/25) | medium |
 | `notify.yml` send path, skip conditions, and `.env` precedence are untested | [#29](https://github.com/sameeralam3127/linux-vitals/issues/29) | medium |
-| Add `meta/argument_specs.yml` for `ansible-doc` and runtime validation | [#40](https://github.com/sameeralam3127/linux-vitals/issues/40) | medium |
-| Pin an upper bound on collection dependencies | [#42](https://github.com/sameeralam3127/linux-vitals/issues/42) | low |
+| ~~Add `meta/argument_specs.yml` for `ansible-doc` and runtime validation~~ | [#40](https://github.com/sameeralam3127/linux-vitals/issues/40) | done (1.3.0) |
+| ~~Pin an upper bound on collection dependencies~~ | [#42](https://github.com/sameeralam3127/linux-vitals/issues/42) | done (1.3.0) |
 
 **The one new check:** filesystem capacity and inode checks across all mounts
 ([#30](https://github.com/sameeralam3127/linux-vitals/issues/30), high). A full
@@ -54,6 +56,13 @@ Ordering notes:
   [#42](https://github.com/sameeralam3127/linux-vitals/issues/42) are small and
   land early; they are listed here rather than with the Q4 tech debt because
   they cost days, not weeks.
+- [#45](https://github.com/sameeralam3127/linux-vitals/issues/45) and
+  [#47](https://github.com/sameeralam3127/linux-vitals/issues/47) were opened
+  after this document was first written, from a live failure on ansible-core
+  2.16. #45 shipped in 1.3.0; #47 is the reason it reached a supported version
+  at all, and is the higher-value half of the pair -- it leads Q1 alongside
+  #24 and #39, because an untested version floor makes every other guarantee
+  in this roadmap conditional.
 
 ## Q2 -- Breadth of detection
 
