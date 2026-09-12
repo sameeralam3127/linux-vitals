@@ -4,6 +4,37 @@ All notable changes to the `sameeralam3127.linux_vitals` collection are document
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed
+
+- **`vitals_report` failed on ansible-core 2.16, the declared floor.** The five
+  `.env` patterns in `config.yml` were Jinja string literals containing both a
+  double and a single quote, to describe the optional quoting around a value.
+  2.16's templating cannot lex that literal and failed the task with
+  `unexpected char` before the regex was ever applied -- and because the task
+  correctly carries `no_log: true`, the operator saw only `"censored"` and had
+  no way to tell a parse error from a secret-handling failure
+  ([#49](https://github.com/sameeralam3127/linux-vitals/issues/49)).
+
+  The patterns now capture the rest of the line and clean it up with filters,
+  keeping quote characters out of the regex. Verified identical on 2.16.3 and
+  2.20.4 across quoted, single-quoted, unquoted, spaced, empty, absent and
+  comment-bearing lines.
+
+  This also fixes two silent pre-existing bugs: the old pattern anchored `$`
+  immediately after the optional closing quote, so `URL=https://a/b # note` and
+  `URL="https://a/b#frag"` matched nothing at all and the channel was skipped
+  without a word. Both now resolve. A trailing comment is stripped only when
+  whitespace precedes the `#`, so a fragment inside a URL survives.
+
+- `tests/test_core216_compat.py` asserts statically that no Jinja string
+  literal mixes both quote characters, since a runtime test passes on any core
+  newer than 2.16. It verifies its own detection against the pre-fix pattern.
+  Deliberately narrow: an escaped backslash alone is fine, and the two such
+  literals in `vitals_heal` and `vitals_scan` were checked against a real
+  2.16.3 rather than assumed broken.
+
 ## [1.3.0] - 2026-09-12
 
 ### Fixed
