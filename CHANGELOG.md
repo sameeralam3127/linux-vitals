@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The scan could fail at `Build per-host report object` with
+  `type AnsibleUnsafeText doesn't define __round__ method`.**
+  `vitals_scan`'s `result.yml` rounded `linux_vitals_memory_used_mb` and
+  `linux_vitals_memory_total_mb` directly. Both are produced by a `set_fact`
+  template in `discovery.yml`, and on ansible-core 2.16 -- the floor declared
+  in `meta/runtime.yml` -- a numeric template result is stored as a plain
+  string. Jinja's `round` has no string handling, so the run died at the last
+  task of the scan, after all thirty preceding tasks had succeeded, producing
+  no dashboard, no JSON report and no notification. This was not intermittent
+  and did not depend on fact caching: on 2.16 it failed every run, on every
+  host ([#45](https://github.com/sameeralam3127/linux-vitals/issues/45)).
+
+  Both are now coerced with `float` before rounding, which is a no-op on a
+  value that is already numeric. These were the only two of the collection's
+  nine `round(` call sites at risk; the other seven round a parenthesised
+  expression whose operands already carry `float`.
+
+- `tests/test_numeric_coercion.py` rejects `round()` applied to a bare variable
+  in any task file or template. This is a static check on purpose: a runtime
+  test passes on a core that coerces implicitly, so it could not have caught
+  the original bug. The test verifies its own detection against the pre-fix
+  expression so it cannot silently stop matching.
+
 ### Added
 
 - **Role argument specs.** Each role now ships a `meta/argument_specs.yml`
