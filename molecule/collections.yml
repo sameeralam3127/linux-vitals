@@ -1,6 +1,9 @@
 ---
 # Collections the Molecule harness itself needs (not runtime dependencies
 # of the roles -- those live in requirements.yml).
+#
+# Upper-bounded for the same reason as requirements.yml: a breaking upstream
+# major must not turn a green build red with nothing in the diff to explain it.
 collections:
   - name: community.docker
-    version: ">=3.10.0"
+    version: ">=3.10.0,<6.0.0"

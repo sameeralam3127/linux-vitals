@@ -36,6 +36,7 @@ Collection: `sameeralam3127.linux_vitals`
 - [Troubleshooting](docs/troubleshooting.md)
 - [Architecture](docs/architecture.md)
 - [Testing](docs/testing.md) -- unit tests and the per-distro Molecule scenarios
+- [Roadmap](docs/roadmap.md) -- the next 12 months, grouped by quarter
 - [Contributing](CONTRIBUTING.md)
 - [Security Policy](SECURITY.md) -- what to report privately, and what is in scope
 - [Changelog](CHANGELOG.md)

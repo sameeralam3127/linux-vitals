@@ -1,4 +1,13 @@
 ---
+# The major version is bounded so a CI run on an unchanged commit installs the
+# same collection majors it did before, and so a breaking upstream major cannot
+# turn a green build red with nothing in the diff to explain it. Patch and minor
+# updates still flow. Review the upper bound at release time.
+#
+# galaxy.yml's `dependencies:` deliberately keeps the unbounded lower-bound form:
+# that constrains consumers of the published collection, where an over-tight
+# bound causes real conflicts in someone else's environment. This file is the
+# development and CI install path only.
 collections:
   - name: community.general
-    version: ">=9.0.0"
+    version: ">=9.0.0,<13.0.0"
