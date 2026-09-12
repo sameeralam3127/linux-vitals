@@ -232,10 +232,17 @@ def test_galaxy_version_matches_changelog_latest_entry() -> None:
     # Deliberately not pinned to a literal: this asserts the release bookkeeping
     # stays consistent, so a version bump with no changelog entry (or vice
     # versa) fails, while an ordinary bump does not.
+    #
+    # An "[Unreleased]" heading is skipped rather than compared: CONTRIBUTING.md
+    # tells contributors to accumulate entries there between releases, and
+    # publishing is what moves that section under a new version heading. What
+    # must agree with galaxy.yml is the newest *released* heading.
     headings = re.findall(r"^## \[([^\]]+)\]", changelog, re.MULTILINE)
     assert headings, "CHANGELOG.md has no version headings"
-    assert version == headings[0], (
-        f"galaxy.yml is {version} but the newest CHANGELOG entry is {headings[0]}"
+    released = [h for h in headings if h.lower() != "unreleased"]
+    assert released, "CHANGELOG.md has no released version headings"
+    assert version == released[0], (
+        f"galaxy.yml is {version} but the newest released CHANGELOG entry is {released[0]}"
     )
 
 

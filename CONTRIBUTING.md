@@ -60,12 +60,17 @@ validated with at least one scenario locally before pushing.
 
 1. Add the default to the owning role's `defaults/main.yml` (see
    [docs/architecture.md](docs/architecture.md) for which role owns what).
-2. Document it in [docs/variable-reference.md](docs/variable-reference.md)
+2. Document it in that role's `meta/argument_specs.yml` with a `type`, a
+   `default`, and a `description` -- this is what `ansible-doc -t role`
+   renders and what validates an operator's override at role entry.
+   `tests/test_argument_specs.py` fails if the spec and the defaults disagree.
+   Do not mark it `required`: every variable must have a working default.
+3. Document it in [docs/variable-reference.md](docs/variable-reference.md)
    and, if it's something most users would touch, in
    [docs/configuration-reference.md](docs/configuration-reference.md).
-3. Add or update a fixture in `tests/fixtures/` if the change affects
+4. Add or update a fixture in `tests/fixtures/` if the change affects
    template rendering, and an assertion in `tests/test_templates.py`.
-4. Add a `CHANGELOG.md` entry under `[Unreleased]`.
+5. Add a `CHANGELOG.md` entry under `[Unreleased]`.
 
 ## Changing the dashboard template
 

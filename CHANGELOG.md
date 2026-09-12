@@ -4,6 +4,61 @@ All notable changes to the `sameeralam3127.linux_vitals` collection are document
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- **Role argument specs.** Each role now ships a `meta/argument_specs.yml`
+  documenting every variable its `defaults/main.yml` defines, with a type, a
+  default, and a description. `ansible-doc -t role
+  sameeralam3127.linux_vitals.vitals_scan` (and the other two) now renders
+  usable documentation, which matters most for operators who installed the
+  collection from Galaxy and have no repository to read
+  ([#40](https://github.com/sameeralam3127/linux-vitals/issues/40)).
+
+  Ansible also validates the declared types at role entry, so a malformed
+  override is now reported by name instead of failing deep inside a Jinja
+  expression or silently coercing. No variable is marked `required`: every one
+  has a working default and the roles stay runnable with no configuration at
+  all. `linux_vitals_maintenance_id`, the one conditionally-required variable,
+  is still asserted by `vitals_report`'s `snapshot.yml`, which can give a
+  better message than an argspec can.
+
+- `tests/test_argument_specs.py` asserts that each spec and its
+  `defaults/main.yml` describe the same variables with the same defaults, that
+  every option carries a type and a description, and that none is marked
+  required -- so the two files cannot drift apart unnoticed.
+
+### Changed
+
+- **Collection dependencies are upper-bounded.** `requirements.yml` and
+  `molecule/collections.yml` now bound the major version
+  (`community.general >=9.0.0,<13.0.0`, `community.docker >=3.10.0,<6.0.0`)
+  rather than only the lower bound, so a breaking upstream major cannot turn a
+  green build red with nothing in the diff to explain it, and CI on an
+  unchanged commit installs the same majors it did before. Patch and minor
+  updates still flow ([#42](https://github.com/sameeralam3127/linux-vitals/issues/42)).
+
+  `galaxy.yml`'s `dependencies:` is deliberately unchanged: that block
+  constrains consumers of the published collection, where an over-tight bound
+  causes real conflicts in someone else's environment.
+
+### Fixed
+
+- `test_galaxy_version_matches_changelog_latest_entry` compared `galaxy.yml`
+  against the newest changelog heading of any kind, so the `[Unreleased]`
+  section that `CONTRIBUTING.md` tells contributors to add always failed it.
+  It now skips `[Unreleased]` and compares against the newest *released*
+  heading, which is what the test's stated intent -- catching a version bump
+  with no changelog entry, or the reverse -- actually requires.
+
+### Documentation
+
+- `docs/roadmap.md` groups every open issue into a twelve-month quarterly plan,
+  ordered by dependency rather than by priority label alone.
+- `CONTRIBUTING.md`'s "Adding or changing a variable" checklist gains the
+  argument-spec step.
+
 ## [1.2.1] - 2026-08-21
 
 ### Security

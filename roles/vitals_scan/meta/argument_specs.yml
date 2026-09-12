@@ -1,0 +1,57 @@
+---
+# Machine-readable counterpart to docs/variable-reference.md: this is what
+# `ansible-doc -t role sameeralam3127.linux_vitals.vitals_scan` renders, and
+# what validates an operator's overrides at role entry rather than deep inside
+# a Jinja expression.
+#
+# Nothing here is `required`. Every variable has a working default and the role
+# must stay runnable with no configuration at all.
+argument_specs:
+  main:
+    short_description: Read-only Linux host discovery, posture checks, and findings
+    description:
+      - Gathers facts, journal and log posture, kernel and bootloader state,
+        boot-partition health, security controls, and failed-login data.
+      - Builds one C(linux_vitals_result) fact per host with a C(final_status)
+        of C(Pass) or C(Fail) and a list of C(findings).
+      - Never changes anything on the managed host.
+    author:
+      - Sameer Alam
+    options:
+      linux_vitals_log_window:
+        type: str
+        default: "30 minutes ago"
+        description:
+          - How far back C(journalctl) is scanned for C(error)/C(failed) lines
+            that feed the C(log_errors) count.
+          - Passed to C(journalctl --since) as a single argument, so any value
+            that option accepts works.
+      linux_vitals_audit_log_window:
+        type: str
+        default: "7 days ago"
+        description:
+          - How far back C(journalctl) is scanned for kernel, grub, dracut, and
+            initramfs failure lines.
+          - Longer than C(linux_vitals_log_window) because a failed kernel
+            install is worth catching well after the fact.
+      linux_vitals_ram_warning_threshold:
+        type: int
+        default: 80
+        description:
+          - RAM used percentage at or above which C(ram_status) becomes
+            C(Warning).
+          - A warning does not fail the host on its own.
+      linux_vitals_ram_critical_threshold:
+        type: int
+        default: 95
+        description:
+          - RAM used percentage at or above which C(ram_status) becomes
+            C(Critical), which produces a finding and fails the host.
+      linux_vitals_boot_warning_threshold:
+        type: int
+        default: 20
+        description:
+          - Boot partition free percentage below which C(boot_space_status)
+            becomes C(Low), which produces a finding and fails the host.
+          - Note this is a I(free) percentage, unlike the RAM thresholds, which
+            are I(used) percentages.

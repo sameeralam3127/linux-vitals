@@ -1,0 +1,216 @@
+---
+# Machine-readable counterpart to docs/variable-reference.md: this is what
+# `ansible-doc -t role sameeralam3127.linux_vitals.vitals_report` renders, and
+# what validates an operator's overrides at role entry rather than deep inside
+# a Jinja expression.
+#
+# Nothing here is `required`. In particular linux_vitals_maintenance_id is NOT
+# marked required even though baseline/postcheck runs need it: that requirement
+# is conditional on the phase, and tasks/snapshot.yml already asserts it with a
+# message that names the phase and shows the -e invocation to fix it.
+argument_specs:
+  main:
+    short_description: Fleet-wide HTML/JSON reporting, baseline comparison, and notifications
+    description:
+      - Loads notification configuration, persists baseline/postcheck snapshots,
+        computes the before/after comparison, renders the HTML dashboard and
+        JSON report, archives historical reports, and sends Slack, email, and
+        generic-webhook summaries.
+      - Runs on the control node. Managed hosts never receive credentials.
+    author:
+      - Sameer Alam
+    options:
+      linux_vitals_phase:
+        type: str
+        default: adhoc
+        choices: [adhoc, baseline, postcheck]
+        description:
+          - C(adhoc) is a one-shot health check with no snapshot or comparison
+            bookkeeping.
+          - C(baseline) persists a pre-maintenance snapshot; C(postcheck)
+            persists a post-maintenance snapshot and compares it against the
+            matching baseline.
+          - Set by the shipped baseline.yml and postcheck.yml playbooks; there
+            is normally no reason to set it by hand.
+      linux_vitals_maintenance_id:
+        type: str
+        default: ""
+        description:
+          - Correlates a baseline snapshot with its postcheck. Reuse the same
+            value for both runs of a maintenance window.
+          - Must be non-empty when C(linux_vitals_phase) is C(baseline) or
+            C(postcheck); the role asserts this at run time.
+      linux_vitals_snapshot_dir:
+        type: str
+        default: "{{ inventory_dir }}/reports/snapshots"
+        description:
+          - Root directory for per-host, per-phase JSON snapshots.
+          - Anchored to C(inventory_dir) rather than C(playbook_dir) so it
+            resolves inside your project when the collection is installed and
+            invoked by FQCN.
+      linux_vitals_output_path:
+        type: str
+        default: "{{ inventory_dir }}/reports/linux_vitals_report.html"
+        description:
+          - Where the self-contained HTML dashboard is written.
+      linux_vitals_json_output_path:
+        type: str
+        default: "{{ inventory_dir }}/reports/linux_vitals_report.json"
+        description:
+          - Where the JSON report is written. Set to an empty string to skip
+            JSON generation entirely.
+      linux_vitals_report_title:
+        type: str
+        default: LinuxVitals Health Check Dashboard
+        description:
+          - Title used for the dashboard's HTML C(<title>) and hero heading.
+      linux_vitals_archive_html_reports:
+        type: bool
+        default: true
+        description:
+          - Copy the HTML dashboard into C(linux_vitals_report_archive_dir) with
+            a UTC timestamp on every run.
+      linux_vitals_archive_json_reports:
+        type: bool
+        default: false
+        description:
+          - Same as C(linux_vitals_archive_html_reports), for the JSON report.
+      linux_vitals_report_archive_dir:
+        type: str
+        default: "{{ linux_vitals_output_path | dirname }}/archive"
+        description:
+          - Where archived, timestamped copies of the reports are stored.
+      linux_vitals_report_retention_count:
+        type: int
+        default: 10
+        description:
+          - Keep only the newest N archived files per artefact type. Set to C(0)
+            to disable pruning and keep everything.
+      linux_vitals_archive_timestamp:
+        type: str
+        default: ""
+        description:
+          - Override the UTC timestamp used for this run's archive filenames.
+          - Exists mainly so tests can produce deterministic filenames; blank
+            means "now".
+      linux_vitals_slack_webhook_url:
+        type: str
+        default: ""
+        description:
+          - Slack incoming webhook URL. Falls back to C(SLACK_WEBHOOK_URL) in
+            the C(.env) beside your inventory when blank; blank in both places
+            skips Slack.
+          - This value is a credential -- an incoming webhook URL is the bearer
+            token for that channel. Keep it in C(.env) or a vaulted variable,
+            never in inventory committed to git.
+      linux_vitals_slack_message_header:
+        type: str
+        default: Standard Maintenance Summary
+        description:
+          - First line of the Slack message.
+      linux_vitals_slack_message_footer:
+        type: str
+        default: ""
+        description:
+          - Optional last line of the Slack message. Blank omits it.
+      linux_vitals_slack_include_host_breakdown:
+        type: bool
+        default: true
+        description:
+          - Include a per-host status line in the Slack message. Worth turning
+            off for large fleets, where the breakdown dominates the message.
+      linux_vitals_email_enabled:
+        type: bool
+        default: false
+        description:
+          - Must be C(true), with at least one recipient in
+            C(linux_vitals_email_to), for email to send.
+      linux_vitals_email_to:
+        type: list
+        elements: str
+        default: []
+        description:
+          - Recipient addresses. An empty list skips email even when
+            C(linux_vitals_email_enabled) is true.
+      linux_vitals_email_cc:
+        type: list
+        elements: str
+        default: []
+        description:
+          - CC addresses. An empty list omits the header entirely.
+      linux_vitals_email_from:
+        type: str
+        default: linux-vitals@example.com
+        description:
+          - Envelope and header sender address. Change this -- the default is a
+            placeholder that many SMTP servers will reject.
+      linux_vitals_email_host:
+        type: str
+        default: localhost
+        description:
+          - SMTP server hostname. Falls back to C(EMAIL_SMTP_HOST) in C(.env)
+            when left at the C(localhost) default.
+      linux_vitals_email_port:
+        type: int
+        default: 25
+        description:
+          - SMTP server port. Use C(587) with C(starttls) or C(465) with
+            C(always) for authenticated submission.
+      linux_vitals_email_secure:
+        type: str
+        default: never
+        choices: [never, starttls, try, always]
+        description:
+          - Transport security mode passed through to C(community.general.mail).
+          - C(try) attempts STARTTLS and silently continues in plain text if it
+            is unavailable, so prefer C(starttls) or C(always) when credentials
+            are involved.
+      linux_vitals_email_username:
+        type: str
+        default: ""
+        description:
+          - SMTP username. Falls back to C(EMAIL_SMTP_USERNAME) in C(.env) when
+            blank; blank in both places means no authentication.
+      linux_vitals_email_password:
+        type: str
+        default: ""
+        description:
+          - SMTP password. Falls back to C(EMAIL_SMTP_PASSWORD) in C(.env) when
+            blank.
+          - This value is a credential. Keep it in C(.env) or a vaulted
+            variable, never in inventory committed to git.
+      linux_vitals_email_subject:
+        type: str
+        default: LinuxVitals Health Check Summary
+        description:
+          - Subject line of the summary email.
+      linux_vitals_generic_webhook_enabled:
+        type: bool
+        default: false
+        description:
+          - Must be C(true), with a non-empty URL, for the generic webhook to
+            post.
+      linux_vitals_generic_webhook_url:
+        type: str
+        default: ""
+        description:
+          - Generic webhook endpoint. Falls back to C(GENERIC_WEBHOOK_URL) in
+            C(.env) when blank.
+          - Treat as a credential if the endpoint authenticates by URL. Keep it
+            in C(.env) or a vaulted variable.
+      linux_vitals_generic_webhook_headers:
+        type: dict
+        default: {}
+        description:
+          - Extra HTTP headers sent with the generic webhook request. This is
+            the documented place for an C(Authorization) header.
+          - Treat as a credential. The sending task runs with C(no_log) so a
+            failed post cannot print these.
+      linux_vitals_generic_webhook_status_code:
+        type: int
+        default: 200
+        description:
+          - HTTP status code the endpoint is expected to return. Anything else
+            is reported as a delivery failure.
+          - Set to C(202) or C(204) for endpoints that acknowledge
+            asynchronously or return no content.

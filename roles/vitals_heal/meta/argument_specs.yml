@@ -1,0 +1,29 @@
+---
+# Machine-readable counterpart to docs/variable-reference.md. This documents
+# the role's one input; it does not change what the role does.
+#
+# Nothing here is `required`: the role must stay runnable with no configuration,
+# and its default is the safe one.
+argument_specs:
+  main:
+    short_description: Opt-in one-shot self-healing for failed enabled services
+    description:
+      - Attempts exactly one restart per systemd-enabled service found in a
+        failed state, then re-checks the required-service status and rebuilds
+        C(linux_vitals_result) so the report reflects the post-restart state.
+      - Entirely gated by C(linux_vitals_heal_enabled). When that is false the
+        role's tasks are skipped and nothing on the managed host changes.
+    author:
+      - Sameer Alam
+    options:
+      linux_vitals_heal_enabled:
+        type: bool
+        default: false
+        description:
+          - Opt-in switch for self-healing.
+          - When C(false) (the default) the role's tasks are skipped entirely
+            and no service restarts are attempted, leaving the collection a
+            read-only health check.
+          - When C(true) the role attempts one restart per service that is both
+            enabled at boot and in a failed state. It never enables, installs,
+            or masks a unit, and never retries.
