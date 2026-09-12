@@ -29,6 +29,7 @@ the one check whose absence is hardest to defend.
 | Running with `--check` fails immediately on every host | [#38](https://github.com/sameeralam3127/linux-vitals/issues/38) | high |
 | Failed-login check reports a clean host when `lastb` cannot run | [#39](https://github.com/sameeralam3127/linux-vitals/issues/39) | high |
 | ~~Scan fails at `Build per-host report object` on ansible-core 2.16~~ | [#45](https://github.com/sameeralam3127/linux-vitals/issues/45) | done (1.3.0) |
+| ~~`vitals_report` fails on ansible-core 2.16: .env regexes cannot be parsed~~ | [#49](https://github.com/sameeralam3127/linux-vitals/issues/49) | done (1.3.1) |
 | CI never tests the declared minimum ansible-core | [#47](https://github.com/sameeralam3127/linux-vitals/issues/47) | high |
 | Fact cache has no explicit expiry, so a run can report stale facts | [#25](https://github.com/sameeralam3127/linux-vitals/issues/25) | medium |
 | `notify.yml` send path, skip conditions, and `.env` precedence are untested | [#29](https://github.com/sameeralam3127/linux-vitals/issues/29) | medium |
