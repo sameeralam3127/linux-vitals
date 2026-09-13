@@ -1,4 +1,4 @@
-ansible-core>=2.21.3,<2.22
+ansible-core>=2.21.4,<2.22
 ansible-lint>=26.8.0
 pytest>=9.1.1
 PyYAML>=6.0.3
