@@ -103,7 +103,7 @@ the HTML file and deepening what it covers.
 | Export the fleet report as OpenMetrics and CSV | [#35](https://github.com/sameeralam3127/linux-vitals/issues/35) | medium |
 | Add an opt-in non-zero exit so an unhealthy fleet can gate a pipeline | [#41](https://github.com/sameeralam3127/linux-vitals/issues/41) | medium |
 | Extend security posture: firewall, SSH hardening, kernel taint, deleted libraries | [#36](https://github.com/sameeralam3127/linux-vitals/issues/36) | medium |
-| Add `vitals_certs` role: TLS certificate expiry and hardening checks | [#15](https://github.com/sameeralam3127/linux-vitals/issues/15) | -- |
+| ~~Add `vitals_certs` role: TLS certificate expiry and hardening checks~~ | [#15](https://github.com/sameeralam3127/linux-vitals/issues/15) | done (unreleased) |
 | Map findings to CIS or STIG rule identifiers for audit evidence | [#43](https://github.com/sameeralam3127/linux-vitals/issues/43) | low |
 
 Ordering notes:

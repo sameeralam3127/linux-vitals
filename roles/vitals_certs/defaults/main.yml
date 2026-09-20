@@ -1,0 +1,68 @@
+---
+# vitals_certs is opt-in, like vitals_heal. It is the only role that opens
+# outbound TLS connections, and a fleet that terminates TLS nowhere has no use
+# for it, so it stays off until asked for.
+linux_vitals_certs_enabled: false
+
+# Days remaining at or below which a certificate produces a finding.
+linux_vitals_cert_warning_days: 30
+linux_vitals_cert_critical_days: 7
+
+# Directories and files searched on each managed host. Missing paths are
+# skipped: a mixed fleet where only some hosts run nginx is the normal case,
+# not an error.
+linux_vitals_cert_fs_paths:
+  - /etc/ssl/certs
+  - /etc/pki/tls/certs
+  - /etc/letsencrypt/live
+  - /etc/nginx/ssl
+  - /etc/httpd/conf/ssl
+
+# Filenames treated as certificates. A file matching one of these but holding
+# no certificate (privkey.pem, say) is skipped rather than reported.
+linux_vitals_cert_file_patterns:
+  - "*.crt"
+  - "*.pem"
+  - "*.cer"
+
+# How far below each directory to descend. letsencrypt needs 2
+# (live/<domain>/cert.pem); 3 leaves headroom without walking an entire
+# /etc/ssl tree on a host that has one.
+linux_vitals_cert_max_depth: 3
+
+# /etc/ssl/certs is the system CA bundle on most distributions -- hundreds of
+# root certificates that are not yours, several of which are always near
+# expiry. Scanning it and reporting on it are different things: paths matching
+# these prefixes are still inspected, but only produce findings when the
+# certificate is already expired. Set to [] to report on everything.
+linux_vitals_cert_trust_store_paths:
+  - /etc/ssl/certs
+  - /etc/pki/tls/certs
+  - /etc/pki/ca-trust
+
+# Live TLS endpoints to inspect, as the certificate is actually presented in
+# the handshake -- which catches the cases a filesystem scan cannot: the wrong
+# cert loaded, a service never reloaded after renewal, an SNI misconfiguration.
+#
+#   linux_vitals_cert_endpoints:
+#     - host: localhost
+#       port: 443
+#       server_name: www.example.com
+#
+# Connections are made from the managed host, so `localhost` means the service
+# that host serves. Empty by default: this role must not start scanning the
+# network because someone enabled it.
+linux_vitals_cert_endpoints: []
+
+# Seconds to wait for a TLS handshake.
+linux_vitals_cert_timeout: 5
+
+# Signature algorithms treated as weak. Matched case-insensitively as a
+# substring, so "sha1WithRSAEncryption" and "ecdsa-with-SHA1" both match sha1.
+linux_vitals_cert_weak_signature_algorithms:
+  - md5
+  - sha1
+
+# Minimum acceptable negotiated TLS version at an endpoint. Anything older
+# than this produces a finding.
+linux_vitals_cert_minimum_tls_version: "TLSv1.2"

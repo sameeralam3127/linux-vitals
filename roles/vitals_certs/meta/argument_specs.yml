@@ -1,0 +1,128 @@
+---
+# Machine-readable counterpart to docs/variable-reference.md: this is what
+# `ansible-doc -t role sameeralam3127.linux_vitals.vitals_certs` renders.
+#
+# Nothing here is `required`. The role must stay runnable with no
+# configuration, and its default is the safe one: disabled.
+argument_specs:
+  main:
+    short_description: Opt-in TLS certificate expiry and hardening checks
+    description:
+      - Reads X.509 certificates from the filesystem and, optionally, from
+        live TLS endpoints, and turns expiry, weak signature algorithms,
+        self-signed certificates, obsolete TLS versions, and served-versus-
+        on-disk mismatches into findings on the existing dashboard.
+      - Emits the same C({id, message, severity}) finding shape C(vitals_scan)
+        produces, so C(vitals_report) renders, compares, and notifies on these
+        with no special casing.
+      - Entirely gated by C(linux_vitals_certs_enabled). When that is false the
+        role's tasks are skipped and no connection is made.
+      - Read-only. Nothing is installed on the managed host and no certificate
+        is written, moved, or changed.
+    author:
+      - Sameer Alam
+    options:
+      linux_vitals_certs_enabled:
+        type: bool
+        default: false
+        description:
+          - Opt-in switch. When false, the role's tasks are skipped entirely
+            and no filesystem scan or TLS connection happens.
+      linux_vitals_cert_warning_days:
+        type: int
+        default: 30
+        description:
+          - Days remaining at or below which a certificate produces a
+            C(warning) finding.
+      linux_vitals_cert_critical_days:
+        type: int
+        default: 7
+        description:
+          - Days remaining at or below which a certificate produces a
+            C(critical) finding instead of a warning.
+          - An already-expired certificate is always C(critical), regardless
+            of this value.
+      linux_vitals_cert_fs_paths:
+        type: list
+        elements: path
+        default:
+          - /etc/ssl/certs
+          - /etc/pki/tls/certs
+          - /etc/letsencrypt/live
+          - /etc/nginx/ssl
+          - /etc/httpd/conf/ssl
+        description:
+          - Directories and files searched on each managed host.
+          - Paths that do not exist are skipped. In a mixed fleet where only
+            some hosts run a web server, that is the normal case rather than
+            an error.
+      linux_vitals_cert_file_patterns:
+        type: list
+        elements: str
+        default:
+          - "*.crt"
+          - "*.pem"
+          - "*.cer"
+        description:
+          - Filename globs treated as certificates.
+          - A file matching one of these but containing no certificate - a
+            C(privkey.pem), say - is skipped rather than reported as broken.
+      linux_vitals_cert_max_depth:
+        type: int
+        default: 3
+        description:
+          - How far below each directory in C(linux_vitals_cert_fs_paths) to
+            descend.
+          - Two is enough for C(letsencrypt/live/<domain>/cert.pem); three
+            leaves headroom without walking an entire C(/etc/ssl) tree.
+      linux_vitals_cert_trust_store_paths:
+        type: list
+        elements: path
+        default:
+          - /etc/ssl/certs
+          - /etc/pki/tls/certs
+          - /etc/pki/ca-trust
+        description:
+          - Paths holding the system CA trust store.
+          - Certificates under these paths are still inspected, but only
+            produce a finding when already expired. The bundle is hundreds of
+            root certificates that are not yours, several of which are always
+            near expiry, so reporting on their expiry would bury every real
+            finding.
+          - Set to an empty list to report on everything.
+      linux_vitals_cert_endpoints:
+        type: list
+        elements: dict
+        default: []
+        description:
+          - Live TLS endpoints to inspect, as the certificate is actually
+            presented in the handshake.
+          - Each entry accepts C(host), C(port) (default 443), and
+            C(server_name) for the SNI name when it differs from C(host).
+          - Connections are made from the managed host, so C(localhost) means
+            the service that host serves.
+          - Empty by default. Enabling the role must not start scanning the
+            network.
+      linux_vitals_cert_timeout:
+        type: int
+        default: 5
+        description:
+          - Seconds to wait for a TLS handshake before recording the endpoint
+            as unreachable.
+      linux_vitals_cert_weak_signature_algorithms:
+        type: list
+        elements: str
+        default:
+          - md5
+          - sha1
+        description:
+          - Signature algorithms treated as weak.
+          - Matched case-insensitively as a substring, so C(sha1) catches both
+            C(sha1WithRSAEncryption) and C(ecdsa-with-SHA1).
+      linux_vitals_cert_minimum_tls_version:
+        type: str
+        default: "TLSv1.2"
+        description:
+          - Minimum acceptable negotiated TLS version at an endpoint.
+          - Compared as a string against what OpenSSL reports, which orders
+            correctly for the C(TLSv1.x) family.

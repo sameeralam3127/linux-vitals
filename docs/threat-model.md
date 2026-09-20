@@ -156,6 +156,58 @@ that died again immediately may be reported `Fixed`. That is a correctness bug
 with a trust consequence -- the report can assert a remediation that did not
 hold.
 
+## `vitals_certs`: the only role that opens a connection
+
+`vitals_certs` is opt-in (`linux_vitals_certs_enabled: false` by default) and
+is worth its own note, because it does two things no other part of the
+collection does.
+
+**It makes outbound network connections.** With
+`linux_vitals_cert_endpoints` set, each managed host opens a TLS connection to
+each configured endpoint. Consequences to accept deliberately:
+
+- **Connections originate on the managed host, not the control node.** A
+  host:port you configure is reached from every host in the play, so a fleet of
+  200 hosts checking one endpoint makes 200 connections to it. Point endpoints
+  at `localhost` to check what that host itself serves, which is the intended
+  use; anything else is a fan-out you are choosing.
+- **The endpoint list is not a scanner and must not become one.** It is an
+  explicit list, empty by default. Enabling the role connects to nothing until
+  you name a target.
+- **Certificate verification is deliberately disabled** during the handshake.
+  The job is to report what is being served, including a certificate that is
+  expired, self-signed, or for the wrong name -- verifying would turn exactly
+  the cases worth reporting into a handshake failure with no detail. Nothing
+  is sent over the connection and no data is exchanged beyond the handshake:
+  the socket is closed as soon as the peer certificate is read. **This is a
+  reporting tool, not a trust decision.** Never use its output as evidence
+  that a certificate chain validates.
+
+**It reads directories that hold private keys.** The default
+`linux_vitals_cert_fs_paths` include `/etc/letsencrypt/live` and
+`/etc/nginx/ssl`, which contain private keys alongside certificates, and
+reading them needs `become` on most hosts. Two properties bound this:
+
+- **Only the first PEM `CERTIFICATE` block of a file is read.** A file holding
+  no certificate -- a `privkey.pem` -- is skipped entirely, and its contents
+  never enter a variable, a fact, or a report.
+- **No private key material is ever parsed, stored, or reported.** The fields
+  that reach the report are subject, issuer, validity dates, signature
+  algorithm, and a SHA-256 fingerprint of the *certificate*. Certificates are
+  public by design; the fingerprint is not a secret.
+
+Still, granting `become` so the role can read a key directory is a real
+escalation of what the automation account can reach. If that is not acceptable,
+set `linux_vitals_cert_fs_paths` to the public certificate paths only, or run
+the role against endpoints alone.
+
+**What lands in the report.** Certificate findings name the **path** of each
+certificate and the **host:port** of each endpoint, so a report now also
+describes where TLS terminates in your estate and which certificates are
+closest to expiry. That is useful to an attacker for the same reason it is
+useful to you. It is covered by the same handling as the rest of the report --
+see below.
+
 ## Credentials
 
 Four secrets exist: a Slack webhook URL, a generic webhook URL, any headers

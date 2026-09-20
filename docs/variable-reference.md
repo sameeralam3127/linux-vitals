@@ -25,6 +25,22 @@ Override any of these in inventory, `group_vars`, or `-e` extra vars.
 |---|---|---|
 | `linux_vitals_heal_enabled` | `false` | Opt-in switch. When `false`, `vitals_heal`'s tasks are skipped entirely -- no service restarts are attempted. |
 
+## `vitals_certs` -- TLS certificate checks (opt-in)
+
+| Variable | Default | Description |
+|---|---|---|
+| `linux_vitals_certs_enabled` | `false` | Opt-in switch. When `false` the role's tasks are skipped entirely -- no filesystem scan, no TLS connection. |
+| `linux_vitals_cert_warning_days` | `30` | Days remaining at or below which a certificate produces a `warning` finding. |
+| `linux_vitals_cert_critical_days` | `7` | Days remaining at or below which it produces `critical` instead. An already-expired certificate is always `critical`. |
+| `linux_vitals_cert_fs_paths` | see [defaults](../roles/vitals_certs/defaults/main.yml) | Directories and files searched on each host. Missing paths are skipped. |
+| `linux_vitals_cert_file_patterns` | `["*.crt", "*.pem", "*.cer"]` | Filename globs treated as certificates. A matching file holding no certificate (a `privkey.pem`) is skipped, not reported as broken. |
+| `linux_vitals_cert_max_depth` | `3` | How far below each directory to descend. `2` covers `letsencrypt/live/<domain>/cert.pem`. |
+| `linux_vitals_cert_trust_store_paths` | `[/etc/ssl/certs, /etc/pki/tls/certs, /etc/pki/ca-trust]` | Still scanned, but only report when already expired. The system CA bundle is hundreds of certificates that are not yours; reporting their expiry would bury every real finding. Set to `[]` to report on everything. |
+| `linux_vitals_cert_endpoints` | `[]` | Live TLS endpoints, as `{host, port, server_name}`. Connections are made **from the managed host**, so `localhost` means what that host serves. Empty by default -- enabling the role must not start scanning the network. |
+| `linux_vitals_cert_timeout` | `5` | Seconds to wait for a handshake before recording the endpoint as unreachable. |
+| `linux_vitals_cert_weak_signature_algorithms` | `[md5, sha1]` | Matched case-insensitively as a substring, so `sha1` catches `ecdsa-with-SHA1`. |
+| `linux_vitals_cert_minimum_tls_version` | `"TLSv1.2"` | Minimum acceptable negotiated version at an endpoint. |
+
 ## `vitals_report` -- maintenance workflow
 
 | Variable | Default | Description |

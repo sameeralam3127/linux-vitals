@@ -1,9 +1,10 @@
 # Architecture
 
-## Why three roles, one variable namespace
+## Why four roles, one variable namespace
 
 LinuxVitals is a single logical pipeline -- scan a host, optionally heal it,
-report on the fleet -- split into three roles so each stage can be reused,
+optionally check its certificates, report on the fleet -- split into four
+roles so each stage can be reused,
 disabled, or run independently:
 
 ```mermaid
@@ -25,10 +26,12 @@ flowchart TB
 
     SCAN["<b>vitals_scan</b> — read-only<br/>facts · services · memory · journal<br/>kernel · bootloader · boot space · security"]
     HEAL["<b>vitals_heal</b> — opt-in, off by default<br/>one restart per enabled failed unit"]
+    CERTS["<b>vitals_certs</b> — opt-in, off by default<br/>TLS expiry · weak signatures · served vs on disk"]
     REPORT["<b>vitals_report</b><br/>snapshot · compare · render · notify"]
 
     SCAN ==>|"linux_vitals_result per host"| HEAL
-    HEAL ==>|"rebuilt result"| REPORT
+    HEAL ==>|"rebuilt result"| CERTS
+    CERTS ==>|"findings merged"| REPORT
 
     REPORT --> HTML["HTML dashboard<br/>self-contained, no CDN"]
     REPORT --> JSON["JSON report<br/>schema 1.2"]
@@ -37,7 +40,7 @@ flowchart TB
     classDef stage fill:#0b7285,stroke:#095c6b,color:#ffffff
     classDef out fill:#f1f3f5,stroke:#adb5bd,color:#212529
     classDef host fill:#e7f5ff,stroke:#4dabf7,color:#0b3d5c
-    class SCAN,HEAL,REPORT stage
+    class SCAN,HEAL,CERTS,REPORT stage
     class HTML,JSON,NOTIFY out
     class U,R,F,S host
 ```

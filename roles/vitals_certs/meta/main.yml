@@ -1,0 +1,24 @@
+---
+galaxy_info:
+  role_name: vitals_certs
+  author: Sameer Alam
+  description: Opt-in TLS certificate expiry and hardening checks, part of LinuxVitals
+  license: MIT
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Ubuntu
+      versions: [focal, jammy, noble]
+    - name: EL
+      versions: ["8", "9"]
+    - name: Fedora
+      versions: [all]
+    - name: opensuse
+      versions: [all]
+  galaxy_tags:
+    - linux
+    - tls
+    - certificates
+    - security
+    - healthcheck
+
+dependencies: []

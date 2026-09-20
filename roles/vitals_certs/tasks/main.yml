@@ -1,0 +1,209 @@
+---
+- name: Inspect TLS certificates on disk and at live endpoints
+  when: linux_vitals_certs_enabled | bool
+  tags:
+    - certs
+  block:
+    - name: Collect certificate facts
+      # The module is read-only and reports changed=false, so no changed_when
+      # is needed. It never fails on a missing path or an unreachable
+      # endpoint: both come back as data, because a cert directory that does
+      # not exist on a given host is the normal case in a mixed fleet.
+      sameeralam3127.linux_vitals.linux_vitals_cert_facts:
+        paths: "{{ linux_vitals_cert_fs_paths }}"
+        file_patterns: "{{ linux_vitals_cert_file_patterns }}"
+        max_depth: "{{ linux_vitals_cert_max_depth | int }}"
+        endpoints: "{{ linux_vitals_cert_endpoints }}"
+        timeout: "{{ linux_vitals_cert_timeout | int }}"
+      register: linux_vitals_cert_scan
+
+    - name: Record the raw certificate inventory
+      ansible.builtin.set_fact:
+        linux_vitals_cert_files: "{{ linux_vitals_cert_scan.certificates | default([]) }}"
+        linux_vitals_cert_endpoint_results: "{{ linux_vitals_cert_scan.endpoints | default([]) }}"
+        linux_vitals_cert_openssl_available: "{{ linux_vitals_cert_scan.openssl_available | default(false) }}"
+
+    - name: Cross-reference served certificates against the ones on disk
+      # The mismatch this catches is the common one: a certificate was renewed
+      # on disk but the service was never reloaded, so it is still serving the
+      # old one. Compared on SHA-256 fingerprint, which is exact -- subject and
+      # expiry are identical across a renewal, so neither would notice.
+      #
+      # Only flagged when the served fingerprint appears nowhere on disk. A
+      # host that serves a certificate it does not store locally (terminated
+      # upstream, or loaded from a secret store) is normal, so the finding is
+      # reported as "served certificate is not on disk" rather than asserting
+      # a stale reload.
+      ansible.builtin.set_fact:
+        linux_vitals_cert_mismatches: >-
+          {%- set disk = linux_vitals_cert_files
+                | selectattr('fingerprint_sha256', 'defined')
+                | map(attribute='fingerprint_sha256') | list -%}
+          {%- set out = [] -%}
+          {%- for endpoint in linux_vitals_cert_endpoint_results -%}
+          {%- if endpoint.fingerprint_sha256 is defined
+                 and disk | length > 0
+                 and endpoint.fingerprint_sha256 not in disk -%}
+          {%- set _ = out.append({
+                'host': endpoint.host,
+                'port': endpoint.port,
+                'subject': endpoint.subject | default('unknown'),
+                'fingerprint_sha256': endpoint.fingerprint_sha256
+              }) -%}
+          {%- endif -%}
+          {%- endfor -%}
+          {{ out }}
+
+    - name: Build the certificate findings
+      # Emits the same {id, message, severity} shape vitals_scan produces, so
+      # vitals_report renders, compares, and notifies on these with no special
+      # casing -- see docs/report-guide.md and issue #8.
+      #
+      # Severity is decided here rather than through
+      # linux_vitals_finding_severities because it depends on the certificate,
+      # not the finding type: the same id is critical inside
+      # linux_vitals_cert_critical_days and warning outside it.
+      ansible.builtin.set_fact:
+        linux_vitals_cert_findings: >-
+          {%- set findings = [] -%}
+          {%- set warn = linux_vitals_cert_warning_days | int -%}
+          {%- set crit = linux_vitals_cert_critical_days | int -%}
+          {%- set weak = linux_vitals_cert_weak_signature_algorithms | map('lower') | list -%}
+          {%- set trust_paths = linux_vitals_cert_trust_store_paths | default([]) -%}
+          {%- for cert in linux_vitals_cert_files + linux_vitals_cert_endpoint_results -%}
+          {%- set is_endpoint = cert.source | default('file') == 'endpoint' -%}
+          {%- set label = (cert.host ~ ':' ~ cert.port) if is_endpoint else cert.path -%}
+          {%- set in_trust_store = (not is_endpoint) and (
+                trust_paths | select('in', cert.path | default('')) | list | length > 0
+              ) -%}
+          {%- if cert.error is defined -%}
+          {%- if is_endpoint -%}
+          {%- set _ = findings.append({
+                'id': 'cert_endpoint_unreachable',
+                'message': 'TLS endpoint ' ~ label ~ ' could not be inspected: ' ~ cert.error,
+                'severity': 'warning',
+                'subject': label
+              }) -%}
+          {%- endif -%}
+          {%- elif cert.expired -%}
+          {%- set _ = findings.append({
+                'id': 'cert_expired',
+                'message': 'Certificate at ' ~ label ~ ' expired on ' ~ (cert.not_after | default('an unknown date')),
+                'severity': 'critical',
+                'subject': label
+              }) -%}
+          {%- elif cert.days_remaining is not none and not in_trust_store -%}
+          {%- if cert.days_remaining | int <= crit -%}
+          {%- set _ = findings.append({
+                'id': 'cert_expiring',
+                'message': 'Certificate at ' ~ label ~ ' expires in ' ~ cert.days_remaining ~ ' day(s)',
+                'severity': 'critical',
+                'subject': label
+              }) -%}
+          {%- elif cert.days_remaining | int <= warn -%}
+          {%- set _ = findings.append({
+                'id': 'cert_expiring',
+                'message': 'Certificate at ' ~ label ~ ' expires in ' ~ cert.days_remaining ~ ' day(s)',
+                'severity': 'warning',
+                'subject': label
+              }) -%}
+          {%- endif -%}
+          {%- endif -%}
+          {%- if cert.error is not defined and not in_trust_store -%}
+          {%- set sig = cert.signature_algorithm | default('') | lower -%}
+          {%- if sig | length > 0 and weak | select('in', sig) | list | length > 0 -%}
+          {%- set _ = findings.append({
+                'id': 'cert_weak_signature',
+                'message': 'Certificate at ' ~ label ~ ' uses a weak signature algorithm (' ~ cert.signature_algorithm ~ ')',
+                'severity': 'warning',
+                'subject': label
+              }) -%}
+          {%- endif -%}
+          {%- if is_endpoint and cert.self_signed | default(false) -%}
+          {%- set _ = findings.append({
+                'id': 'cert_self_signed',
+                'message': 'TLS endpoint ' ~ label ~ ' is serving a self-signed certificate',
+                'severity': 'warning',
+                'subject': label
+              }) -%}
+          {%- endif -%}
+          {%- endif -%}
+          {%- if is_endpoint and cert.tls_version is defined and cert.tls_version is not none -%}
+          {%- if cert.tls_version < linux_vitals_cert_minimum_tls_version -%}
+          {%- set _ = findings.append({
+                'id': 'cert_weak_tls_version',
+                'message': 'TLS endpoint ' ~ label ~ ' negotiated ' ~ cert.tls_version ~ ', below ' ~ linux_vitals_cert_minimum_tls_version,
+                'severity': 'warning',
+                'subject': label
+              }) -%}
+          {%- endif -%}
+          {%- endif -%}
+          {%- endfor -%}
+          {%- for mismatch in linux_vitals_cert_mismatches -%}
+          {%- set _ = findings.append({
+                'id': 'cert_served_not_on_disk',
+                'message': 'Certificate served by ' ~ mismatch.host ~ ':' ~ mismatch.port
+                           ~ ' does not match any certificate found on disk -- the'
+                           ~ ' service may not have been reloaded after renewal',
+                'severity': 'warning',
+                'subject': mismatch.host ~ ':' ~ mismatch.port
+              }) -%}
+          {%- endfor -%}
+          {%- if not linux_vitals_cert_openssl_available -%}
+          {%- set _ = findings.append({
+                'id': 'cert_scan_unavailable',
+                'message': 'Certificate checks were skipped: no openssl binary was found on this host',
+                'severity': 'info'
+              }) -%}
+          {%- endif -%}
+          {{ findings }}
+
+    - name: Summarize the certificate posture for the report
+      ansible.builtin.set_fact:
+        linux_vitals_cert_summary: >-
+          {%- set all = linux_vitals_cert_files + linux_vitals_cert_endpoint_results -%}
+          {%- set dated = all | selectattr('days_remaining', 'defined')
+                | rejectattr('days_remaining', 'none') | list -%}
+          {%- set days = dated | map(attribute='days_remaining') | map('int') | list -%}
+          {{
+            {
+              'certificates_found': linux_vitals_cert_files | length,
+              'endpoints_checked': linux_vitals_cert_endpoint_results | length,
+              'expired': all | selectattr('expired', 'defined')
+                         | selectattr('expired') | list | length,
+              'soonest_expiry_days': (days | min) if days | length > 0 else none,
+              'openssl_available': linux_vitals_cert_openssl_available,
+              'scanned_paths': linux_vitals_cert_scan.scanned_paths | default([]),
+            }
+          }}
+
+    - name: Merge the certificate findings into the host result
+      # vitals_certs runs after vitals_scan has built linux_vitals_result, so
+      # the findings are merged in here and the host severity and final_status
+      # are recomputed from the combined list. Done by re-running vitals_scan's
+      # own severity tasks rather than duplicating their logic, so the two can
+      # never disagree about what "critical" means or what fails a host.
+      ansible.builtin.set_fact:
+        linux_vitals_raw_findings: >-
+          {{ linux_vitals_result.findings | default([]) + linux_vitals_cert_findings }}
+      when: linux_vitals_result is defined
+
+    - name: Recompute severity and status with the certificate findings included
+      ansible.builtin.include_role:
+        name: sameeralam3127.linux_vitals.vitals_scan
+        tasks_from: severity.yml
+      when: linux_vitals_result is defined
+
+    - name: Write the certificate findings back into the host result
+      ansible.builtin.set_fact:
+        linux_vitals_result: >-
+          {{
+            linux_vitals_result | combine({
+              'findings': linux_vitals_findings,
+              'severity': linux_vitals_host_severity,
+              'severity_counts': linux_vitals_severity_counts,
+              'final_status': linux_vitals_final_status,
+              'certificates': linux_vitals_cert_summary,
+            })
+          }}
+      when: linux_vitals_result is defined

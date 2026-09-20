@@ -185,6 +185,27 @@ at its highest level, so the numbers partition the fleet) and
 | `log_errors` | info | `journalctl` matched `error`/`failed` in the log window |
 | `failed_logins` | info | Recent failed login attempts were detected |
 
+Certificate findings, from the opt-in `vitals_certs` role. These are the one
+group whose severity is computed rather than looked up, because it depends on
+the certificate rather than on the finding type:
+
+| id | Severity | Fires when |
+| --- | --- | --- |
+| `cert_expired` | critical | A certificate's `notAfter` is in the past |
+| `cert_expiring` | critical / warning | Days remaining at or below `linux_vitals_cert_critical_days` / `..._warning_days` |
+| `cert_weak_signature` | warning | The signature algorithm matches `linux_vitals_cert_weak_signature_algorithms` |
+| `cert_self_signed` | warning | A **served** certificate is self-signed (self-signed files on disk are not flagged; CA roots are self-signed by definition) |
+| `cert_weak_tls_version` | warning | An endpoint negotiated below `linux_vitals_cert_minimum_tls_version` |
+| `cert_served_not_on_disk` | warning | The served certificate's fingerprint matches nothing on disk -- typically a service that was never reloaded after renewal |
+| `cert_endpoint_unreachable` | warning | An endpoint could not be reached or did not complete a handshake |
+| `cert_scan_unavailable` | info | No `openssl` binary on the host, so nothing could be parsed |
+
+A host that ran `vitals_certs` also carries a `certificates` object
+(`certificates_found`, `endpoints_checked`, `expired`, `soonest_expiry_days`,
+`openssl_available`, `scanned_paths`). It is **omitted entirely** when the role
+did not run, so a consumer can tell "no certificate scan" from "scanned, found
+nothing".
+
 `log_errors` and `failed_logins` are `info` because both occur on healthy
 hosts as a matter of course; they are counts worth seeing, not events worth
 paging on.

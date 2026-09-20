@@ -39,6 +39,20 @@ def _base_env(tmp_path: Path) -> dict[str, str]:
     env["ANSIBLE_LOCAL_TEMP"] = str(REPO_ROOT / ".ansible" / "tmp")
     env["ANSIBLE_REMOTE_TEMP"] = str(REPO_ROOT / ".ansible" / "tmp")
     env["ANSIBLE_HOME"] = str(REPO_ROOT / ".ansible")
+    # Pin the collections path explicitly instead of letting ansible.cfg
+    # supply it. An environment variable outranks the config file, and
+    # pytest-ansible -- which is in requirements-dev.txt and therefore present
+    # in every dev and CI environment -- sets ANSIBLE_COLLECTIONS_PATH to a
+    # value that does not include .dev-collections. Roles kept resolving
+    # anyway through roles_path, so this stayed invisible until a test needed
+    # a *module* from the collection (linux_vitals_cert_facts) and got
+    # "couldn't resolve module/action".
+    env["ANSIBLE_COLLECTIONS_PATH"] = os.pathsep.join(
+        [
+            str(REPO_ROOT / ".dev-collections"),
+            str(Path.home() / ".ansible" / "collections"),
+        ]
+    )
     return env
 
 

@@ -16,4 +16,8 @@
   roles:
     - role: sameeralam3127.linux_vitals.vitals_scan
     - role: sameeralam3127.linux_vitals.vitals_heal
+    # Opt-in (linux_vitals_certs_enabled, default false) and placed after
+    # vitals_heal so its findings merge into the result vitals_scan has
+    # already built, and before vitals_report so they reach the dashboard.
+    - role: sameeralam3127.linux_vitals.vitals_certs
     - role: sameeralam3127.linux_vitals.vitals_report
