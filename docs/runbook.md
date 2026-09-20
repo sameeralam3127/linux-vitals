@@ -376,4 +376,4 @@ It sometimes is, and knowing where saves you chasing a phantom:
 
 If a finding is wrong rather than unwelcome, that is a bug --
 [open an issue](https://github.com/sameeralam3127/linux-vitals/issues). If it
-is a security problem, see [SECURITY.md](../SECURITY.md) instead.
+is a security problem, see [SECURITY.md](../.github/SECURITY.md) instead.

@@ -23,7 +23,7 @@ mkdir -p .dev-collections/ansible_collections/sameeralam3127
 ln -s "$(pwd)" .dev-collections/ansible_collections/sameeralam3127/linux_vitals
 ```
 
-See [docs/architecture.md](docs/architecture.md) before making structural
+See [docs/architecture.md](../docs/architecture.md) before making structural
 changes -- in particular, why the three roles share one variable namespace
 and why report/`.env` paths resolve from `inventory_dir`.
 
@@ -36,7 +36,7 @@ ansible-playbook playbooks/healthcheck.yml --syntax-check
 pytest -q
 ```
 
-All four run in CI ([.github/workflows/ci.yml](.github/workflows/ci.yml))
+All four run in CI ([.github/workflows/ci.yml](workflows/ci.yml))
 on every push and pull request; a change isn't done until all four pass
 locally.
 
@@ -51,7 +51,7 @@ molecule test -s ubuntu    # one distribution
 molecule test --all        # all four
 ```
 
-See [docs/testing.md](docs/testing.md) for what each scenario covers, how to
+See [docs/testing.md](../docs/testing.md) for what each scenario covers, how to
 debug a failing one, and what containers can't prove. Any change to
 `vitals_scan` discovery, `vitals_heal`, or the report pipeline should be
 validated with at least one scenario locally before pushing.
@@ -59,15 +59,15 @@ validated with at least one scenario locally before pushing.
 ## Adding or changing a variable
 
 1. Add the default to the owning role's `defaults/main.yml` (see
-   [docs/architecture.md](docs/architecture.md) for which role owns what).
+   [docs/architecture.md](../docs/architecture.md) for which role owns what).
 2. Document it in that role's `meta/argument_specs.yml` with a `type`, a
    `default`, and a `description` -- this is what `ansible-doc -t role`
    renders and what validates an operator's override at role entry.
    `tests/test_argument_specs.py` fails if the spec and the defaults disagree.
    Do not mark it `required`: every variable must have a working default.
-3. Document it in [docs/variable-reference.md](docs/variable-reference.md)
+3. Document it in [docs/variable-reference.md](../docs/variable-reference.md)
    and, if it's something most users would touch, in
-   [docs/configuration-reference.md](docs/configuration-reference.md).
+   [docs/configuration-reference.md](../docs/configuration-reference.md).
 4. Add or update a fixture in `tests/fixtures/` if the change affects
    template rendering, and an assertion in `tests/test_templates.py`.
 5. Add a `CHANGELOG.md` entry under `[Unreleased]`.
@@ -97,7 +97,7 @@ change:
 
 ## Publishing to Ansible Galaxy
 
-1. Bump `version` in [galaxy.yml](galaxy.yml) (semantic versioning) and
+1. Bump `version` in [galaxy.yml](../galaxy.yml) (semantic versioning) and
    move the `CHANGELOG.md` `[Unreleased]` section under the new version
    heading.
 2. Run the full check suite, plus a local build/install smoke test:
