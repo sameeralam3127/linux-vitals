@@ -34,7 +34,7 @@ flowchart TB
     CERTS ==>|"findings merged"| REPORT
 
     REPORT --> HTML["HTML dashboard<br/>self-contained, no CDN"]
-    REPORT --> JSON["JSON report<br/>schema 1.2"]
+    REPORT --> JSON["JSON report<br/>schema 1.3"]
     REPORT --> NOTIFY["Slack · email · webhook<br/>summary only"]
 
     classDef stage fill:#0b7285,stroke:#095c6b,color:#ffffff
@@ -60,21 +60,33 @@ flowchart TB
   When disabled, its tasks are skipped but its role defaults still load, so
   `linux_vitals_heal_enabled` is always defined regardless of whether the
   role is present in a given play.
+- **`vitals_certs`** is gated by `linux_vitals_certs_enabled`
+  (default `false`) and is the only role that opens an outbound network
+  connection: it checks TLS certificate expiry, weak signature algorithms,
+  and whether what a host *serves* matches what is on its disk. It appends
+  its findings to the host result `vitals_scan` already built, then
+  re-includes `vitals_scan`'s `tasks/severity.yml` to recompute the host
+  severity and `final_status` over the combined list -- sharing that file
+  rather than reimplementing it is what keeps the two roles from drifting on
+  what "critical" means. What it connects to, and why that is a trust
+  boundary the other roles do not cross, is in
+  [threat-model.md](threat-model.md#vitals_certs-the-only-role-that-opens-a-connection).
 - **`vitals_report`** loads notification config (`.env` + inventory
   overrides), persists baseline/postcheck snapshots, computes the
   before/after comparison, renders the HTML dashboard and JSON report,
   archives historical reports, and sends Slack/email/generic-webhook
   summaries.
 
-Unlike a typical Ansible Galaxy role, these three are deliberately **not**
+Unlike a typical Ansible Galaxy role, these four are deliberately **not**
 independent -- they share one `linux_vitals_*` variable and fact namespace
 instead of each having its own prefix (`vitals_scan_*`, `vitals_heal_*`,
 ...). That's a conscious tradeoff, not an oversight: `vitals_heal` needs to
 read and overwrite fields `vitals_scan` produced (`healing_results`,
-`services_healed`), and `vitals_report` needs to read the full
-`linux_vitals_result` object as-is. A per-role prefix would require a
-translation/mapping layer between every stage for no real benefit, since
-the three roles are always meant to be composed together (as
+`services_healed`), `vitals_certs` appends to the same `findings` list and
+recomputes the `final_status` built from it, and `vitals_report` needs to
+read the full `linux_vitals_result` object as-is. A per-role prefix would
+require a translation/mapping layer between every stage for no real benefit, since
+the roles are always meant to be composed together (as
 `playbooks/healthcheck.yml`, `baseline.yml`, and `postcheck.yml` all do).
 `.ansible-lint` explicitly skips `var-naming[no-role-prefix]` for this
 reason.
@@ -103,7 +115,14 @@ to modify.
    feed back into that same `linux_vitals_result` (rebuilt by `vitals_scan`
    in `tasks/result.yml`, which runs after `vitals_heal` in every shipped
    playbook).
-3. `vitals_report`:
+3. `vitals_certs`, if enabled, runs after that rebuild and appends its own
+   findings to `linux_vitals_result.findings`, then recomputes
+   `final_status` and the host severity over the merged list by including
+   `vitals_scan/tasks/severity.yml`. It is last in the scanning half for a
+   reason: it is the only stage that can block on the network, so anything
+   that must run regardless of a slow or unreachable TLS endpoint runs
+   before it.
+4. `vitals_report`:
    - `config.yml` resolves notification secrets/URLs from inventory,
      `group_vars`, extra vars, or a local `.env` (highest to lowest
      precedence in that order).
@@ -119,6 +138,33 @@ to modify.
      retention.
    - `notify.yml` sends the same summary through whichever channels are
      configured.
+
+## The finding object, and what it cannot yet say
+
+Every check that has something to report appends a finding. Since
+[#8](https://github.com/sameeralam3127/linux-vitals/issues/8) the shape is:
+
+```json
+{ "id": "boot_space_low", "message": "...", "severity": "warning" }
+```
+
+The `id` is the stable join key -- the runbook, the severity map
+(`linux_vitals_finding_severities`), operator overrides
+(`linux_vitals_finding_severity_overrides`), and any future export all key off
+it, which is why rewording a `message` is a safe change and renaming an `id`
+is not. Severity is resolved in one place, `vitals_scan/tasks/severity.yml`,
+which `vitals_certs` includes rather than reimplements.
+
+The known limitation: **a finding exists only when something is wrong, and
+`final_status` is `Pass` or `Fail` with nothing in between.** There is no way
+to record that a check could not run. A command that fails -- `lastb` missing,
+a log unreadable -- produces no finding, and the host reads as clean. That is
+tracked collection-wide in
+[#62](https://github.com/sameeralam3127/linux-vitals/issues/62), with
+[#39](https://github.com/sameeralam3127/linux-vitals/issues/39) as the known
+instance. Until it lands, a new check that shells out should be written so
+that the inability to run it is itself reportable, rather than relying on
+`failed_when: false` and an empty result.
 
 ## Why paths resolve from `inventory_dir`, not `playbook_dir`
 
