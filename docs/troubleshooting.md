@@ -1,5 +1,9 @@
 # Troubleshooting
 
+This page is for **the tool misbehaving**. For what to do when the tool is
+working and reporting a real problem -- a finding fired and you need to act on
+it -- see the [Operator Runbook](runbook.md).
+
 **`ansible-playbook sameeralam3127.linux_vitals.healthcheck` can't find the
 collection.**
 Confirm it's installed (`ansible-galaxy collection list | grep linux_vitals`)

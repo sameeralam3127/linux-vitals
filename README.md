@@ -77,6 +77,7 @@ account of which faults are genuinely induced and which are staged.
 - [Kernel & Reboot Detection](docs/kernel-reboot-detection.md) -- per-distro detection logic and known edge cases
 - [Report Guide](docs/report-guide.md) -- dashboard tour, JSON schema, findings reference
 - [Examples](docs/examples.md)
+- [Operator Runbook](docs/runbook.md) -- what to do when a finding fires, per finding, plus maintenance-window and triage procedures
 - [Troubleshooting](docs/troubleshooting.md)
 - [Architecture](docs/architecture.md)
 - [Demo Environment](demo/README.md) -- a three-distro fleet you can break on purpose

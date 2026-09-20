@@ -8,6 +8,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **An operator runbook** ([#6](https://github.com/sameeralam3127/linux-vitals/issues/6)),
+  at [docs/runbook.md](docs/runbook.md). One section per finding -- what it
+  actually means, the commands to confirm it independently, and what to do --
+  plus procedures for a maintenance window, a fleet-wide alert, onboarding a
+  host, and enabling self-healing safely. It closes with what LinuxVitals gets
+  wrong, and where, so nobody chases a phantom: a host missing from a report
+  is not a passing host, an absent `failed_logins` finding is not evidence of
+  no failed logins, and a service reported `Fixed` may have died again.
+
+  Written against finding ids rather than message text, so rewording a finding
+  does not silently invalidate the runbook.
+
+
 - **`vitals_certs`: TLS certificate expiry and hardening checks**
   ([#15](https://github.com/sameeralam3127/linux-vitals/issues/15)). A fourth,
   opt-in role (`linux_vitals_certs_enabled: false` by default) that reads
@@ -103,6 +116,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - The baseline/postcheck comparison now diffs on finding `id` rather than on
   the whole finding. A finding whose wording or severity changed between the
   two runs is no longer reported as both new and resolved.
+
+### Fixed
+
+- **`examples/group_vars/all.yml.example` recommended a path that does not
+  work.** It suggested anchoring `linux_vitals_output_path` to `playbook_dir`
+  and stated that `.env` is loaded from `{{ playbook_dir }}/.env`. Neither has
+  been true for some time: every path that should live in the operator's
+  project resolves from `inventory_dir`, and
+  [docs/architecture.md](docs/architecture.md) has a section explaining that
+  `playbook_dir` was abandoned precisely because it resolves *inside the
+  installed collection* when invoked by FQCN. Anyone following the example
+  would have put `.env` beside their playbook and silently got no
+  notifications at all.
+
+  `tests/test_examples.py` now guards this, along with: no example file
+  references `playbook_dir`; every file under `examples/` is referenced by at
+  least one doc; every variable the example documents actually exists in a
+  role's defaults; and example inventory addresses stay inside the RFC 5737
+  documentation range.
 
 ## [1.3.1] - 2026-09-12
 

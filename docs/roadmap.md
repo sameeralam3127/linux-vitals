@@ -146,7 +146,7 @@ not write it.
 | Item | Issue | Priority |
 | --- | --- | --- |
 | Concurrent runs sharing an output directory can corrupt reports and snapshots | [#26](https://github.com/sameeralam3127/linux-vitals/issues/26) | low |
-| Add production-grade examples, screenshots, and an operator runbook | [#6](https://github.com/sameeralam3127/linux-vitals/issues/6) | medium |
+| ~~Add production-grade examples, screenshots, and an operator runbook~~ | [#6](https://github.com/sameeralam3127/linux-vitals/issues/6) | done (unreleased) |
 | Split `render.yml` and de-duplicate the HTML/JSON archive sequence | [#27 (comment)](https://github.com/sameeralam3127/linux-vitals/issues/27#issuecomment-5644135601) | -- |
 
 Ordering notes:
@@ -160,9 +160,15 @@ Ordering notes:
   [#27](https://github.com/sameeralam3127/linux-vitals/issues/27) and is
   tracked on that issue rather than separately; at 341 lines it is the second
   largest task file, and its archive/prune sequence is written twice.
-- [#6](https://github.com/sameeralam3127/linux-vitals/issues/6) closes the year
-  deliberately: screenshots and a runbook age badly, and by this point the
-  dashboard has absorbed a year of changes.
+- [#6](https://github.com/sameeralam3127/linux-vitals/issues/6) was placed at
+  the end of the year deliberately, because screenshots and a runbook age
+  badly and the dashboard would have absorbed a year of changes by then. It
+  landed early instead, and the ageing problem is addressed rather than
+  deferred: the screenshots are regenerated from a real run by
+  `demo/screenshots.sh` in one command, and the runbook is written against
+  finding **ids** rather than message text, so rewording a finding does not
+  invalidate it. What still ages is the advice itself, which is worth a read
+  each time a check changes.
 
 ## Shipped
 
