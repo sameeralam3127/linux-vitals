@@ -139,7 +139,7 @@ exists to show. That is what forces `privileged: true` and the cgroup mount in
 `docker-compose.yml`. These are disposable demo containers on your laptop, not
 a pattern to copy into production. The same trade-off, for the same reason, is
 already made by the Molecule suite under [../molecule/](../molecule/), and
-both are called out as out of scope in [../SECURITY.md](../SECURITY.md).
+both are called out as out of scope in [../.github/SECURITY.md](../.github/SECURITY.md).
 
 Ansible reaches the containers through `community.docker.docker` rather than
 SSH, so the demo needs no keys, no `sshd`, and no cleanup on your machine. On

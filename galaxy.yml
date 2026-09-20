@@ -35,7 +35,6 @@ build_ignore:
   - .github
   - .gitignore
   - .ansible-lint
-  - CODEOWNERS
   - .pre-commit-config.yaml
   - .env
   - .env.example

@@ -64,7 +64,7 @@ writes a report on the control node. Reports worth a private disclosure:
 - The health findings themselves being wrong or noisy (a false "reboot
   required", a missed `needs-restarting`). Those are ordinary bugs: please
   open a normal issue. See
-  [docs/kernel-reboot-detection.md](docs/kernel-reboot-detection.md#known-edge-cases)
+  [docs/kernel-reboot-detection.md](../docs/kernel-reboot-detection.md#known-edge-cases)
   for edge cases that are already documented.
 - Vulnerabilities in Ansible Core, `community.general`, or the target
   distribution's own tooling. Report those upstream.
@@ -74,7 +74,7 @@ writes a report on the control node. Reports worth a private disclosure:
 
 ## Threat model
 
-[docs/threat-model.md](docs/threat-model.md) is the design-level companion to
+[docs/threat-model.md](../docs/threat-model.md) is the design-level companion to
 this policy: trust boundaries, what `become` actually needs (and a narrow
 sudoers rule that covers it), the exact contract self-healing operates under,
 how the four credentials are handled, and what a generated report discloses

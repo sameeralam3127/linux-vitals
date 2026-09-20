@@ -79,5 +79,5 @@ ansible-galaxy collection build
 ansible-galaxy collection install sameeralam3127-linux_vitals-*.tar.gz --force
 ```
 
-See [Galaxy publishing](../CONTRIBUTING.md#publishing-to-ansible-galaxy)
+See [Galaxy publishing](../.github/CONTRIBUTING.md#publishing-to-ansible-galaxy)
 for the full release process.

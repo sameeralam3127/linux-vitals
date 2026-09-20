@@ -7,7 +7,7 @@ explicit about.
 
 This document describes what the collection does, what it trusts, and where
 the sharp edges are. It is the design-level companion to
-[SECURITY.md](../SECURITY.md), which covers how to *report* a problem. Claims
+[SECURITY.md](../.github/SECURITY.md), which covers how to *report* a problem. Claims
 here are deliberately checkable against the code; file paths are given so you
 can.
 
@@ -340,7 +340,7 @@ one:
 
 ## Out of scope
 
-Stated here to match [SECURITY.md](../SECURITY.md):
+Stated here to match [SECURITY.md](../.github/SECURITY.md):
 
 - A compromised control node, or an already-root attacker on a managed host.
 - Wrong or noisy findings. Those are ordinary bugs; open a normal issue.
@@ -354,5 +354,5 @@ Stated here to match [SECURITY.md](../SECURITY.md):
 
 Do not open a public issue. Use
 [private vulnerability reporting](https://github.com/sameeralam3127/linux-vitals/security/advisories/new),
-or the email address in [SECURITY.md](../SECURITY.md). Response targets are
+or the email address in [SECURITY.md](../.github/SECURITY.md). Response targets are
 documented there.

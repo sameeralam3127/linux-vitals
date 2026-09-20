@@ -385,11 +385,11 @@ sudoers rule is enough for everything except self-healing:
 - [Architecture](docs/architecture.md) · [Performance & Scale](docs/performance.md)
 
 **Security**
-- [Security Policy](SECURITY.md) — what to report privately, and how
+- [Security Policy](.github/SECURITY.md) — what to report privately, and how
 - [Threat Model](docs/threat-model.md) — `become`, self-healing limits, credentials, what lands in a report
 
 **Project**
-- [Roadmap](docs/roadmap.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md) · [Testing](docs/testing.md)
+- [Roadmap](docs/roadmap.md) · [Changelog](CHANGELOG.md) · [Contributing](.github/CONTRIBUTING.md) · [Testing](docs/testing.md)
 
 ---
 
@@ -426,8 +426,8 @@ openSUSE) — see [Testing](docs/testing.md) to run those locally.
 
 ## Contributing
 
-Setup, test suite, and the Galaxy publishing process: [CONTRIBUTING.md](CONTRIBUTING.md).
-Found a security issue? Please report it privately — [SECURITY.md](SECURITY.md).
+Setup, test suite, and the Galaxy publishing process: [CONTRIBUTING.md](.github/CONTRIBUTING.md).
+Found a security issue? Please report it privately — [SECURITY.md](.github/SECURITY.md).
 
 ## License
 
