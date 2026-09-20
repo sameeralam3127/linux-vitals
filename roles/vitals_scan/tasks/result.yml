@@ -1,55 +1,131 @@
 ---
 - name: Build host health findings
+  # Each finding is {id, message}: the id is stable and is what severity is
+  # keyed on, what the baseline/postcheck comparison diffs on, and what a
+  # future CIS/STIG mapping (#43) or CSV export (#35) can join against. The
+  # message is free to be reworded without any of those breaking.
   ansible.builtin.set_fact:
-    linux_vitals_findings: >-
+    linux_vitals_raw_findings: >-
       {%- set findings = [] -%}
       {%- if linux_vitals_ram_status == 'Critical' -%}
-      {%- set _ = findings.append('RAM usage is critical') -%}
+      {%- set _ = findings.append({'id': 'ram_critical', 'message': 'RAM usage is critical'}) -%}
       {%- endif -%}
       {%- if linux_vitals_log_errors | int > 0 -%}
-      {%- set _ = findings.append('Recent logs contain error or failed entries') -%}
+      {%- set _ = findings.append({'id': 'log_errors', 'message': 'Recent logs contain error or failed entries'}) -%}
       {%- endif -%}
       {%- if linux_vitals_service_status.sssd.state not in ['running', 'active'] -%}
-      {%- set _ = findings.append('sssd is not active') -%}
+      {%- set _ = findings.append({'id': 'sssd_inactive', 'message': 'sssd is not active'}) -%}
       {%- endif -%}
       {%- if linux_vitals_service_status.systemd_journald.state not in ['running', 'active'] -%}
-      {%- set _ = findings.append('systemd-journald is not active') -%}
+      {%- set _ = findings.append({'id': 'journald_inactive', 'message': 'systemd-journald is not active'}) -%}
       {%- endif -%}
       {%- if linux_vitals_service_status.time_sync.service_name == 'absent' -%}
-      {%- set _ = findings.append('chronyd or ntp is not installed') -%}
+      {%- set _ = findings.append({'id': 'time_sync_absent', 'message': 'chronyd or ntp is not installed'}) -%}
       {%- elif linux_vitals_service_status.time_sync.state not in ['running', 'active'] -%}
-      {%- set _ = findings.append('Time synchronization service is not active') -%}
+      {%- set _ = findings.append({'id': 'time_sync_inactive', 'message': 'Time synchronization service is not active'}) -%}
       {%- endif -%}
       {%- if linux_vitals_reboot_required -%}
-      {%- set _ = findings.append('System reboot is required') -%}
+      {%- set _ = findings.append({'id': 'reboot_required', 'message': 'System reboot is required'}) -%}
       {%- endif -%}
       {%- if not linux_vitals_latest_kernel_selected -%}
-      {%- set _ = findings.append('Latest installed kernel is not currently running') -%}
+      {%- set _ = findings.append({'id': 'kernel_not_latest', 'message': 'Latest installed kernel is not currently running'}) -%}
       {%- endif -%}
       {%- if linux_vitals_bootloader_default_status == 'resolved' and not linux_vitals_bootloader_default_matches_latest -%}
-      {%- set _ = findings.append('Default boot entry does not select the latest installed kernel') -%}
+      {%- set _ = findings.append({'id': 'bootloader_mismatch', 'message': 'Default boot entry does not select the latest installed kernel'}) -%}
       {%- endif -%}
       {%- if linux_vitals_boot_space_status == 'Low' -%}
-      {%- set _ = findings.append('Boot partition free space is low') -%}
+      {%- set _ = findings.append({'id': 'boot_space_low', 'message': 'Boot partition free space is low'}) -%}
       {%- endif -%}
       {%- if linux_vitals_kernel_install_failures | int > 0 -%}
-      {%- set _ = findings.append('Kernel installation or bootloader related failures found in logs') -%}
+      {%- set _ = findings.append({'id': 'kernel_install_failures', 'message': 'Kernel installation or bootloader related failures found in logs'}) -%}
       {%- endif -%}
       {%- if linux_vitals_failed_login_attempts | length > 0 -%}
-      {%- set _ = findings.append('Recent failed login attempts detected') -%}
+      {%- set _ = findings.append({'id': 'failed_logins', 'message': 'Recent failed login attempts detected'}) -%}
       {%- endif -%}
       {%- if linux_vitals_selinux_status not in ['Enforcing', 'Permissive'] and ansible_facts['os_family'] == 'RedHat' -%}
-      {%- set _ = findings.append('SELinux is disabled or unavailable') -%}
+      {%- set _ = findings.append({'id': 'selinux_disabled', 'message': 'SELinux is disabled or unavailable'}) -%}
       {%- endif -%}
       {%- if ansible_facts['os_family'] == 'Debian' and linux_vitals_apparmor_status != 'enabled' -%}
-      {%- set _ = findings.append('AppArmor is disabled or unavailable') -%}
+      {%- set _ = findings.append({'id': 'apparmor_disabled', 'message': 'AppArmor is disabled or unavailable'}) -%}
       {%- endif -%}
       {%- for item in linux_vitals_healing_results | default([]) -%}
       {%- if item.result != 'Fixed' -%}
-      {%- set _ = findings.append(item.service ~ ' requires manual follow-up') -%}
+      {%- set _ = findings.append({'id': 'service_manual_followup', 'message': item.service ~ ' requires manual follow-up', 'subject': item.service}) -%}
       {%- endif -%}
       {%- endfor -%}
       {{ findings }}
+  tags:
+    - result
+    - reporting
+
+- name: Attach a severity to every finding
+  # The shipped map is merged with the operator's overrides rather than
+  # replaced by them, so a finding added in a later release keeps its default
+  # severity instead of silently vanishing from the map and defaulting to
+  # warning for everyone who has ever set an override.
+  ansible.builtin.set_fact:
+    linux_vitals_findings: >-
+      {%- set severities = linux_vitals_finding_severities
+            | combine(linux_vitals_finding_severity_overrides | default({}, true)) -%}
+      {%- set out = [] -%}
+      {%- for finding in linux_vitals_raw_findings -%}
+      {%- set _ = out.append(
+            finding | combine({'severity': severities.get(finding.id, 'warning')})
+          ) -%}
+      {%- endfor -%}
+      {{ out }}
+  tags:
+    - result
+    - reporting
+
+- name: Roll the findings up into one host severity
+  # `none` when there is nothing to report, otherwise the highest severity
+  # present. Ranked through linux_vitals_severity_order rather than
+  # alphabetically -- "critical" < "info" < "warning" as strings, which is
+  # exactly backwards.
+  ansible.builtin.set_fact:
+    linux_vitals_host_severity: >-
+      {%- set indexes = [] -%}
+      {%- for level in linux_vitals_findings | map(attribute='severity') | list -%}
+      {%- set _ = indexes.append(linux_vitals_severity_order.index(level)
+            if level in linux_vitals_severity_order else 1) -%}
+      {%- endfor -%}
+      {{ linux_vitals_severity_order[indexes | max] if indexes | length > 0 else 'none' }}
+    # Built as one dict-valued template rather than three scalar ones on
+    # purpose: ansible-core 2.16 stores a scalar template result as a string,
+    # so three separate `info: "{{ ... | length }}"` entries would each yield
+    # "2" rather than 2, and the dashboard would compare strings. A template
+    # that returns a dict is converted back to real types on 2.16 -- the same
+    # asymmetry documented on ram_used_mb below.
+    linux_vitals_severity_counts: >-
+      {%- set counts = {} -%}
+      {%- for level in linux_vitals_severity_order -%}
+      {%- set _ = counts.update({
+            level: linux_vitals_findings
+                   | selectattr('severity', 'equalto', level) | list | length
+          }) -%}
+      {%- endfor -%}
+      {{ counts }}
+  tags:
+    - result
+    - reporting
+
+- name: Decide whether the host passes at the configured severity threshold
+  # A host fails when it has at least one finding at or above
+  # linux_vitals_fail_on_severity. The default (info) makes any finding fail,
+  # which is what every release before severity existed did.
+  ansible.builtin.set_fact:
+    linux_vitals_final_status: >-
+      {%- set threshold = linux_vitals_severity_order.index(linux_vitals_fail_on_severity)
+            if linux_vitals_fail_on_severity in linux_vitals_severity_order else 0 -%}
+      {%- set failing = [] -%}
+      {%- for finding in linux_vitals_findings -%}
+      {%- if finding.severity in linux_vitals_severity_order
+             and linux_vitals_severity_order.index(finding.severity) >= threshold -%}
+      {%- set _ = failing.append(finding.id) -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{ 'Fail' if failing | length > 0 else 'Pass' }}
   tags:
     - result
     - reporting
@@ -118,7 +194,9 @@
       asset_serial: "{{ ansible_facts['product_serial'] | default('unavailable') }}"
       services_healed: "{{ linux_vitals_services_healed | default([]) }}"
       healing_results: "{{ linux_vitals_healing_results | default([]) }}"
-      final_status: "{{ 'Pass' if linux_vitals_findings | length == 0 else 'Fail' }}"
+      final_status: "{{ linux_vitals_final_status }}"
+      severity: "{{ linux_vitals_host_severity }}"
+      severity_counts: "{{ linux_vitals_severity_counts }}"
       findings: "{{ linux_vitals_findings }}"
       comparison:
         baseline_available: false

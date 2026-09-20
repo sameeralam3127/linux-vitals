@@ -135,6 +135,28 @@
           if linux_vitals_pass_ratio_pct | float >= 60
           else 'Poor'
         }}
+      # Fleet rollups by severity. `hosts_by_severity` counts each host once,
+      # at its highest severity, so the four numbers partition the fleet and
+      # can be read as a triage queue. `findings_by_severity` counts every
+      # finding, so one host with six warnings is visible as six.
+      hosts_by_severity: >-
+        {%- set counts = {'none': 0, 'info': 0, 'warning': 0, 'critical': 0} -%}
+        {%- for result in linux_vitals_result_list -%}
+        {%- set level = result.severity | default('none') -%}
+        {%- set _ = counts.update({level: counts.get(level, 0) + 1}) -%}
+        {%- endfor -%}
+        {{ counts }}
+      findings_by_severity: >-
+        {%- set counts = {'info': 0, 'warning': 0, 'critical': 0} -%}
+        {%- for result in linux_vitals_result_list -%}
+        {%- for level in ['info', 'warning', 'critical'] -%}
+        {%- set _ = counts.update({
+              level: counts[level] + (result.severity_counts | default({})).get(level, 0) | int
+            }) -%}
+        {%- endfor -%}
+        {%- endfor -%}
+        {{ counts }}
+      fail_on_severity: "{{ linux_vitals_fail_on_severity | default('info') }}"
       comparison_active: "{{ linux_vitals_phase == 'postcheck' }}"
       regressed_count: >-
         {{

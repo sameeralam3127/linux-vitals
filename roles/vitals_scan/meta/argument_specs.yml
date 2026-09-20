@@ -55,3 +55,63 @@ argument_specs:
             becomes C(Low), which produces a finding and fails the host.
           - Note this is a I(free) percentage, unlike the RAM thresholds, which
             are I(used) percentages.
+      linux_vitals_severity_order:
+        type: list
+        elements: str
+        default:
+          - info
+          - warning
+          - critical
+        description:
+          - The severity ladder, least to most severe.
+          - Used to rank a host's findings into one C(severity), and to decide
+            which findings clear C(linux_vitals_fail_on_severity).
+          - Changing the order, rather than extending it, will confuse both.
+      linux_vitals_finding_severities:
+        type: dict
+        # Repeated from defaults/main.yml rather than referenced, because
+        # `ansible-doc` renders this file on its own. test_argument_specs.py
+        # asserts the two stay identical.
+        default:
+          ram_critical: critical
+          journald_inactive: critical
+          service_manual_followup: critical
+          boot_space_low: warning
+          reboot_required: warning
+          kernel_not_latest: warning
+          bootloader_mismatch: warning
+          kernel_install_failures: warning
+          sssd_inactive: warning
+          time_sync_absent: warning
+          time_sync_inactive: warning
+          selinux_disabled: warning
+          apparmor_disabled: warning
+          log_errors: info
+          failed_logins: info
+        description:
+          - Maps each finding id to C(info), C(warning), or C(critical).
+          - Prefer C(linux_vitals_finding_severity_overrides) for retuning a
+            single finding; replacing this whole map means findings added in a
+            later release have no entry and fall back to C(warning).
+      linux_vitals_finding_severity_overrides:
+        type: dict
+        default: {}
+        description:
+          - Per-finding severity overrides, merged over
+            C(linux_vitals_finding_severities).
+          - 'Example: C({apparmor_disabled: info, reboot_required: critical}).'
+      linux_vitals_fail_on_severity:
+        type: str
+        default: info
+        choices:
+          - info
+          - warning
+          - critical
+        description:
+          - The severity at which a finding makes a host C(Fail).
+          - The default C(info) means any finding fails the host, which is how
+            every release before severity existed behaved.
+          - Raising it to C(warning) or C(critical) is what turns severity into
+            triage - every finding is still reported, but only ones at or above
+            this level count against the host. This changes C(final_status) and
+            therefore the fleet health score.

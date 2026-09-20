@@ -32,13 +32,66 @@
             | first
           }}
 
+    - name: Extract the finding ids for assertion
+      # Findings are {id, message, severity} objects since #8. Assertions use
+      # the id, which is the stable identity -- a reworded message must not be
+      # able to turn an assertion into one that can never fire again.
+      ansible.builtin.set_fact:
+        finding_ids: "{{ host_report.findings | map(attribute='id') | list }}"
+
+    # ------------------------------------------------------------------
+    # Finding severity (#8)
+    # ------------------------------------------------------------------
+    - name: Assert every finding carries an id, a message, and a known severity
+      ansible.builtin.assert:
+        that:
+          - host_report.findings | selectattr('id', 'undefined') | list | length == 0
+          - host_report.findings | selectattr('message', 'undefined') | list | length == 0
+          - >-
+            host_report.findings
+            | rejectattr('severity', 'in', ['info', 'warning', 'critical'])
+            | list | length == 0
+        fail_msg: "Malformed findings: {{ host_report.findings }}"
+
+    - name: Assert the host severity rollup matches the findings it was built from
+      # Guards the ordering trap: as strings "critical" < "info" < "warning",
+      # so an alphabetical max would report a host carrying a critical finding
+      # as "warning".
+      ansible.builtin.assert:
+        that:
+          - >-
+            host_report.severity == (
+              'critical' if 'critical' in severities
+              else 'warning' if 'warning' in severities
+              else 'info' if 'info' in severities
+              else 'none'
+            )
+          - host_report.severity_counts.critical | int == severities | select('equalto', 'critical') | list | length
+          - host_report.severity_counts.warning | int == severities | select('equalto', 'warning') | list | length
+          - host_report.severity_counts.info | int == severities | select('equalto', 'info') | list | length
+        fail_msg: >-
+          Severity rollup {{ host_report.severity }} / {{ host_report.severity_counts }}
+          disagrees with {{ severities }}
+      vars:
+        severities: "{{ host_report.findings | map(attribute='severity') | list }}"
+
+    - name: Assert the fleet severity rollup is present and partitions the fleet
+      ansible.builtin.assert:
+        that:
+          - report.summary.hosts_by_severity is defined
+          - report.summary.findings_by_severity is defined
+          - >-
+            report.summary.hosts_by_severity.values() | map('int') | sum
+            == report.summary.servers_checked | int
+        fail_msg: "Fleet severity rollup: {{ report.summary.hosts_by_severity }}"
+
     # ------------------------------------------------------------------
     # Discovery
     # ------------------------------------------------------------------
     - name: Assert discovery identified the platform correctly
       ansible.builtin.assert:
         that:
-          - report.schema_version == '1.2'
+          - report.schema_version == '1.3'
           - host_report.os.family == vitals_expected_os_family
           - host_report.os.package_manager == vitals_expected_package_manager
           - host_report.os.log_source == 'journald'
@@ -57,9 +110,12 @@
           - host_report.security.selinux_status | length > 0
 
     - name: Assert the time synchronization service was resolved
+      # Asserted on finding id rather than message text: the id is the stable
+      # identity (see issue #8), so rewording a finding no longer silently
+      # turns this assertion into one that can never fire.
       ansible.builtin.assert:
         that:
-          - "'chronyd or ntp is not installed' not in host_report.findings"
+          - "'time_sync_absent' not in finding_ids"
         fail_msg: >-
           The installed time-sync unit was not resolved:
           {{ host_report.findings }}
@@ -67,7 +123,7 @@
     - name: Assert the time synchronization service is reported as active
       ansible.builtin.assert:
         that:
-          - "'Time synchronization service is not active' not in host_report.findings"
+          - "'time_sync_inactive' not in finding_ids"
         fail_msg: "Time sync findings fired unexpectedly: {{ host_report.findings }}"
       when: vitals_expect_time_sync_active | bool
 
@@ -107,7 +163,13 @@
       ansible.builtin.assert:
         that:
           - broken_result.result != 'Fixed'
-          - "'molecule-broken.service requires manual follow-up' in host_report.findings"
+          - "'service_manual_followup' in finding_ids"
+          - >-
+            'molecule-broken.service' in (
+              host_report.findings
+              | selectattr('id', 'equalto', 'service_manual_followup')
+              | map(attribute='subject') | list
+            )
         fail_msg: "Self-healing outcomes: {{ host_report.self_healing }}"
       vars:
         broken_result: >-

@@ -61,6 +61,7 @@ account of which faults are genuinely induced and which are staged.
 - Running service validation for `sssd`, `systemd-journald`, and `chronyd` or `ntp`
 - Network-aware host inventory with hostname and IP address reporting
 - Kernel, reboot, boot-space, rescue image, security-control, and login-failure checks
+- Severity-classified findings (`info` / `warning` / `critical`) with a per-host rollup, a tunable fail threshold, and per-finding severity overrides
 - Opt-in one-shot self-healing for failed enabled services
 - Pre-maintenance baseline / post-maintenance comparison workflow, correlated by a maintenance id
 - Consolidated, self-contained HTML dashboard (health score, search/filter/sort, expandable host detail, before/after comparison) and JSON report generation with optional archive retention

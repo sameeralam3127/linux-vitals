@@ -99,7 +99,7 @@ the HTML file and deepening what it covers.
 | Item | Issue | Priority |
 | --- | --- | --- |
 | Render the Slack summary with Block Kit instead of one plain-text blob | [#52](https://github.com/sameeralam3127/linux-vitals/issues/52) | medium |
-| Add severity-based finding classification and alert thresholds | [#8](https://github.com/sameeralam3127/linux-vitals/issues/8) | medium |
+| ~~Add severity-based finding classification and alert thresholds~~ | [#8](https://github.com/sameeralam3127/linux-vitals/issues/8) | done (unreleased) |
 | Export the fleet report as OpenMetrics and CSV | [#35](https://github.com/sameeralam3127/linux-vitals/issues/35) | medium |
 | Add an opt-in non-zero exit so an unhealthy fleet can gate a pipeline | [#41](https://github.com/sameeralam3127/linux-vitals/issues/41) | medium |
 | Extend security posture: firewall, SSH hardening, kernel taint, deleted libraries | [#36](https://github.com/sameeralam3127/linux-vitals/issues/36) | medium |
@@ -108,25 +108,35 @@ the HTML file and deepening what it covers.
 
 Ordering notes:
 
-- [#52](https://github.com/sameeralam3127/linux-vitals/issues/52) comes before
-  [#8](https://github.com/sameeralam3127/linux-vitals/issues/8) on purpose.
-  Severity classification says it should be "reflected in HTML and Slack", but
-  the Slack message is currently one plain-text blob with nowhere to put it.
-  Building the Block Kit structure first gives severity somewhere to land;
-  doing it second means rewriting the message twice.
-- [#8](https://github.com/sameeralam3127/linux-vitals/issues/8) then leads the
-  rest, because it changes the shape of a finding and three later items
+- [#52](https://github.com/sameeralam3127/linux-vitals/issues/52) was supposed
+  to come before [#8](https://github.com/sameeralam3127/linux-vitals/issues/8),
+  and did not. The reasoning still stands and is worth keeping on the record:
+  severity classification says it should be "reflected in HTML and Slack", but
+  the Slack message is one plain-text blob with nowhere structured to put it,
+  so building Block Kit first would have given severity somewhere to land.
+  #8 landed first anyway, and the cost the note predicted is now owed --
+  the severity line and the "Needs attention first" list in
+  `slack_message.txt.j2` are plain text, and #52 will rewrite them rather than
+  wrap them. The HTML and JSON halves of #8 are unaffected.
+
+  Accepted deliberately: the finding-shape change was blocking more work than
+  the Slack formatting was, and redoing one template is a smaller cost than
+  reworking the three items below against a shape that had not landed yet.
+- [#8](https://github.com/sameeralam3127/linux-vitals/issues/8) is done. It
+  changed the shape of a finding to `{id, message, severity}`, and the `id` is
+  the join key the three items that consume it
   ([#35](https://github.com/sameeralam3127/linux-vitals/issues/35),
   [#36](https://github.com/sameeralam3127/linux-vitals/issues/36),
-  [#43](https://github.com/sameeralam3127/linux-vitals/issues/43)) consume that
-  shape. Doing it last would mean reworking all three.
+  [#43](https://github.com/sameeralam3127/linux-vitals/issues/43)) were
+  waiting for. Doing it last would have meant reworking all three.
 - [#41](https://github.com/sameeralam3127/linux-vitals/issues/41) pairs with
   [#35](https://github.com/sameeralam3127/linux-vitals/issues/35): together
   they are what make the collection usable from a pipeline rather than from a
   terminal.
 - [#43](https://github.com/sameeralam3127/linux-vitals/issues/43) closes the
-  quarter because it extends the finding object #8 introduces, and because the
-  CSV export is where rule identifiers become useful.
+  quarter because it extends the finding object #8 introduced -- adding a
+  `rule_id` alongside the existing `id` is now an additive change -- and
+  because the CSV export is where rule identifiers become useful.
 
 ## Q4 -- Refactors, tech debt, and contributors
 

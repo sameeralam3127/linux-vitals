@@ -2,6 +2,20 @@
 Overall Status: {{ 'PASS' if linux_vitals_summary.critical_error_count | int == 0 else 'FAIL' }}
 Servers Checked: {{ linux_vitals_summary.servers_checked }} | Auto-Fixed: {{ linux_vitals_summary.auto_fixed_count }} | Critical Errors: {{ linux_vitals_summary.critical_error_count }}
 Summary: {{ linux_vitals_summary.snippet }}
+{% set fbs = linux_vitals_summary.findings_by_severity | default({}) %}{% set hbs = linux_vitals_summary.hosts_by_severity | default({}) %}Severity: {{ fbs.get('critical', 0) }} critical | {{ fbs.get('warning', 0) }} warning | {{ fbs.get('info', 0) }} info (across {{ hbs.get('critical', 0) }} critical / {{ hbs.get('warning', 0) }} warning host(s))
+{% set critical_hosts = [] %}
+{% for host in linux_vitals_reporting_hosts | default(ansible_play_hosts_all) %}
+{% if hostvars[host]['linux_vitals_result'].severity | default('none') == 'critical' %}
+{% set _ = critical_hosts.append(hostvars[host]['linux_vitals_result']) %}
+{% endif %}
+{% endfor %}
+{% if critical_hosts %}
+Needs attention first:
+{% for result in critical_hosts %}
+- {{ result.hostname }}: {% for finding in result.findings if finding is mapping and finding.severity == 'critical' %}{{ finding.message }}{% if not loop.last %}; {% endif %}{% endfor %}
+
+{% endfor %}
+{% endif %}
 {% if linux_vitals_slack_include_host_breakdown %}
 Host Breakdown:
 {% for host in linux_vitals_reporting_hosts | default(ansible_play_hosts_all) %}
