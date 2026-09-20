@@ -93,7 +93,11 @@ open_report() {
   say "Dashboard: ${REPORT}"
   case "$(uname -s)" in
     Darwin) open "${REPORT}" >/dev/null 2>&1 || true ;;
-    Linux)  command -v xdg-open >/dev/null 2>&1 && xdg-open "${REPORT}" >/dev/null 2>&1 || true ;;
+    Linux)
+      if command -v xdg-open >/dev/null 2>&1; then
+        xdg-open "${REPORT}" >/dev/null 2>&1 || true
+      fi
+      ;;
   esac
 }
 
@@ -140,7 +144,11 @@ cmd_repair() {
 
 cmd_clean() {
   say "Removing containers, network, and demo output"
-  command -v docker >/dev/null 2>&1 && docker compose -f "${COMPOSE_FILE}" down -v --remove-orphans || true
+  if command -v docker >/dev/null 2>&1; then
+    # Not fatal: `clean` must still remove the demo's files on a machine where
+    # Docker has since been removed or stopped.
+    docker compose -f "${COMPOSE_FILE}" down -v --remove-orphans || true
+  fi
   rm -rf "${DEMO_DIR}/reports" "${DEMO_DIR}/group_vars/all/10-injected.yml"
   say "Clean."
 }
