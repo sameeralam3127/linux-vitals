@@ -4,6 +4,66 @@ All notable changes to the `sameeralam3127.linux_vitals` collection are document
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- **Severity-based finding classification and alert thresholds**
+  ([#8](https://github.com/sameeralam3127/linux-vitals/issues/8)). Every
+  finding is now an object with a stable `id`, a human `message`, and a
+  `severity` of `info`, `warning`, or `critical`, instead of a bare string.
+  Each host carries a rolled-up `severity` (the highest among its findings, or
+  `none`) and `severity_counts`; the fleet summary carries
+  `hosts_by_severity` and `findings_by_severity`.
+
+  The `id` is the durable identity. It is what severity is keyed on, what the
+  baseline/postcheck comparison diffs on, and what an external consumer should
+  join against -- `message` wording can now change without that being a
+  breaking change. The self-healing finding also carries `subject`, the unit
+  it refers to, so nothing has to parse the message to find the service.
+
+  The dashboard shows a severity badge per finding (ordered most severe
+  first), adds Critical/Warning/Info filter chips and Critical-hosts and
+  Warning-hosts tiles. Slack gains a severity line and a "Needs attention
+  first" list of the critical hosts. Both JSON outputs carry the new fields.
+
+  Severity is retunable per finding, merged over the shipped map so that
+  findings added in a later release keep a sensible default:
+
+  ```yaml
+  linux_vitals_finding_severity_overrides:
+    apparmor_disabled: info
+    reboot_required: critical
+  ```
+
+  `linux_vitals_fail_on_severity` decides what fails a host. It defaults to
+  `info`, meaning any finding fails it -- **the behaviour of every previous
+  release**. Raising it to `warning` or `critical` is what turns severity into
+  triage: findings are still all reported, but only ones at or above the
+  threshold count against the host. An unrecognised value falls back to
+  failing on anything, so a typo in `group_vars` cannot silently pass a broken
+  fleet.
+
+### Changed
+
+- **JSON report schema is now `1.3`.** `findings`, `comparison.new_findings`,
+  and `comparison.resolved_findings` changed from arrays of strings to arrays
+  of `{id, message, severity}` objects. **A consumer that reads finding
+  strings out of the JSON or webhook payload needs updating.** The host object
+  gains `severity` and `severity_counts`; `summary` gains `hosts_by_severity`,
+  `findings_by_severity`, and `fail_on_severity`; `comparison` gains
+  `severity_before` and `severity_after`.
+
+  Snapshots written by an earlier release hold plain strings. A postcheck
+  against such a baseline still compares cleanly -- each side is normalised
+  and diffed on the message where no id exists -- and the dashboard renders
+  both shapes, so a maintenance window that spans the upgrade is not broken by
+  it.
+
+- The baseline/postcheck comparison now diffs on finding `id` rather than on
+  the whole finding. A finding whose wording or severity changed between the
+  two runs is no longer reported as both new and resolved.
+
 ## [1.3.1] - 2026-09-12
 
 ### Fixed

@@ -71,7 +71,7 @@ def test_templates_render_with_representative_health_data(tmp_path: Path) -> Non
     assert generic_webhook["summary"]["overall_status"] == "PASS"
     assert generic_webhook["hosts"][0]["hostname"] == "localhost"
     assert "Standard Maintenance Summary" in generic_webhook["message"]
-    assert json_report["schema_version"] == "1.2"
+    assert json_report["schema_version"] == "1.3"
     assert json_report["summary"]["health_score_pct"] == 100.0
     assert json_report["hosts"][0]["asset_serial"] == "TEST-SERIAL-0001"
     assert json_report["hosts"][0]["comparison"]["baseline_available"] is False
@@ -146,3 +146,16 @@ def test_baseline_postcheck_comparison_detects_improvement_and_regression(tmp_pa
     assert "RAM usage is critical" in comparisons["host-b"]["new_findings"]
 
     assert comparisons["host-c"]["baseline_available"] is False
+
+    # host-d carries the post-severity finding shape. The diff is on finding
+    # id, so `reboot_required` -- present in both runs but reworded and
+    # retuned from warning to critical -- is neither new nor resolved. A
+    # whole-object difference() would report it as both.
+    host_d = comparisons["host-d"]
+    assert host_d["baseline_available"] is True
+    assert [f["id"] for f in host_d["new_findings"]] == ["boot_space_low"]
+    assert [f["id"] for f in host_d["resolved_findings"]] == ["log_errors"]
+    # The object carried through is the current run's, so the dashboard shows
+    # current wording and current severity rather than the baseline's.
+    assert host_d["severity_before"] == "warning"
+    assert host_d["severity_after"] == "critical"

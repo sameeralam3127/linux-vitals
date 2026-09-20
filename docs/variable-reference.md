@@ -14,6 +14,10 @@ Override any of these in inventory, `group_vars`, or `-e` extra vars.
 | `linux_vitals_ram_warning_threshold` | `80` | RAM used % at or above which `ram_status` becomes `Warning`. |
 | `linux_vitals_ram_critical_threshold` | `95` | RAM used % at or above which `ram_status` becomes `Critical` (and the host fails). |
 | `linux_vitals_boot_warning_threshold` | `20` | Boot partition free % below which `boot_space_status` becomes `Low` (and the host fails). |
+| `linux_vitals_fail_on_severity` | `info` | Severity at or above which a finding fails the host. `info` means any finding fails it, which is the pre-severity behaviour. Raise to `warning`/`critical` to triage. Also moves the fleet health score. |
+| `linux_vitals_finding_severity_overrides` | `{}` | Per-finding severity overrides, merged over the shipped map. E.g. `{apparmor_disabled: info}`. |
+| `linux_vitals_finding_severities` | see [defaults](../roles/vitals_scan/defaults/main.yml) | The shipped finding-id to severity map. Prefer the overrides variable above; replacing this map means findings added later fall back to `warning`. |
+| `linux_vitals_severity_order` | `[info, warning, critical]` | The severity ladder, least to most severe. Extend rather than reorder. |
 
 ## `vitals_heal` -- self-healing
 

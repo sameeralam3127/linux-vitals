@@ -21,6 +21,9 @@
       critical_error_count: 0
       health_score_pct: 100.0
       health_score_band: "Excellent"
+      hosts_by_severity: {none: 0, info: 0, warning: 1, critical: 0}
+      findings_by_severity: {info: 1, warning: 1, critical: 0}
+      fail_on_severity: "info"
       comparison_active: false
       regressed_count: 0
       improved_count: 0
@@ -80,7 +83,15 @@
         - service: "chronyd.service"
           result: "Fixed"
       final_status: "Pass"
-      findings: []
+      severity: "warning"
+      severity_counts: {info: 1, warning: 1, critical: 0}
+      findings:
+        - id: "reboot_required"
+          message: "System reboot is required"
+          severity: "warning"
+        - id: "log_errors"
+          message: "Recent logs contain error or failed entries"
+          severity: "info"
       comparison:
         baseline_available: false
   tasks:

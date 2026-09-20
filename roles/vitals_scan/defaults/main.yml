@@ -4,3 +4,64 @@ linux_vitals_audit_log_window: "7 days ago"
 linux_vitals_ram_warning_threshold: 80
 linux_vitals_ram_critical_threshold: 95
 linux_vitals_boot_warning_threshold: 20
+
+# --------------------------------------------------------------------------
+# Finding severity
+# --------------------------------------------------------------------------
+# Every finding carries a stable `id`, a human `message`, and a `severity` of
+# info, warning, or critical. The id is the key into the map below, and it is
+# also what the before/after comparison diffs on -- so a finding whose wording
+# changes, or whose severity is retuned, is still recognised as the same
+# finding across runs.
+#
+# The ordering that gives these meaning:
+#
+#   critical  something is broken now, or you are blind to it
+#   warning   something will break, or a control you rely on is off
+#   info      worth seeing, too noisy to page on
+linux_vitals_severity_order:
+  - info
+  - warning
+  - critical
+
+# The shipped classification. Override individual entries with
+# linux_vitals_finding_severity_overrides rather than replacing this whole
+# map, so that findings added in a later release keep a sensible default.
+linux_vitals_finding_severities:
+  # Broken now.
+  ram_critical: critical
+  journald_inactive: critical
+  service_manual_followup: critical
+  # Will break, or a control is off.
+  boot_space_low: warning
+  reboot_required: warning
+  kernel_not_latest: warning
+  bootloader_mismatch: warning
+  kernel_install_failures: warning
+  sssd_inactive: warning
+  time_sync_absent: warning
+  time_sync_inactive: warning
+  selinux_disabled: warning
+  apparmor_disabled: warning
+  # Worth seeing, too noisy to page on. Both are counts of things that occur
+  # on healthy hosts as a matter of course.
+  log_errors: info
+  failed_logins: info
+
+# Per-finding retuning, merged over the map above. A shop that does not run
+# AppArmor, or that treats a pending reboot as routine, changes it here:
+#
+#   linux_vitals_finding_severity_overrides:
+#     apparmor_disabled: info
+#     reboot_required: critical
+linux_vitals_finding_severity_overrides: {}
+
+# The severity at which a finding makes a host fail.
+#
+# `info` -- the default -- means any finding fails the host, which is the
+# behaviour every release before severity existed had. Raising this to
+# `warning` or `critical` is what turns severity into triage: the host still
+# reports every finding, but only ones at or above this level count against
+# it. Changing it changes final_status, the health score, and the exit-code
+# behaviour in #41 once that lands, so it is left at the conservative value.
+linux_vitals_fail_on_severity: info

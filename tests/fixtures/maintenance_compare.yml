@@ -26,6 +26,34 @@
       vars:
         inventory_hostname: "host-a"
 
+    - name: Seed baseline result for host-d (structured findings, pre-retune)
+      # host-d exercises the post-severity finding shape. `reboot_required` is
+      # carried through both runs but at a different severity and with
+      # different wording, which is exactly the case a whole-object diff gets
+      # wrong -- it would report the finding as both new and resolved.
+      ansible.builtin.set_fact:
+        linux_vitals_result:
+          final_status: "Fail"
+          ram_used_pct: 50.0
+          running_kernel: "6.8.0-new"
+          reboot_required: true
+          severity: "warning"
+          findings:
+            - id: "reboot_required"
+              message: "System reboot is required"
+              severity: "warning"
+            - id: "log_errors"
+              message: "Recent logs contain error or failed entries"
+              severity: "info"
+          comparison: {baseline_available: false}
+
+    - name: Snapshot host-d baseline
+      ansible.builtin.include_role:
+        name: sameeralam3127.linux_vitals.vitals_report
+        tasks_from: snapshot
+      vars:
+        inventory_hostname: "host-d"
+
     - name: Seed baseline result for host-b (passing)
       ansible.builtin.set_fact:
         linux_vitals_result:
@@ -113,6 +141,33 @@
       ansible.builtin.set_fact:
         comparison_host_c: "{{ linux_vitals_result.comparison }}"
 
+    - name: Seed postcheck result for host-d (same finding, retuned severity)
+      ansible.builtin.set_fact:
+        linux_vitals_result:
+          final_status: "Fail"
+          ram_used_pct: 50.0
+          running_kernel: "6.8.0-new"
+          reboot_required: true
+          severity: "critical"
+          findings:
+            - id: "reboot_required"
+              message: "System reboot is required (reworded)"
+              severity: "critical"
+            - id: "boot_space_low"
+              message: "Boot partition free space is low"
+              severity: "warning"
+
+    - name: Compare host-d against its baseline
+      ansible.builtin.include_role:
+        name: sameeralam3127.linux_vitals.vitals_report
+        tasks_from: compare
+      vars:
+        inventory_hostname: "host-d"
+
+    - name: Capture host-d comparison
+      ansible.builtin.set_fact:
+        comparison_host_d: "{{ linux_vitals_result.comparison }}"
+
     - name: Write all comparisons to a single JSON file for test assertions
       ansible.builtin.copy:
         dest: "{{ output_dir }}/comparisons.json"
@@ -121,7 +176,8 @@
             {
               'host-a': comparison_host_a,
               'host-b': comparison_host_b,
-              'host-c': comparison_host_c
+              'host-c': comparison_host_c,
+              'host-d': comparison_host_d
             } | to_nice_json
           }}
         mode: "0644"

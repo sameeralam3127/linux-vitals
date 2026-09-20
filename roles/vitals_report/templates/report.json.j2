@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.2",
+  "schema_version": "1.3",
   "generated_at": {{ linux_vitals_effective_archive_timestamp | default(now(utc=true, fmt='%Y%m%dT%H%M%SZ')) | to_json }},
   "report": {
     "title": {{ linux_vitals_report_title | to_json }},
@@ -17,6 +17,9 @@
     "critical_error_count": {{ linux_vitals_summary.critical_error_count | int }},
     "health_score_pct": {{ linux_vitals_summary.health_score_pct | float }},
     "health_score_band": {{ linux_vitals_summary.health_score_band | to_json }},
+    "hosts_by_severity": {{ linux_vitals_summary.hosts_by_severity | default({}) | to_json }},
+    "findings_by_severity": {{ linux_vitals_summary.findings_by_severity | default({}) | to_json }},
+    "fail_on_severity": {{ linux_vitals_summary.fail_on_severity | default('info') | to_json }},
     "comparison_active": {{ linux_vitals_summary.comparison_active | to_json }},
     "regressed_count": {{ linux_vitals_summary.regressed_count | int }},
     "improved_count": {{ linux_vitals_summary.improved_count | int }},
@@ -31,6 +34,8 @@
       "hostname": {{ result.hostname | to_json }},
       "ip_address": {{ result.ip_address | to_json }},
       "status": {{ result.final_status | to_json }},
+      "severity": {{ result.severity | default('none') | to_json }},
+      "severity_counts": {{ result.severity_counts | default({}) | to_json }},
       "os": {
         "distribution": {{ result.os | to_json }},
         "family": {{ result.os_family | to_json }},

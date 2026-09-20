@@ -66,12 +66,12 @@ keep the working view small even when the underlying table is large. What the
 
 ## JSON report
 
-`reports/linux_vitals_report.json` -- schema `1.2`, intended for ingestion
+`reports/linux_vitals_report.json` -- schema `1.3`, intended for ingestion
 by log shippers, SIEMs, or your own dashboards.
 
 ```json
 {
-  "schema_version": "1.2",
+  "schema_version": "1.3",
   "generated_at": "20260712T120000Z",
   "report": { "title": "...", "html_output_path": "...", "json_output_path": "..." },
   "maintenance": { "phase": "postcheck", "maintenance_id": "2026-07-12-patch-window" },
@@ -114,8 +114,14 @@ by log shippers, SIEMs, or your own dashboards.
         "ram_used_pct_delta": -45.5,
         "kernel_changed": true,
         "new_findings": [],
-        "resolved_findings": ["RAM usage is critical", "System reboot is required"]
+        "resolved_findings": [
+          {"id": "ram_critical", "message": "RAM usage is critical", "severity": "critical"}
+        ],
+        "severity_before": "critical",
+        "severity_after": "none"
       },
+      "severity": "none",
+      "severity_counts": {"info": 0, "warning": 0, "critical": 0},
       "findings": []
     }
   ]
@@ -129,28 +135,89 @@ are absent.
 
 ## Findings
 
-A host's `final_status` is `Fail` if any of these fire (see
-`roles/vitals_scan/tasks/result.yml` for the exact logic):
+Every finding is an object with a stable `id`, a human `message`, and a
+`severity`:
 
-- RAM usage at or above `linux_vitals_ram_critical_threshold`
-- Recent log errors (`journalctl` matches `error`/`failed` in the log
-  window)
-- `sssd`, `systemd-journald`, or the resolved time-sync service isn't
-  running (or no time-sync service is installed at all)
-- A system reboot is required -- per-distro detection (`/run/reboot-required`
-  on Debian, `needs-restarting -r` on RedHat, `zypper needs-rebooting` on
-  SUSE), falling back to a running-vs-latest kernel comparison where no distro
-  check is available; see
-  [kernel-reboot-detection.md](kernel-reboot-detection.md)
-- The running kernel isn't the latest installed one
-- The default boot entry doesn't select the latest installed kernel
-  (when bootloader validation is available)
-- Boot partition free space is below `linux_vitals_boot_warning_threshold`
-- Kernel/bootloader-related failures appear in the audit log window
-- Recent failed login attempts were detected
-- SELinux is disabled/unavailable on RedHat-family hosts, or AppArmor is
-  disabled/unavailable on Debian-family hosts
-- Any self-healing attempt didn't end in `"Fixed"`
+```json
+{"id": "reboot_required", "message": "System reboot is required", "severity": "warning"}
+```
+
+The `id` is the durable one. It is what severity is keyed on, what the
+baseline/postcheck comparison diffs on, and what an external system should
+join against -- `message` wording can change in any release without that
+being a breaking change.
+
+The self-healing finding additionally carries `subject`, the unit it refers
+to, so a consumer does not have to parse the message to learn which service
+needs attention.
+
+### Severity
+
+| Severity | Meaning |
+| --- | --- |
+| `critical` | Something is broken now, or you are blind to it |
+| `warning` | Something will break, or a control you rely on is off |
+| `info` | Worth seeing, too noisy to page on |
+
+A host's `severity` is the highest severity among its findings, or `none`
+when it has none. `severity_counts` breaks the same findings down by level,
+and the report `summary` carries `hosts_by_severity` (each host counted once,
+at its highest level, so the numbers partition the fleet) and
+`findings_by_severity` (every finding counted).
+
+### What each finding means, and how it is classified
+
+| id | Severity | Fires when |
+| --- | --- | --- |
+| `ram_critical` | critical | RAM usage at or above `linux_vitals_ram_critical_threshold` |
+| `journald_inactive` | critical | `systemd-journald` is not running -- the host's own logging is down |
+| `service_manual_followup` | critical | A self-healing attempt did not end in `Fixed` |
+| `sssd_inactive` | warning | `sssd` is not running |
+| `time_sync_absent` | warning | No `chronyd`/`ntp` service is installed |
+| `time_sync_inactive` | warning | The resolved time-sync service is not running |
+| `reboot_required` | warning | Per-distro reboot detection fired -- see [kernel-reboot-detection.md](kernel-reboot-detection.md) |
+| `kernel_not_latest` | warning | The running kernel is not the latest installed one |
+| `bootloader_mismatch` | warning | The default boot entry does not select the latest installed kernel |
+| `boot_space_low` | warning | Boot partition free space below `linux_vitals_boot_warning_threshold` |
+| `kernel_install_failures` | warning | Kernel/bootloader failures in the audit log window |
+| `selinux_disabled` | warning | SELinux disabled/unavailable on a RedHat-family host |
+| `apparmor_disabled` | warning | AppArmor disabled/unavailable on a Debian-family host |
+| `log_errors` | info | `journalctl` matched `error`/`failed` in the log window |
+| `failed_logins` | info | Recent failed login attempts were detected |
+
+`log_errors` and `failed_logins` are `info` because both occur on healthy
+hosts as a matter of course; they are counts worth seeing, not events worth
+paging on.
+
+### Retuning severity, and what makes a host fail
+
+Severity is a judgement about your estimate, so it is configurable. Override
+individual findings rather than replacing the whole map -- a replaced map
+means findings added in a later release have no entry and fall back to
+`warning`:
+
+```yaml
+linux_vitals_finding_severity_overrides:
+  apparmor_disabled: info       # we do not run AppArmor
+  reboot_required: critical     # our change window is tight
+```
+
+`final_status` is `Fail` when a host has at least one finding at or above
+`linux_vitals_fail_on_severity`:
+
+```yaml
+linux_vitals_fail_on_severity: warning
+```
+
+The default is `info`, which means **any** finding fails the host -- the
+behaviour of every release before severity existed. Raising it is what turns
+severity into triage: the host still reports every finding, and its
+`severity` still reflects the worst of them, but only findings at or above
+the threshold count against it. Because `final_status` drives the fleet
+health score, raising the threshold raises the score.
+
+An unrecognised value falls back to failing on anything, so a typo in
+`group_vars` cannot silently pass a broken fleet.
 
 ## Generic webhook payload
 

@@ -5,6 +5,8 @@
     "servers_checked": {{ linux_vitals_summary.servers_checked | int }},
     "auto_fixed_count": {{ linux_vitals_summary.auto_fixed_count | int }},
     "critical_error_count": {{ linux_vitals_summary.critical_error_count | int }},
+    "hosts_by_severity": {{ linux_vitals_summary.hosts_by_severity | default({}) | to_json }},
+    "findings_by_severity": {{ linux_vitals_summary.findings_by_severity | default({}) | to_json }},
     "snippet": {{ linux_vitals_summary.snippet | to_json }}
   },
   "message": {{ linux_vitals_notification_message | to_json }},
@@ -24,6 +26,8 @@
       "reboot_pending_packages": {{ result.reboot_required_packages | default([]) | to_json }},
       "boot_space_status": {{ result.boot_space_status | to_json }},
       "failed_login_count": {{ result.failed_login_count | int }},
+      "severity": {{ result.severity | default('none') | to_json }},
+      "severity_counts": {{ result.severity_counts | default({}) | to_json }},
       "findings": {{ result.findings | to_json }}
     }{% if not loop.last %},{% endif %}
     {% endfor %}

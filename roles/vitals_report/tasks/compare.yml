@@ -58,10 +58,45 @@
         {{ linux_vitals_baseline_result.running_kernel != linux_vitals_result.running_kernel }}
       reboot_required_before: "{{ linux_vitals_baseline_result.reboot_required }}"
       reboot_required_after: "{{ linux_vitals_result.reboot_required }}"
+      # Diffed on finding id, not on the whole finding object. Two runs of the
+      # same finding can differ in `message` (the self-healing finding embeds a
+      # service name) or in `severity` (an operator retuned it between runs),
+      # and a whole-object difference() would then report one finding as both
+      # new and resolved. The id is the stable identity; the object carried
+      # through is the current run's, so the dashboard shows current wording
+      # and current severity.
+      #
+      # Snapshots written before severity existed hold plain strings, so each
+      # side is normalised first: a string finding becomes {id, message} keyed
+      # on the message, which is the only identity those snapshots have. A
+      # postcheck against such a baseline therefore still compares cleanly
+      # instead of failing on a missing attribute.
       new_findings: >-
-        {{ linux_vitals_result.findings | difference(linux_vitals_baseline_result.findings) }}
+        {%- set base_ids = [] -%}
+        {%- for finding in linux_vitals_baseline_result.findings | default([]) -%}
+        {%- set _ = base_ids.append(finding.id if finding is mapping else finding) -%}
+        {%- endfor -%}
+        {%- set out = [] -%}
+        {%- for finding in linux_vitals_result.findings | default([]) -%}
+        {%- if (finding.id if finding is mapping else finding) not in base_ids -%}
+        {%- set _ = out.append(finding) -%}
+        {%- endif -%}
+        {%- endfor -%}
+        {{ out }}
       resolved_findings: >-
-        {{ linux_vitals_baseline_result.findings | difference(linux_vitals_result.findings) }}
+        {%- set now_ids = [] -%}
+        {%- for finding in linux_vitals_result.findings | default([]) -%}
+        {%- set _ = now_ids.append(finding.id if finding is mapping else finding) -%}
+        {%- endfor -%}
+        {%- set out = [] -%}
+        {%- for finding in linux_vitals_baseline_result.findings | default([]) -%}
+        {%- if (finding.id if finding is mapping else finding) not in now_ids -%}
+        {%- set _ = out.append(finding) -%}
+        {%- endif -%}
+        {%- endfor -%}
+        {{ out }}
+      severity_before: "{{ linux_vitals_baseline_result.severity | default('unknown') }}"
+      severity_after: "{{ linux_vitals_result.severity | default('unknown') }}"
   when:
     - linux_vitals_phase == 'postcheck'
     - linux_vitals_baseline_snapshot_file.stat.exists | default(false)

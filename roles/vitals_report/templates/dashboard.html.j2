@@ -200,6 +200,7 @@
 
   .tile--good .tile-value { color: var(--good); }
   .tile--critical .tile-value { color: var(--critical); }
+  .tile--warning .tile-value { color: var(--warning); }
 
   .tile--score {
     display: flex;
@@ -471,6 +472,14 @@
       <div class="tile-value">{{ linux_vitals_summary.critical_error_count }}</div>
       <div class="tile-label">Failing</div>
     </div>
+    <div class="tile tile--critical">
+      <div class="tile-value">{{ linux_vitals_summary.hosts_by_severity.critical | default(0) }}</div>
+      <div class="tile-label">Critical hosts</div>
+    </div>
+    <div class="tile tile--warning">
+      <div class="tile-value">{{ linux_vitals_summary.hosts_by_severity.warning | default(0) }}</div>
+      <div class="tile-label">Warning hosts</div>
+    </div>
     <div class="tile">
       <div class="tile-value">{{ linux_vitals_summary.auto_fixed_count }}</div>
       <div class="tile-label">Auto-fixed</div>
@@ -497,6 +506,12 @@
       <button class="chip is-active" data-value="all" type="button">All statuses</button>
       <button class="chip" data-value="Pass" type="button">Pass</button>
       <button class="chip" data-value="Fail" type="button">Fail</button>
+    </div>
+    <div class="chips" data-filter-group="severity">
+      <button class="chip is-active" data-value="all" type="button">All severities</button>
+      <button class="chip" data-value="critical" type="button">Critical</button>
+      <button class="chip" data-value="warning" type="button">Warning</button>
+      <button class="chip" data-value="info" type="button">Info</button>
     </div>
     {% if linux_vitals_summary.comparison_active %}
     <div class="chips" data-filter-group="comparison">
@@ -537,6 +552,7 @@
         <tr class="row"
             id="host-{{ result.hostname | e }}"
             data-status="{{ result.final_status }}"
+            data-severity="{{ result.severity | default('none') }}"
             data-comparison="{{ cmp_key }}"
             data-search="{{ (result.hostname ~ ' ' ~ result.ip_address ~ ' ' ~ result.os ~ ' ' ~ result.os_family ~ ' ' ~ result.asset_serial) | lower | e }}"
             data-sort-status="{{ 0 if result.final_status == 'Fail' else 1 }}"
@@ -674,7 +690,25 @@
               <div class="detail-item">
                 <strong>Findings ({{ result.findings | length }})</strong>
                 {% if result.findings %}
-                <ul class="list">{% for finding in result.findings %}<li>{{ finding | e }}</li>{% endfor %}</ul>
+                {# Most severe first, so triage reads top-down. Grouped by an
+                   explicit level list rather than sort(attribute='severity'):
+                   that sorts alphabetically, and "critical" < "info" <
+                   "warning" as strings puts warnings above criticals.
+                   A finding from a pre-severity snapshot is a bare string, so
+                   both shapes are handled rather than assuming the new one. #}
+                <ul class="list">
+                  {% for level in ['critical', 'warning', 'info'] %}
+                  {% for finding in result.findings if finding is mapping and finding.severity == level %}
+                  <li><span class="pill pill--{{ 'critical' if level == 'critical' else 'warning' if level == 'warning' else 'muted' }}"><span class="dot"></span>{{ level | e }}</span> {{ finding.message | e }}</li>
+                  {% endfor %}
+                  {% endfor %}
+                  {% for finding in result.findings if finding is mapping and finding.severity not in ['critical', 'warning', 'info'] %}
+                  <li><span class="pill pill--muted"><span class="dot"></span>{{ finding.severity | default('unknown') | e }}</span> {{ finding.message | e }}</li>
+                  {% endfor %}
+                  {% for finding in result.findings if finding is not mapping %}
+                  <li>{{ finding | e }}</li>
+                  {% endfor %}
+                </ul>
                 {% else %}
                 <span class="muted">No findings -- all checks passed.</span>
                 {% endif %}
@@ -688,11 +722,11 @@
                 <span>Reboot required: {{ 'Yes' if cmp.reboot_required_before else 'No' }} &#8594; {{ 'Yes' if cmp.reboot_required_after else 'No' }}</span>
                 {% if cmp.new_findings %}
                 <br><strong style="margin-top:8px;">New findings</strong>
-                <ul class="list">{% for finding in cmp.new_findings %}<li>{{ finding | e }}</li>{% endfor %}</ul>
+                <ul class="list">{% for finding in cmp.new_findings %}<li>{{ (finding.message if finding is mapping else finding) | e }}</li>{% endfor %}</ul>
                 {% endif %}
                 {% if cmp.resolved_findings %}
                 <strong style="margin-top:8px;">Resolved findings</strong>
-                <ul class="list">{% for finding in cmp.resolved_findings %}<li>{{ finding | e }}</li>{% endfor %}</ul>
+                <ul class="list">{% for finding in cmp.resolved_findings %}<li>{{ (finding.message if finding is mapping else finding) | e }}</li>{% endfor %}</ul>
                 {% endif %}
               </div>
               {% elif linux_vitals_summary.comparison_active %}
