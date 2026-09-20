@@ -135,6 +135,8 @@ are absent.
 
 ## Findings
 
+What to *do* about each of these is in the [Operator Runbook](runbook.md).
+
 Every finding is an object with a stable `id`, a human `message`, and a
 `severity`:
 
