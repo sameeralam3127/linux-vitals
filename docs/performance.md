@@ -130,6 +130,11 @@ fork counts and for catching a regression between releases. It is **not** a
 fleet simulation, and a number from it should never be quoted as "tested
 against N hosts".
 
+A larger inventory to exercise the dashboard against is in
+[examples/inventory/large-fleet.example.ini](../examples/inventory/large-fleet.example.ini) --
+ten generated nodes, enough to see how the search, filter, and sort behave
+when the table is no longer three rows.
+
 ### Real fleet (the only numbers worth publishing)
 
 ```bash

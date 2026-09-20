@@ -103,3 +103,17 @@ linux_vitals_email_password: "..."
 ```bash
 ansible-playbook -i inventory.ini sameeralam3127.linux_vitals.healthcheck --ask-vault-pass
 ```
+
+## Starting files to copy
+
+Rather than writing these from scratch:
+
+| File | What it gives you |
+| --- | --- |
+| [examples/inventory/hosts.example.ini](../examples/inventory/hosts.example.ini) | A four-host mixed fleet (RHEL, Ubuntu, Fedora, SLES) with `ansible_user`, `become`, and a key path already set |
+| [examples/inventory/large-fleet.example.ini](../examples/inventory/large-fleet.example.ini) | Ten generated nodes, for exercising the dashboard's search and filter at a realistic host count |
+| [examples/group_vars/all.yml.example](../examples/group_vars/all.yml.example) | Every tunable variable, commented out, with the `.env`-versus-inline guidance for secrets |
+| [examples/playbooks/custom-thresholds.yml](../examples/playbooks/custom-thresholds.yml) | Overriding thresholds and enabling healing for one ad-hoc run without touching `group_vars` |
+
+Addresses use the RFC 5737 documentation range (`192.0.2.0/24`), so nothing
+resolves by accident -- replace them before running anything.
