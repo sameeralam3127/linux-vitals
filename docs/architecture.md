@@ -7,9 +7,39 @@ report on the fleet -- split into three roles so each stage can be reused,
 disabled, or run independently:
 
 ```mermaid
-flowchart LR
-    A["vitals_scan<br/>read-only discovery, findings"] --> B["vitals_heal<br/>opt-in self-healing"]
-    B --> C["vitals_report<br/>snapshot, compare, render, notify"]
+flowchart TB
+    CN(["Ansible control node<br/>playbooks/healthcheck.yml"])
+
+    CN -. "SSH · agentless · nothing installed on targets" .-> FLEET
+
+    subgraph FLEET["Managed fleet"]
+        direction LR
+        U["Ubuntu / Debian<br/>apt · reboot-required file"]
+        R["RHEL / Rocky / Alma<br/>dnf · needs-restarting"]
+        F["Fedora<br/>dnf5 · needs-restarting"]
+        S["openSUSE / SLES<br/>zypper · needs-rebooting"]
+        U ~~~ R ~~~ F ~~~ S
+    end
+
+    FLEET ==> SCAN
+
+    SCAN["<b>vitals_scan</b> — read-only<br/>facts · services · memory · journal<br/>kernel · bootloader · boot space · security"]
+    HEAL["<b>vitals_heal</b> — opt-in, off by default<br/>one restart per enabled failed unit"]
+    REPORT["<b>vitals_report</b><br/>snapshot · compare · render · notify"]
+
+    SCAN ==>|"linux_vitals_result per host"| HEAL
+    HEAL ==>|"rebuilt result"| REPORT
+
+    REPORT --> HTML["HTML dashboard<br/>self-contained, no CDN"]
+    REPORT --> JSON["JSON report<br/>schema 1.2"]
+    REPORT --> NOTIFY["Slack · email · webhook<br/>summary only"]
+
+    classDef stage fill:#0b7285,stroke:#095c6b,color:#ffffff
+    classDef out fill:#f1f3f5,stroke:#adb5bd,color:#212529
+    classDef host fill:#e7f5ff,stroke:#4dabf7,color:#0b3d5c
+    class SCAN,HEAL,REPORT stage
+    class HTML,JSON,NOTIFY out
+    class U,R,F,S host
 ```
 
 - **`vitals_scan`** gathers facts, journal/log posture, kernel and bootloader
@@ -52,6 +82,13 @@ to build a different reporting pipeline), be aware that its
 defaults are loaded -- `linux_vitals_healing_results` and
 `linux_vitals_services_healed` are read with `| default([])` specifically
 so `vitals_scan` stays safe to run standalone.
+
+## Security boundaries
+
+The trust boundaries this pipeline crosses -- managed host to control node,
+control node to managed host, and control node to Slack/SMTP -- are documented
+in [threat-model.md](threat-model.md), along with what each stage is permitted
+to modify.
 
 ## Data flow
 

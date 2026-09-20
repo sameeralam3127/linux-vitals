@@ -68,8 +68,18 @@ writes a report on the control node. Reports worth a private disclosure:
   for edge cases that are already documented.
 - Vulnerabilities in Ansible Core, `community.general`, or the target
   distribution's own tooling. Report those upstream.
-- The test harness under `molecule/`, which runs privileged containers on
-  purpose and is never shipped in the published collection.
+- The harnesses under `molecule/` and `demo/`, which run privileged containers
+  on purpose and are shipped in neither the published collection nor any
+  production path.
+
+## Threat model
+
+[docs/threat-model.md](docs/threat-model.md) is the design-level companion to
+this policy: trust boundaries, what `become` actually needs (and a narrow
+sudoers rule that covers it), the exact contract self-healing operates under,
+how the four credentials are handled, and what a generated report discloses
+about your fleet. Read it before enabling self-healing or putting reports
+somewhere shared.
 
 ## Security properties worth knowing
 

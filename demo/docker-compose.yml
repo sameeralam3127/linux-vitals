@@ -1,0 +1,46 @@
+---
+# Three throwaway systemd containers standing in for a mixed Linux fleet.
+#
+# systemd has to be PID 1: vitals_scan reads service_facts and journalctl, so a
+# sleep-forever container would exercise none of the paths this demo exists to
+# show. That is what forces privileged + the cgroup mount below -- these are
+# disposable demo containers on your laptop, not a pattern for production.
+#
+# The images are the same ones molecule/ uses, so the demo and the test suite
+# agree on what "a Fedora host" means.
+
+x-systemd-host: &systemd-host
+  command: /usr/lib/systemd/systemd
+  privileged: true
+  cgroup: host
+  stop_signal: SIGRTMIN+3
+  volumes:
+    - /sys/fs/cgroup:/sys/fs/cgroup:rw
+  tmpfs:
+    - /run
+    - /run/lock
+  networks:
+    - vitals
+
+services:
+  ubuntu:
+    <<: *systemd-host
+    image: geerlingguy/docker-ubuntu2404-ansible:latest
+    container_name: linux-vitals-demo-ubuntu
+    hostname: demo-ubuntu
+
+  rocky:
+    <<: *systemd-host
+    image: geerlingguy/docker-rockylinux9-ansible:latest
+    container_name: linux-vitals-demo-rocky
+    hostname: demo-rocky
+
+  fedora:
+    <<: *systemd-host
+    image: geerlingguy/docker-fedora42-ansible:latest
+    container_name: linux-vitals-demo-fedora
+    hostname: demo-fedora
+
+networks:
+  vitals:
+    name: linux-vitals-demo

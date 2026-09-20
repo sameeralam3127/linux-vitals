@@ -1,0 +1,165 @@
+---
+# Break the demo fleet on purpose, one fault per check LinuxVitals claims to
+# make. Every fault is tagged, so `--tags disk` injects only that one.
+#
+# Two of the five faults cannot be induced honestly inside a container, and
+# this playbook does not pretend otherwise -- see the comments on the memory
+# and SELinux plays, and demo/README.md's "What is real and what is staged"
+# section, which says the same thing to anyone watching the demo.
+
+- name: Inject host-level faults
+  hosts: linux_servers
+  gather_facts: true
+  tasks:
+
+    # ---------------------------------------------------------------- service
+    - name: Arm the recoverable service so its next start fails
+      ansible.builtin.file:
+        path: /run/demo-payments-api.broken
+        state: touch
+        mode: "0644"
+      tags: [service, heal]
+
+    - name: Stop the recoverable service and let it fail
+      ansible.builtin.command:
+        argv: [systemctl, restart, demo-payments-api.service]
+      changed_when: true
+      failed_when: false
+      tags: [service, heal]
+
+    - name: Start the unrecoverable service so systemd records it as failed
+      ansible.builtin.command:
+        argv: [systemctl, start, demo-log-shipper.service]
+      changed_when: true
+      failed_when: false
+      tags: [service, heal]
+
+    - name: Disarm the recoverable service so vitals_heal can genuinely fix it
+      # The unit stays in a failed state -- systemd does not retry on its own.
+      # Removing the marker only means that the single restart vitals_heal
+      # attempts will succeed, which is the difference between the two demo
+      # services: one is healed, one needs a human.
+      ansible.builtin.file:
+        path: /run/demo-payments-api.broken
+        state: absent
+      tags: [service, heal]
+
+    - name: Confirm both demo services are failed
+      ansible.builtin.command:
+        argv: [systemctl, is-failed, "{{ item }}"]
+      register: demo_unit_state
+      changed_when: false
+      failed_when: demo_unit_state.stdout | trim != 'failed'
+      loop:
+        - demo-payments-api.service
+        - demo-log-shipper.service
+      tags: [service, heal]
+
+    # ----------------------------------------------------------------- reboot
+    - name: Create the reboot-required marker on the Debian-family host
+      # Genuinely what unattended-upgrades writes, and genuinely what
+      # vitals_scan looks for -- this fault is the real thing.
+      ansible.builtin.file:
+        path: /run/reboot-required
+        state: touch
+        mode: "0644"
+      when: ansible_facts['os_family'] == 'Debian'
+      tags: [reboot]
+
+    - name: Record the packages that "require" the reboot
+      ansible.builtin.copy:
+        dest: /run/reboot-required.pkgs
+        mode: "0644"
+        content: |
+          linux-image-6.8.0-45-generic
+          libssl3
+      when: ansible_facts['os_family'] == 'Debian'
+      tags: [reboot]
+
+    # ------------------------------------------------------------------- disk
+    - name: Fill /boot to trigger the boot-space check
+      # Real disk pressure on a real mount: provision.yml gave each host a 64 MB
+      # ext4 image at /boot, and this writes enough into it to drop free space
+      # under the 20% warning threshold. ansible_facts['mounts'] reports the
+      # true numbers; nothing here is simulated.
+      #
+      # The fill size is computed from what the filesystem actually reports
+      # rather than hard-coded: ext4 metadata overhead means a 64 MB image has
+      # roughly 52 MB usable, and a fixed count large enough to cross the
+      # threshold on one distro would hit ENOSPC on another.
+      ansible.builtin.command:
+        argv:
+          - sh
+          - -c
+          - |
+            set -e
+            mountpoint -q /boot || { echo "no /boot mount; skipping"; exit 0; }
+            avail_kb=$(df -Pk /boot | awk 'NR==2 {print $4}')
+            total_kb=$(df -Pk /boot | awk 'NR==2 {print $2}')
+            # Leave 12% of the filesystem free -- comfortably under the 20%
+            # warning threshold, comfortably above zero.
+            target_free_kb=$((total_kb * 12 / 100))
+            fill_kb=$((avail_kb - target_free_kb))
+            [ "$fill_kb" -gt 0 ] || { echo "already full enough"; exit 0; }
+            dd if=/dev/zero of=/boot/demo-initramfs-filler.img \
+               bs=1024 count="$fill_kb" status=none
+            df -Pk /boot | awk 'NR==2 {printf "free: %.1f%%\n", $4*100/$2}'
+      register: demo_disk_fill
+      changed_when: demo_disk_fill.rc == 0
+      failed_when: false
+      tags: [disk]
+
+    # ------------------------------------------------------------------- logs
+    - name: Write real error lines into the journal
+      # journalctl is what vitals_scan reads, and systemd-cat is a real writer
+      # into it. The log-error count and excerpt on the dashboard come from
+      # these lines the same way they would from a genuine fault.
+      ansible.builtin.command:
+        argv:
+          - systemd-cat
+          - -p
+          - err
+          - -t
+          - demo-payments-api
+          - /bin/sh
+          - -c
+          - |
+            echo "Failed to open connection to database: connection refused"
+            echo "error: retry budget exhausted after 5 attempts"
+            echo "systemd[1]: demo-log-shipper.service: Failed with result 'exit-code'."
+      changed_when: true
+      failed_when: false
+      tags: [logs]
+
+- name: Inject the control-node half of the fault set
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Lower the thresholds that a container cannot cross for real
+      # Honest about its own limits:
+      #
+      # * Memory. A container's /proc/meminfo is the *host's* -- Ansible's
+      #   memory facts describe your laptop, not the container, and no amount
+      #   of allocating inside the container moves them. So rather than fake a
+      #   number into the report, the demo lowers the threshold until the real
+      #   number crosses it. The reading is true; the line it is being judged
+      #   against is what moved.
+      #
+      # * Boot space. The 64M tmpfs is real and genuinely full, so this keeps
+      #   the stock 20% threshold. Listed here only because it shares the file.
+      #
+      # `./run.sh repair` and `./run.sh clean` delete this file.
+      ansible.builtin.copy:
+        dest: "{{ playbook_dir }}/../group_vars/all/10-injected.yml"
+        mode: "0644"
+        content: |
+          ---
+          # Generated by demo/playbooks/break.yml -- not checked in.
+          # Removed by `./run.sh repair` and `./run.sh clean`.
+          #
+          # See the comment in break.yml: a container reports the host's memory,
+          # so the demo moves the threshold rather than faking the reading.
+          linux_vitals_ram_warning_threshold: 1
+          linux_vitals_ram_critical_threshold: 99
+      tags: [memory, always]
