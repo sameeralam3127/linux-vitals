@@ -1,0 +1,12 @@
+---
+# Collections the demo harness itself needs (not runtime dependencies of the
+# roles -- those live in ../requirements.yml). The demo talks to the containers
+# through the docker connection plugin rather than SSH, so no keys, no sshd,
+# and nothing to clean up on your machine but the containers themselves.
+#
+# Upper-bounded for the same reason as requirements.yml: a breaking upstream
+# major must not turn a working demo broken with nothing in the diff to explain
+# it.
+collections:
+  - name: community.docker
+    version: ">=3.10.0,<6.0.0"

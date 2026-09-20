@@ -1,0 +1,23 @@
+---
+# Baseline demo configuration. `./run.sh break` writes a second file next to
+# this one (10-injected.yml) holding the control-node half of the fault
+# injection; `./run.sh repair` and `./run.sh clean` delete it again.
+
+linux_vitals_report_title: "LinuxVitals Demo Fleet"
+
+# Self-healing stays opt-in here exactly as it is everywhere else. `./run.sh
+# heal` re-runs the playbook with -e linux_vitals_heal_enabled=true rather than
+# flipping this, so the difference between a read-only run and a remediating
+# run stays visible on the command line.
+linux_vitals_heal_enabled: false
+
+# Containers boot in seconds and their journals are nearly empty, so the stock
+# "30 minutes ago" window would show nothing at all. A wider window makes the
+# log-error panel of the dashboard show real content.
+linux_vitals_log_window: "1 hour ago"
+
+# Keep every demo run rather than pruning to 10, so a `break` run and the
+# `heal` run after it can be opened side by side.
+linux_vitals_archive_html_reports: true
+linux_vitals_archive_json_reports: true
+linux_vitals_report_retention_count: 50

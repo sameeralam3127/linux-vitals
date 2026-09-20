@@ -1,0 +1,156 @@
+---
+# Turn three bare containers into hosts LinuxVitals has something to say about.
+#
+# This is the demo's equivalent of molecule/resources/prepare.yml, and it is
+# deliberately the same shape: install a Python, install the packages the health
+# checks look for, and leave the host *healthy*. Faults are injected separately
+# by break.yml, so `./run.sh up` always produces a green dashboard first -- the
+# before picture that makes the after picture mean something.
+
+- name: Provision the demo fleet
+  hosts: linux_servers
+  gather_facts: false
+  vars:
+    time_sync_service: "{{ 'chrony.service' if ansible_facts['os_family'] | default('') == 'Debian' else 'chronyd.service' }}"
+  tasks:
+    - name: Ensure a Python interpreter Ansible can use is installed
+      # Has to run over raw: no module and no fact gathering works until there
+      # is an interpreter to run it with.
+      ansible.builtin.raw: |
+        set -e
+        if ! command -v /usr/bin/python3 >/dev/null 2>&1; then
+          if command -v dnf >/dev/null 2>&1; then
+            dnf install -y python3
+          elif command -v apt-get >/dev/null 2>&1; then
+            apt-get update && apt-get install -y python3
+          fi
+        fi
+        command -v /usr/bin/python3
+      changed_when: false
+
+    - name: Gather facts now that Python is present
+      ansible.builtin.setup:
+
+    - name: Refresh the apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+      when: ansible_facts['os_family'] == 'Debian'
+
+    - name: Install the packages the health checks look for
+      ansible.builtin.package:
+        name: "{{ demo_packages }}"
+        state: present
+      vars:
+        demo_packages: >-
+          {{
+            ['chrony', 'e2fsprogs']
+            + (['yum-utils'] if ansible_facts['os_family'] == 'RedHat' else [])
+          }}
+      register: demo_package_install
+      # A package miss degrades a check to its documented fallback rather than
+      # breaking the demo -- exactly what it does on a real host.
+      failed_when: false
+      changed_when: demo_package_install.changed | default(false)
+
+    - name: Enable the time synchronization service
+      # Best effort: chronyd cannot always discipline a clock it does not own
+      # inside a container. What matters for the demo is that the scan resolves
+      # and reports the unit.
+      ansible.builtin.systemd_service:
+        name: "{{ time_sync_service }}"
+        enabled: true
+        state: started
+      register: demo_time_sync
+      failed_when: false
+
+    - name: Give each host a /boot to measure
+      # Containers have no separate /boot, so the boot-space check would report
+      # "Not Available" and the demo could never show it working.
+      #
+      # This has to be a real filesystem on a loop device, not a tmpfs: Ansible
+      # omits tmpfs from ansible_facts['mounts'], which is exactly where
+      # vitals_scan reads boot space from, so a tmpfs /boot is invisible to the
+      # check it exists to demonstrate. A 64 MB ext4 image gives a real mount
+      # with real free-space numbers. The check is not being faked; it is being
+      # given something to look at. break.yml fills this one up.
+      #
+      # Done with `command` rather than a mount module so the demo needs no
+      # collection beyond community.docker: ansible.builtin has no mount module,
+      # and nothing is written to fstab -- the mount dies with the container.
+      ansible.builtin.command:
+        argv:
+          - sh
+          - -c
+          - |
+            set -e
+            if mountpoint -q /boot; then exit 0; fi
+            [ -f /var/lib/demo-boot.img ] || {
+              dd if=/dev/zero of=/var/lib/demo-boot.img bs=1M count=64 status=none
+              mkfs.ext4 -q -F /var/lib/demo-boot.img
+            }
+            mkdir -p /boot
+            mount -o loop /var/lib/demo-boot.img /boot
+      register: demo_boot_mount
+      changed_when: demo_boot_mount.rc == 0
+      # A host where loop devices are unavailable degrades to boot space
+      # "Not Available" -- the same answer a real host with no separate /boot
+      # gives -- rather than failing the demo.
+      failed_when: false
+
+    - name: Install the demo service scripts
+      ansible.builtin.copy:
+        dest: /usr/local/bin/demo-payments-api
+        mode: "0755"
+        content: |
+          #!/bin/sh
+          # Fails while the marker file exists. break.yml puts the marker in
+          # place so systemd records a failed, enabled unit, then removes it --
+          # which gives vitals_heal a service it can genuinely fix, rather than
+          # a restart that was always going to succeed.
+          if [ -f /run/demo-payments-api.broken ]; then
+            echo "demo-payments-api: upstream dependency unavailable" >&2
+            exit 1
+          fi
+          exec sleep infinity
+
+    - name: Install the demo units
+      ansible.builtin.copy:
+        dest: "/etc/systemd/system/{{ item.name }}"
+        mode: "0644"
+        content: |
+          [Unit]
+          Description={{ item.description }}
+
+          [Service]
+          Type=simple
+          ExecStart={{ item.exec_start }}
+          Restart=no
+
+          [Install]
+          WantedBy=multi-user.target
+      loop:
+        - name: demo-payments-api.service
+          description: Demo application that self-healing can recover
+          exec_start: /usr/local/bin/demo-payments-api
+        - name: demo-log-shipper.service
+          description: Demo application that self-healing cannot recover
+          exec_start: /bin/false
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Enable and start the demo units
+      # Started healthy. break.yml is what makes them fail.
+      ansible.builtin.systemd_service:
+        name: demo-payments-api.service
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Enable the unrecoverable unit without starting it
+      # /bin/false cannot be started successfully, so it is only enabled here;
+      # break.yml starts it to record the failure.
+      ansible.builtin.systemd_service:
+        name: demo-log-shipper.service
+        enabled: true
+        daemon_reload: true

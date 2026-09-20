@@ -13,3 +13,11 @@ repos:
       - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-yaml
+
+  # demo/ ships three shell entry points. shellcheck caught a real bug in them
+  # (a `local` reading a variable assigned in the same statement), so it earns
+  # its place here rather than relying on anyone remembering to run it.
+  - repo: https://github.com/koalaman/shellcheck-precommit
+    rev: v0.10.0
+    hooks:
+      - id: shellcheck

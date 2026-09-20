@@ -1,0 +1,57 @@
+---
+# Undo everything break.yml did, without destroying the containers -- so you can
+# run break -> scan -> heal -> repair -> scan in a loop while rehearsing a demo
+# and never wait for images to pull again.
+
+- name: Clear host-level faults
+  hosts: linux_servers
+  gather_facts: true
+  tasks:
+    - name: Remove the reboot-required markers
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /run/reboot-required
+        - /run/reboot-required.pkgs
+      tags: [reboot]
+
+    - name: Free the space in /boot
+      ansible.builtin.file:
+        path: /boot/demo-initramfs-filler.img
+        state: absent
+      tags: [disk]
+
+    - name: Clear the recoverable service marker
+      ansible.builtin.file:
+        path: /run/demo-payments-api.broken
+        state: absent
+      tags: [service]
+
+    - name: Return the demo services to a healthy state
+      # demo-log-shipper cannot start (ExecStart=/bin/false), so it is reset
+      # rather than started: `systemctl reset-failed` clears the failed state
+      # that vitals_scan reports on.
+      ansible.builtin.command:
+        argv: [systemctl, restart, demo-payments-api.service]
+      changed_when: true
+      failed_when: false
+      tags: [service]
+
+    - name: Clear the failed state of the unrecoverable service
+      ansible.builtin.command:
+        argv: [systemctl, reset-failed, demo-log-shipper.service]
+      changed_when: true
+      failed_when: false
+      tags: [service]
+
+- name: Clear the control-node half of the fault set
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Restore the stock memory thresholds
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/../group_vars/all/10-injected.yml"
+        state: absent
+      tags: [memory, always]

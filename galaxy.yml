@@ -53,6 +53,7 @@ build_ignore:
   - pytest.ini
   - tests
   - molecule
+  - demo
   - .pytest_cache
   - .DS_Store
 

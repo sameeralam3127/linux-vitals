@@ -11,6 +11,48 @@ Agentless Ansible collection for Linux fleet health checks across RHEL, Fedora, 
 
 Collection: `sameeralam3127.linux_vitals`
 
+## The Dashboard
+
+Every run renders one self-contained HTML file -- no CDN, no external requests,
+no server to host it. Open it from a laptop or attach it to a change ticket.
+
+![LinuxVitals dashboard across a healthy, broken, and healed fleet](docs/images/dashboard-cycle.gif)
+
+Three consecutive runs against the same fleet -- healthy, broken, then healed.
+Watch the columns that move: **Boot Space** `Healthy` → `Low`, **Reboot**
+`No` → `Required`, and **Auto-Fixed** `0` → `3` once self-healing is enabled.
+Every frame is a real run against real containers, produced by the demo below.
+
+Health score and fleet rollup at the top; search, filter, and sort across the
+host table; expand any host for its findings, kernel and bootloader state, boot
+space, and self-healing outcome. After a maintenance window it grows a
+before/after comparison:
+
+| Host detail | Baseline vs. postcheck |
+| --- | --- |
+| [![Expanded host detail](docs/images/dashboard-host-detail.png)](docs/images/dashboard-host-detail.png) | [![Before and after comparison](docs/images/dashboard-comparison.png)](docs/images/dashboard-comparison.png) |
+
+Full tour, including the JSON schema and every finding it can raise, in the
+[Report Guide](docs/report-guide.md).
+
+## Try It in One Command
+
+No fleet required. This starts Ubuntu, Rocky, and Fedora containers, breaks
+them on purpose, and shows LinuxVitals detecting and remediating the damage:
+
+```bash
+git clone https://github.com/sameeralam3127/linux-vitals && cd linux-vitals/demo
+./run.sh
+```
+
+You get three dashboards to compare -- healthy, broken, healed -- covering
+failed services, a required reboot, boot-space pressure, journal errors, and a
+memory threshold breach. It needs only Docker and `ansible-core`, and
+`./run.sh clean` removes every trace of it.
+
+See [demo/README.md](demo/README.md) for the per-fault tags, and for an honest
+account of which faults are genuinely induced and which are staged.
+
 ## What This Does
 
 - CPU and platform-aware system discovery through Ansible facts
@@ -35,10 +77,13 @@ Collection: `sameeralam3127.linux_vitals`
 - [Examples](docs/examples.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Architecture](docs/architecture.md)
+- [Demo Environment](demo/README.md) -- a three-distro fleet you can break on purpose
+- [Performance & Scale](docs/performance.md) -- what dominates a run, and how to measure it
 - [Testing](docs/testing.md) -- unit tests and the per-distro Molecule scenarios
 - [Roadmap](docs/roadmap.md) -- the next 12 months, grouped by quarter
 - [Contributing](CONTRIBUTING.md)
 - [Security Policy](SECURITY.md) -- what to report privately, and what is in scope
+- [Threat Model](docs/threat-model.md) -- `become`, self-healing limits, credentials, and what lands in a report
 - [Changelog](CHANGELOG.md)
 
 ## Architecture
@@ -46,9 +91,39 @@ Collection: `sameeralam3127.linux_vitals`
 LinuxVitals is a small pipeline of three composable roles, sharing one `linux_vitals_*` variable namespace so they can be run together (via `playbooks/healthcheck.yml`) or independently in your own playbooks:
 
 ```mermaid
-flowchart LR
-    A["vitals_scan<br/>read-only discovery, findings"] --> B["vitals_heal<br/>opt-in self-healing (disabled by default)"]
-    B --> C["vitals_report<br/>HTML/JSON dashboard, notifications"]
+flowchart TB
+    CN(["Ansible control node<br/>playbooks/healthcheck.yml"])
+
+    CN -. "SSH · agentless · nothing installed on targets" .-> FLEET
+
+    subgraph FLEET["Managed fleet"]
+        direction LR
+        U["Ubuntu / Debian<br/>apt · reboot-required file"]
+        R["RHEL / Rocky / Alma<br/>dnf · needs-restarting"]
+        F["Fedora<br/>dnf5 · needs-restarting"]
+        S["openSUSE / SLES<br/>zypper · needs-rebooting"]
+        U ~~~ R ~~~ F ~~~ S
+    end
+
+    FLEET ==> SCAN
+
+    SCAN["<b>vitals_scan</b> — read-only<br/>facts · services · memory · journal<br/>kernel · bootloader · boot space · security"]
+    HEAL["<b>vitals_heal</b> — opt-in, off by default<br/>one restart per enabled failed unit"]
+    REPORT["<b>vitals_report</b><br/>snapshot · compare · render · notify"]
+
+    SCAN ==>|"linux_vitals_result per host"| HEAL
+    HEAL ==>|"rebuilt result"| REPORT
+
+    REPORT --> HTML["HTML dashboard<br/>self-contained, no CDN"]
+    REPORT --> JSON["JSON report<br/>schema 1.2"]
+    REPORT --> NOTIFY["Slack · email · webhook<br/>summary only"]
+
+    classDef stage fill:#0b7285,stroke:#095c6b,color:#ffffff
+    classDef out fill:#f1f3f5,stroke:#adb5bd,color:#212529
+    classDef host fill:#e7f5ff,stroke:#4dabf7,color:#0b3d5c
+    class SCAN,HEAL,REPORT stage
+    class HTML,JSON,NOTIFY out
+    class U,R,F,S host
 ```
 
 - **`vitals_scan`** -- gathers facts, logs, kernel/boot/security posture, and builds a per-host findings + `final_status` result. Read-only.
