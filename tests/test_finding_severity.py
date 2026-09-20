@@ -1,7 +1,7 @@
 """Tests for finding severity classification and the host severity rollup.
 
 Like `test_self_healing.py`, these pull the real tasks straight out of
-`roles/vitals_scan/tasks/result.yml` and run them through `ansible-playbook`
+`roles/vitals_scan/tasks/severity.yml` and run them through `ansible-playbook`
 with the findings faked via vars, so the assertions exercise the production
 Jinja rather than a hand-copied duplicate.
 
@@ -21,7 +21,7 @@ import yaml
 
 from test_templates import REPO_ROOT, _ansible_playbook_bin, _base_env
 
-RESULT_TASKS = REPO_ROOT / "roles" / "vitals_scan" / "tasks" / "result.yml"
+SEVERITY_TASKS = REPO_ROOT / "roles" / "vitals_scan" / "tasks" / "severity.yml"
 SCAN_DEFAULTS = REPO_ROOT / "roles" / "vitals_scan" / "defaults" / "main.yml"
 
 SEVERITY_TASK_NAMES = [
@@ -36,10 +36,10 @@ def _defaults() -> dict:
 
 
 def _severity_tasks() -> list[dict]:
-    document = yaml.safe_load(RESULT_TASKS.read_text(encoding="utf-8"))
+    document = yaml.safe_load(SEVERITY_TASKS.read_text(encoding="utf-8"))
     by_name = {task.get("name"): task for task in document}
     missing = [name for name in SEVERITY_TASK_NAMES if name not in by_name]
-    assert not missing, f"tasks missing from {RESULT_TASKS}: {missing}"
+    assert not missing, f"tasks missing from {SEVERITY_TASKS}: {missing}"
     return [by_name[name] for name in SEVERITY_TASK_NAMES]
 
 
@@ -293,3 +293,73 @@ def test_an_unrecognised_threshold_falls_back_to_failing_on_anything(
     )
 
     assert result["status"] == "Fail"
+
+
+# ---------------------------------------------------------------------------
+# Precedence between a computed severity and the configured map
+# ---------------------------------------------------------------------------
+
+def test_a_severity_the_finding_already_carries_is_preserved(tmp_path: Path) -> None:
+    # vitals_certs classifies its own findings, because the level depends on
+    # the certificate rather than on the finding type: cert_expiring is
+    # critical inside the critical window and warning outside it, which one
+    # static map entry cannot express. Before this precedence existed the
+    # computed severity was silently overwritten and every certificate finding
+    # came out `warning`.
+    result = _run(
+        tmp_path,
+        [
+            {
+                "id": "cert_expiring",
+                "message": "Certificate at /etc/nginx/ssl/a.crt expires in 2 day(s)",
+                "severity": "critical",
+            }
+        ],
+    )
+
+    assert result["findings"][0]["severity"] == "critical"
+    assert result["severity"] == "critical"
+
+
+def test_two_findings_sharing_an_id_can_carry_different_severities(
+    tmp_path: Path,
+) -> None:
+    # The same id at two levels in one run is the normal case for certificates:
+    # one expiring in two days and one in twenty are both `cert_expiring`.
+    result = _run(
+        tmp_path,
+        [
+            {"id": "cert_expiring", "message": "expires in 2 day(s)", "severity": "critical"},
+            {"id": "cert_expiring", "message": "expires in 19 day(s)", "severity": "warning"},
+        ],
+    )
+
+    assert [f["severity"] for f in result["findings"]] == ["critical", "warning"]
+    assert result["counts"] == {"info": 0, "warning": 1, "critical": 1}
+
+
+def test_an_operator_override_beats_a_severity_the_finding_carries(
+    tmp_path: Path,
+) -> None:
+    # Explicit operator intent is the top of the precedence order. A shop that
+    # does not care about certificate expiry must be able to say so and have it
+    # hold, even against a role that computed `critical`.
+    result = _run(
+        tmp_path,
+        [{"id": "cert_expiring", "message": "expires in 2 day(s)", "severity": "critical"}],
+        linux_vitals_finding_severity_overrides={"cert_expiring": "info"},
+    )
+
+    assert result["findings"][0]["severity"] == "info"
+
+
+def test_a_finding_without_its_own_severity_still_uses_the_map(
+    tmp_path: Path,
+) -> None:
+    # The precedence must not have broken the ordinary path.
+    result = _run(
+        tmp_path,
+        [{"id": "ram_critical", "message": "RAM usage is critical"}],
+    )
+
+    assert result["findings"][0]["severity"] == "critical"

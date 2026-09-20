@@ -8,6 +8,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **`vitals_certs`: TLS certificate expiry and hardening checks**
+  ([#15](https://github.com/sameeralam3127/linux-vitals/issues/15)). A fourth,
+  opt-in role (`linux_vitals_certs_enabled: false` by default) that reads
+  certificates from the filesystem and, optionally, from live TLS endpoints,
+  and reports expiry, weak signature algorithms, self-signed served
+  certificates, obsolete negotiated TLS versions, and served-versus-on-disk
+  mismatches.
+
+  It emits the same `{id, message, severity}` finding shape `vitals_scan`
+  produces, so the dashboard, JSON report, comparison, and notifications carry
+  certificate findings with no special casing. Run it on its own with
+  `--tags certs`.
+
+  **No new dependency on managed hosts.** Parsing shells out to `openssl`,
+  which is present on every supported distribution; the handshake uses the
+  Python standard library. Nothing is installed, and a host without `openssl`
+  reports `cert_scan_unavailable` rather than failing.
+
+  Two defaults exist to keep the signal honest. The system CA trust store is
+  scanned but only reported when a certificate is already **expired** --
+  reporting normal expiry across hundreds of root certificates that are not
+  yours would bury every real finding. And a file matching the certificate
+  patterns but holding no certificate -- a `privkey.pem` in a Let's Encrypt
+  directory -- is skipped rather than reported as broken.
+
+  Certificate severity is computed rather than looked up, because it depends
+  on the certificate: `cert_expiring` is `critical` inside
+  `linux_vitals_cert_critical_days` and `warning` inside
+  `linux_vitals_cert_warning_days`. See
+  [docs/threat-model.md](docs/threat-model.md) for what enabling endpoint
+  checks means for outbound connections and for `become`.
+
+
 - **Severity-based finding classification and alert thresholds**
   ([#8](https://github.com/sameeralam3127/linux-vitals/issues/8)). Every
   finding is now an object with a stable `id`, a human `message`, and a
@@ -59,6 +92,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   and diffed on the message where no id exists -- and the dashboard renders
   both shapes, so a maintenance window that spans the upgrade is not broken by
   it.
+
+- A severity a finding already carries is now preserved by the classification
+  step, rather than being overwritten from the severity map. Findings whose
+  level depends on the data rather than on the finding type -- every
+  certificate finding -- could not otherwise be classified at all. Precedence
+  is: an explicit operator override, then a severity the producing role
+  computed, then the shipped map, then `warning`.
 
 - The baseline/postcheck comparison now diffs on finding `id` rather than on
   the whole finding. A finding whose wording or severity changed between the

@@ -1,0 +1,103 @@
+---
+# Severity classification and the host rollup, factored out of result.yml so
+# that vitals_certs can reuse it verbatim.
+#
+# vitals_certs appends its own findings to the host result after vitals_scan
+# has already built it, and then has to recompute the host severity and
+# final_status over the combined list. Including this file is what keeps the
+# two roles from drifting apart on what "critical" means or on what fails a
+# host -- there is one implementation, not two.
+#
+# Input:  linux_vitals_raw_findings -- a list of {id, message} (plus optional
+#         extra keys, which are preserved).
+# Output: linux_vitals_findings, linux_vitals_host_severity,
+#         linux_vitals_severity_counts, linux_vitals_final_status.
+- name: Attach a severity to every finding
+  # Precedence, highest first:
+  #
+  #   1. linux_vitals_finding_severity_overrides -- explicit operator intent
+  #      always wins, including over a severity the producing role computed.
+  #   2. A severity the finding already carries. Some findings can only be
+  #      classified by the role that produced them, because the level depends
+  #      on the data rather than on the finding type: vitals_certs raises
+  #      cert_expiring as critical inside linux_vitals_cert_critical_days and
+  #      warning outside it, which one static map entry cannot express.
+  #      Without this step that computed severity was silently overwritten and
+  #      every certificate finding came out `warning`.
+  #   3. linux_vitals_finding_severities, the shipped map.
+  #   4. warning, for a finding id nobody has classified.
+  #
+  # The shipped map is merged with the overrides rather than replaced by them,
+  # so a finding added in a later release keeps its default severity instead of
+  # silently vanishing from the map for everyone who has ever set an override.
+  ansible.builtin.set_fact:
+    linux_vitals_findings: >-
+      {%- set overrides = linux_vitals_finding_severity_overrides | default({}, true) -%}
+      {%- set severities = linux_vitals_finding_severities | combine(overrides) -%}
+      {%- set out = [] -%}
+      {%- for finding in linux_vitals_raw_findings -%}
+      {%- if finding.id in overrides -%}
+      {%- set level = overrides[finding.id] -%}
+      {%- elif finding.severity is defined -%}
+      {%- set level = finding.severity -%}
+      {%- else -%}
+      {%- set level = severities.get(finding.id, 'warning') -%}
+      {%- endif -%}
+      {%- set _ = out.append(finding | combine({'severity': level})) -%}
+      {%- endfor -%}
+      {{ out }}
+  tags:
+    - result
+    - reporting
+
+- name: Roll the findings up into one host severity
+  # `none` when there is nothing to report, otherwise the highest severity
+  # present. Ranked through linux_vitals_severity_order rather than
+  # alphabetically -- "critical" < "info" < "warning" as strings, which is
+  # exactly backwards.
+  ansible.builtin.set_fact:
+    linux_vitals_host_severity: >-
+      {%- set indexes = [] -%}
+      {%- for level in linux_vitals_findings | map(attribute='severity') | list -%}
+      {%- set _ = indexes.append(linux_vitals_severity_order.index(level)
+            if level in linux_vitals_severity_order else 1) -%}
+      {%- endfor -%}
+      {{ linux_vitals_severity_order[indexes | max] if indexes | length > 0 else 'none' }}
+    # Built as one dict-valued template rather than three scalar ones on
+    # purpose: ansible-core 2.16 stores a scalar template result as a string,
+    # so three separate `info: "{{ ... | length }}"` entries would each yield
+    # "2" rather than 2, and the dashboard would compare strings. A template
+    # that returns a dict is converted back to real types on 2.16 -- the same
+    # asymmetry documented on ram_used_mb below.
+    linux_vitals_severity_counts: >-
+      {%- set counts = {} -%}
+      {%- for level in linux_vitals_severity_order -%}
+      {%- set _ = counts.update({
+            level: linux_vitals_findings
+                   | selectattr('severity', 'equalto', level) | list | length
+          }) -%}
+      {%- endfor -%}
+      {{ counts }}
+  tags:
+    - result
+    - reporting
+
+- name: Decide whether the host passes at the configured severity threshold
+  # A host fails when it has at least one finding at or above
+  # linux_vitals_fail_on_severity. The default (info) makes any finding fail,
+  # which is what every release before severity existed did.
+  ansible.builtin.set_fact:
+    linux_vitals_final_status: >-
+      {%- set threshold = linux_vitals_severity_order.index(linux_vitals_fail_on_severity)
+            if linux_vitals_fail_on_severity in linux_vitals_severity_order else 0 -%}
+      {%- set failing = [] -%}
+      {%- for finding in linux_vitals_findings -%}
+      {%- if finding.severity in linux_vitals_severity_order
+             and linux_vitals_severity_order.index(finding.severity) >= threshold -%}
+      {%- set _ = failing.append(finding.id) -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{ 'Fail' if failing | length > 0 else 'Pass' }}
+  tags:
+    - result
+    - reporting

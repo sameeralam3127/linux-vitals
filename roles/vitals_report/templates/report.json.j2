@@ -101,6 +101,11 @@
         "services_healed": {{ result.services_healed | to_json }},
         "healing_results": {{ result.healing_results | to_json }}
       },
+      {# Only present when vitals_certs ran; omitted entirely otherwise, so a
+         consumer can tell "no certificate scan" from "scanned, found none". #}
+      {% if result.certificates is defined %}
+      "certificates": {{ result.certificates | to_json }},
+      {% endif %}
       "asset_serial": {{ result.asset_serial | to_json }},
       "comparison": {{ result.comparison | to_json }},
       "findings": {{ result.findings | to_json }}

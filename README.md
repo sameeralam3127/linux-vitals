@@ -63,6 +63,7 @@ account of which faults are genuinely induced and which are staged.
 - Kernel, reboot, boot-space, rescue image, security-control, and login-failure checks
 - Severity-classified findings (`info` / `warning` / `critical`) with a per-host rollup, a tunable fail threshold, and per-finding severity overrides
 - Opt-in one-shot self-healing for failed enabled services
+- Opt-in TLS certificate checks: expiry, weak signatures, obsolete TLS versions, and certificates served but not found on disk
 - Pre-maintenance baseline / post-maintenance comparison workflow, correlated by a maintenance id
 - Consolidated, self-contained HTML dashboard (health score, search/filter/sort, expandable host detail, before/after comparison) and JSON report generation with optional archive retention
 - Slack, email, and generic webhook notifications for run summaries
@@ -89,7 +90,7 @@ account of which faults are genuinely induced and which are staged.
 
 ## Architecture
 
-LinuxVitals is a small pipeline of three composable roles, sharing one `linux_vitals_*` variable namespace so they can be run together (via `playbooks/healthcheck.yml`) or independently in your own playbooks:
+LinuxVitals is a small pipeline of four composable roles, sharing one `linux_vitals_*` variable namespace so they can be run together (via `playbooks/healthcheck.yml`) or independently in your own playbooks:
 
 ```mermaid
 flowchart TB
@@ -110,10 +111,12 @@ flowchart TB
 
     SCAN["<b>vitals_scan</b> — read-only<br/>facts · services · memory · journal<br/>kernel · bootloader · boot space · security"]
     HEAL["<b>vitals_heal</b> — opt-in, off by default<br/>one restart per enabled failed unit"]
+    CERTS["<b>vitals_certs</b> — opt-in, off by default<br/>TLS expiry · weak signatures · served vs on disk"]
     REPORT["<b>vitals_report</b><br/>snapshot · compare · render · notify"]
 
     SCAN ==>|"linux_vitals_result per host"| HEAL
-    HEAL ==>|"rebuilt result"| REPORT
+    HEAL ==>|"rebuilt result"| CERTS
+    CERTS ==>|"findings merged"| REPORT
 
     REPORT --> HTML["HTML dashboard<br/>self-contained, no CDN"]
     REPORT --> JSON["JSON report<br/>schema 1.2"]
@@ -122,13 +125,14 @@ flowchart TB
     classDef stage fill:#0b7285,stroke:#095c6b,color:#ffffff
     classDef out fill:#f1f3f5,stroke:#adb5bd,color:#212529
     classDef host fill:#e7f5ff,stroke:#4dabf7,color:#0b3d5c
-    class SCAN,HEAL,REPORT stage
+    class SCAN,HEAL,CERTS,REPORT stage
     class HTML,JSON,NOTIFY out
     class U,R,F,S host
 ```
 
 - **`vitals_scan`** -- gathers facts, logs, kernel/boot/security posture, and builds a per-host findings + `final_status` result. Read-only.
 - **`vitals_heal`** -- attempts one restart per systemd-enabled failed service. Disabled by default (`linux_vitals_heal_enabled: false`); nothing on managed hosts changes unless you opt in.
+- **`vitals_certs`** -- reads certificates from disk and from live TLS endpoints, and reports expiry, weak signatures, and served-versus-on-disk mismatches. Disabled by default (`linux_vitals_certs_enabled: false`), and needs no new dependency on managed hosts.
 - **`vitals_report`** -- loads notification config, renders the consolidated HTML/JSON dashboard, archives historical reports, and sends Slack/email/generic-webhook summaries.
 
 ## Requirements
@@ -269,6 +273,44 @@ EMAIL_SMTP_PASSWORD="smtp-password"
 
 Resolution order for every channel is the same: an explicit inventory/`group_vars`/extra-vars value wins; otherwise the matching `.env` value is used; otherwise the channel is skipped. You can enable more than one channel at once.
 
+## TLS Certificate Checks (Opt-In)
+
+`vitals_certs` is disabled by default. Enable it, and optionally name the
+endpoints whose served certificate you want inspected:
+
+```yaml
+linux_vitals_certs_enabled: true
+linux_vitals_cert_warning_days: 30
+linux_vitals_cert_critical_days: 7
+
+# Optional. Connections are made *from each managed host*, so `localhost`
+# means the certificate that host itself serves. Empty by default -- enabling
+# the role connects to nothing until you name a target.
+linux_vitals_cert_endpoints:
+  - host: localhost
+    port: 443
+    server_name: www.example.com
+```
+
+```bash
+ansible-playbook -i inventory.ini playbooks/healthcheck.yml --tags certs,reporting
+```
+
+It reports expiry (critical inside the critical window, warning inside the
+warning one), weak signature algorithms, self-signed served certificates,
+obsolete negotiated TLS versions, and certificates being served that match
+nothing on disk -- usually a service that was never reloaded after renewal.
+
+Certificates are parsed with `openssl` and the handshake uses the Python
+standard library, so nothing new is installed on managed hosts. The system CA
+trust store is scanned but only reported when a certificate has already
+expired, so hundreds of root certificates that are not yours do not bury the
+findings that are.
+
+See [docs/threat-model.md](docs/threat-model.md#vitals_certs-the-only-role-that-opens-a-connection)
+before enabling endpoint checks: this is the only role that opens outbound
+connections, and reading `/etc/letsencrypt/live` needs `become`.
+
 ## Self-Healing (Opt-In)
 
 `vitals_heal` runs every time the playbook does, but its tasks are skipped unless `linux_vitals_heal_enabled: true` is set. With it enabled, LinuxVitals attempts exactly one restart per systemd-enabled service found in a `failed` state, then re-checks the required-service status (`sssd`, `systemd-journald`, time sync) so the dashboard reflects the post-restart state.
@@ -314,6 +356,9 @@ ansible-playbook -i inventory.ini playbooks/healthcheck.yml --tags boot
 
 # Self-healing restart attempts (only acts if linux_vitals_heal_enabled: true)
 ansible-playbook -i inventory.ini playbooks/healthcheck.yml --tags self_healing
+
+# TLS certificate checks (only acts if linux_vitals_certs_enabled: true)
+ansible-playbook -i inventory.ini playbooks/healthcheck.yml --tags certs
 
 # Rebuild report artifacts and send configured notifications from current run data
 ansible-playbook -i inventory.ini playbooks/healthcheck.yml --tags reporting,notifications
