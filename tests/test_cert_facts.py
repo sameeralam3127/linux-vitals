@@ -26,6 +26,7 @@ from test_templates import REPO_ROOT, _ansible_playbook_bin, _base_env
 
 CERTS_TASKS = REPO_ROOT / "roles" / "vitals_certs" / "tasks" / "main.yml"
 CERTS_DEFAULTS = REPO_ROOT / "roles" / "vitals_certs" / "defaults" / "main.yml"
+EXPIRED_FIXTURE = Path(__file__).parent / "fixtures" / "certs" / "expired.crt"
 
 openssl_required = pytest.mark.skipif(
     shutil.which("openssl") is None,
@@ -117,29 +118,27 @@ def test_a_certificate_on_disk_is_parsed_with_its_expiry(tmp_path: Path) -> None
 
 @openssl_required
 def test_an_expired_certificate_is_reported_as_expired(tmp_path: Path) -> None:
-    # Issued with a validity window entirely in the past, which is the only
-    # way to get openssl to produce an already-expired certificate.
+    # This one certificate is a checked-in fixture rather than generated, and
+    # it is the exception to the "generate, do not freeze" rule at the top of
+    # this file. Issuing an already-expired certificate needs `openssl req
+    # -not_before/-not_after`, which only exists in OpenSSL 3.5 and later --
+    # the CI runner ships 3.0, so generating it here passed locally and failed
+    # in CI. A certificate is stable *input*, unlike openssl's output format,
+    # so freezing this one costs nothing.
+    #
+    # The fixture is the certificate alone. Its private key was discarded at
+    # generation time and is not needed: the module only ever parses public
+    # certificate fields.
     certs = tmp_path / "certs"
     certs.mkdir(parents=True, exist_ok=True)
-    path = certs / "expired.crt"
-    subprocess.run(
-        [
-            "openssl", "req", "-x509", "-newkey", "rsa:2048",
-            "-keyout", str(certs / "expired.key"),
-            "-out", str(path),
-            "-not_before", "20200101000000Z",
-            "-not_after", "20200201000000Z",
-            "-nodes", "-subj", "/CN=expired.example.test",
-        ],
-        check=True,
-        capture_output=True,
-    )
+    shutil.copy(EXPIRED_FIXTURE, certs / "expired.crt")
 
     result = _run_module(tmp_path, paths=[str(certs)])
 
     cert = next(c for c in result["certificates"] if c["path"].endswith("expired.crt"))
     assert cert["expired"] is True
     assert cert["days_remaining"] < 0, "an expired certificate must count down past zero"
+    assert "expired.example.test" in cert["subject"]
 
 
 @openssl_required
@@ -166,12 +165,24 @@ def test_a_private_key_matching_the_patterns_is_skipped_not_reported(
 @openssl_required
 def test_a_weak_signature_algorithm_is_reported(tmp_path: Path) -> None:
     certs = tmp_path / "certs"
-    _make_cert(certs, "weak.crt", days=200, digest="sha1")
+    try:
+        _make_cert(certs, "weak.crt", days=200, digest="sha1")
+    except subprocess.CalledProcessError:  # pragma: no cover - build dependent
+        # Some builds refuse to sign with SHA-1 (a security policy, or a
+        # FIPS provider). The module's job is to report the algorithm a
+        # certificate carries, not to be able to mint a weak one, so a host
+        # that cannot produce the input skips rather than fails.
+        pytest.skip("this openssl build will not sign with SHA-1")
 
     result = _run_module(tmp_path, paths=[str(certs)])
 
     cert = next(c for c in result["certificates"] if c["path"].endswith("weak.crt"))
     assert "sha1" in cert["signature_algorithm"].lower()
+
+    # And the role's default list is what turns that into a finding.
+    defaults = yaml.safe_load(CERTS_DEFAULTS.read_text(encoding="utf-8"))
+    weak = [a.lower() for a in defaults["linux_vitals_cert_weak_signature_algorithms"]]
+    assert any(a in cert["signature_algorithm"].lower() for a in weak)
 
 
 def test_a_missing_path_is_skipped_rather_than_failing_the_run(
