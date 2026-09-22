@@ -16,7 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   at exactly the moment there was most to read. `FAIL` no longer has the same
   visual weight as `Uptime`.
 
-  New `linux_vitals_slack_max_hosts` (default `10`) caps the per-host blocks.
+  New `linux_vitals_slack_max_hosts` (default `20`) caps the table rows.
   Hosts are ordered worst-first -- critical, warning, info, then the rest --
   so the cap drops the hosts with nothing wrong, and the message ends with
   `+ N more host(s) not shown`. This fixes a real failure rather than tidying
@@ -25,9 +25,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   Slack refused it with a bare HTTP 400 that `no_log` made almost impossible
   to diagnose.
 
-  The plain-text message is unchanged and still sent as the top-level `text`
-  fallback, which Slack uses for the mobile push preview and for accessibility
-  clients. The email body and the generic webhook payload are untouched.
+  The per-host detail is a fixed-width table in a code block. Slack has no
+  table primitive, and a code block is the only way to get columns that line
+  up. It is also one block rather than one per host, so the block count no
+  longer grows with the fleet.
+
+  The top-level `text` field carries a single short line
+  (`LinuxVitals: FAIL — 3 host(s) checked, 1 critical, 0 auto-fixed`), which
+  doubles as the mobile push preview. It is **not** the full plain-text
+  summary: Slack renders that field *above* the attachment, so sending the
+  whole summary there printed the old-style message above the new card.
+  `slack_message.txt.j2` is unchanged and still carried by the email body and
+  the generic webhook's `message` field.
+
+  `linux_vitals_slack_message_header` now defaults to
+  `LinuxVitals Health Check` instead of `Standard Maintenance Summary`, and a
+  footer naming LinuxVitals is always present so a customised header does not
+  make the message unidentifiable in a busy channel.
 
 - **An operator runbook** ([#6](https://github.com/sameeralam3127/linux-vitals/issues/6)),
   at [docs/runbook.md](docs/runbook.md). One section per finding -- what it

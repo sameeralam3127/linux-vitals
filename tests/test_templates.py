@@ -110,11 +110,15 @@ def test_templates_render_with_representative_health_data(tmp_path: Path) -> Non
     assert "Reboot: No (reboot-required-file)" in slack
     assert json_report["hosts"][0]["security"]["apparmor_status"] == "enabled"
 
-    # The plain-text message is still rendered, and is still what the email
-    # body and the generic webhook carry -- the Block Kit payload reuses it as
-    # the `text` fallback rather than replacing it. A blocks-only message
-    # shows as blank in Slack's mobile push and to accessibility clients.
-    assert slack_blocks["text"] == slack
+    # Slack renders the top-level `text` ABOVE the attachment, so it must be
+    # one short line. Putting the full plain-text summary there printed the
+    # entire old-style message above the new card, duplicated.
+    assert slack_blocks["text"] == "LinuxVitals: PASS — 1 host(s) checked, 0 critical, 1 auto-fixed"
+    assert "\n" not in slack_blocks["text"]
+    assert len(slack_blocks["text"]) < 200
+    # The plain-text message itself is unchanged and still carried by the
+    # email body and the generic webhook.
+    assert "Host Breakdown:" in slack
     attachment = slack_blocks["attachments"][0]
     blocks = attachment["blocks"]
     assert attachment["color"] == "#ecb22e"  # PASS, but a warning-severity host
@@ -127,13 +131,16 @@ def test_templates_render_with_representative_health_data(tmp_path: Path) -> Non
     assert counters["*Servers checked*"] == "1"
     assert counters["*Auto-fixed*"] == "1"
     assert counters["*Critical errors*"] == "0"
-    host_blocks = [b for b in blocks if b.get("fields") and "*Status*" in b["fields"][0]["text"]]
-    assert len(host_blocks) == 1
-    host_fields = {f["text"].split("\n")[0]: f["text"].split("\n")[1] for f in host_blocks[0]["fields"]}
-    # The whole point of the issue: these were one `|`-joined run-on line.
-    assert host_fields["*Bootloader*"] == "6.8.0-test (latest selected)"
-    assert host_fields["*Reboot*"] == "No (reboot-required-file)"
-    assert host_fields["*Boot space*"] == "Healthy"
+    table = _host_table(blocks)
+    # The whole point of the issue: this was one `|`-joined run-on line.
+    assert table[0].split() == ["HOST", "STATUS", "SEV", "KERNEL", "BOOTLDR", "REBOOT", "/BOOT", "LOGINS"]
+    assert table[2].split() == ["localhost", "Pass", "WARN", "6.8.0-test", "latest", "no", "Healthy", "0"]
+    # Every row is padded to the same width, which is what makes the columns
+    # line up in Slack's monospace code block.
+    assert len({len(line) for line in table[1:]}) == 1
+    # The footer names the project even though the header is customised here.
+    context = " ".join(e["text"] for b in blocks if b["type"] == "context" for e in b["elements"])
+    assert "LinuxVitals" in context
     _assert_block_kit_within_slack_limits(slack_blocks)
 
 
@@ -211,6 +218,19 @@ def test_baseline_postcheck_comparison_detects_improvement_and_regression(tmp_pa
     assert host_d["severity_after"] == "critical"
 
 
+def _host_table(blocks: list) -> list[str]:
+    """The host breakdown as its raw table lines, code fence stripped."""
+    sections = [
+        b["text"]["text"]
+        for b in blocks
+        if b["type"] == "section" and b.get("text", {}).get("text", "").startswith("*Host breakdown*")
+    ]
+    assert len(sections) == 1, "expected exactly one host breakdown block"
+    body = sections[0].split("```")
+    assert len(body) == 3, "host breakdown is not wrapped in a single code fence"
+    return body[1].strip("\n").split("\n")
+
+
 def _assert_block_kit_within_slack_limits(payload: dict) -> None:
     """Structural validity, the way the generic webhook payload is checked.
 
@@ -275,10 +295,14 @@ def test_slack_block_kit_caps_hosts_and_orders_worst_first(tmp_path: Path) -> No
     blocks = attachment["blocks"]
     assert attachment["color"] == "#e01e5a"  # critical errors present
 
-    host_blocks = [b for b in blocks if b.get("fields") and "*Status*" in b["fields"][0]["text"]]
-    assert len(host_blocks) == 10, "linux_vitals_slack_max_hosts was not honoured"
+    table = _host_table(blocks)
+    rows = table[2:]  # heading, rule, then one line per host
+    assert len(rows) == 10, "linux_vitals_slack_max_hosts was not honoured"
+    # One block per host would grow with the fleet; one table does not, which
+    # is what keeps a large fleet inside the 50-block limit.
+    assert len(blocks) <= 12
 
-    shown = [re.search(r"\*(synthetic-\d+)\*", b["text"]["text"]).group(1) for b in host_blocks]
+    shown = [row.split()[0] for row in rows]
     # 01-03 are critical and 04-08 warning, so a worst-first ordering shows
     # exactly those eight before it reaches any info host.
     assert shown[:3] == ["synthetic-01", "synthetic-02", "synthetic-03"]
@@ -294,10 +318,12 @@ def test_slack_block_kit_caps_hosts_and_orders_worst_first(tmp_path: Path) -> No
     attention = [b for b in blocks if "Needs attention first" in b.get("text", {}).get("text", "")]
     assert len(attention) == 1
     assert "synthetic-01" in attention[0]["text"]["text"]
-    assert "Boot partition is low on space" in attention[0]["text"]["text"]
 
     # Host-supplied text reaches the message, so Slack mrkdwn escaping has to
     # happen -- and the payload has to stay valid JSON afterwards.
     rendered = json.dumps(payload)
     assert "&amp;" in rendered and "&lt;" in rendered
-    assert " & " not in rendered and "<primary" not in rendered
+    assert " & " not in rendered and "</boot>" not in rendered
+    # A backtick in host-supplied text would break out of the code fence and
+    # spill the rest of the table into the message as plain text.
+    assert rendered.count("```") == 2

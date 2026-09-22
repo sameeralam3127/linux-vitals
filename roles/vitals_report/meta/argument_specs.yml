@@ -105,9 +105,11 @@ argument_specs:
             never in inventory committed to git.
       linux_vitals_slack_message_header:
         type: str
-        default: Standard Maintenance Summary
+        default: LinuxVitals Health Check
         description:
-          - First line of the Slack message.
+          - Heading shown at the top of the Slack message. The footer always
+            names LinuxVitals regardless of this value, so the message stays
+            identifiable in a busy channel when it is customised.
       linux_vitals_slack_message_footer:
         type: str
         default: ""
@@ -117,19 +119,19 @@ argument_specs:
         type: bool
         default: true
         description:
-          - Include a per-host block in the Slack message. Worth turning
-            off for large fleets, where the breakdown dominates the message.
+          - Include the per-host breakdown table in the Slack message.
       linux_vitals_slack_max_hosts:
         type: int
-        default: 10
+        default: 20
         description:
-          - Maximum number of per-host blocks in the Slack message. Hosts are
+          - Maximum number of rows in the Slack host-breakdown table. Hosts are
             ordered worst-first, so the cap drops the least interesting ones,
             and the message gains a C(+ N more host(s) not shown) note whenever
             it applies.
-          - Clamped to 30 at render time regardless of this value. Slack
-            rejects a message with more than 50 blocks, and rejects it with a
-            bare HTTP 400 that says nothing about the cause.
+          - Clamped to 25 at render time regardless of this value. The table is
+            a single text object and Slack caps those at 3000 characters,
+            rejecting anything longer with a bare HTTP 400 that says nothing
+            about the cause.
       linux_vitals_email_enabled:
         type: bool
         default: false

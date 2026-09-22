@@ -67,10 +67,10 @@ Override any of these in inventory, `group_vars`, or `-e` extra vars.
 | Variable | Default | Description |
 |---|---|---|
 | `linux_vitals_slack_webhook_url` | `""` | Slack incoming webhook URL. Falls back to `.env`'s `SLACK_WEBHOOK_URL` if blank. Empty means Slack is skipped. |
-| `linux_vitals_slack_message_header` | `"Standard Maintenance Summary"` | First line of the Slack message. |
+| `linux_vitals_slack_message_header` | `"LinuxVitals Health Check"` | Heading at the top of the Slack message. The footer names LinuxVitals regardless, so the message stays identifiable when this is customised. |
 | `linux_vitals_slack_message_footer` | `""` | Optional last line of the Slack message. |
-| `linux_vitals_slack_include_host_breakdown` | `true` | Include a per-host block in the Slack message. |
-| `linux_vitals_slack_max_hosts` | `10` | Maximum per-host blocks in the Slack message. Hosts are ordered worst-first, so the cap drops the least interesting ones and the message gains a `+ N more host(s) not shown` note. Clamped to 30 at render time, because Slack rejects a message over 50 blocks with a bare HTTP 400. |
+| `linux_vitals_slack_include_host_breakdown` | `true` | Include the per-host breakdown table in the Slack message. |
+| `linux_vitals_slack_max_hosts` | `20` | Maximum rows in the Slack host-breakdown table. Hosts are ordered worst-first, so the cap drops the least interesting ones and the message gains a `+ N more host(s) not shown` note. Clamped to 25 at render time: the table is one text object and Slack caps those at 3000 characters. |
 
 ## `vitals_report` -- email
 
