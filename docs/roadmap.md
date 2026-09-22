@@ -42,11 +42,17 @@ mapping, from 1.3.1:
 | --- | --- | --- |
 | **1.4 -- Trust** | Q1 | The report can be believed. Nothing new on the dashboard except filesystem capacity. |
 | **1.5 -- Coverage** | Q2 | The report is complete, and the task tree is one a contributor can navigate. |
-| **1.6 -- Observability** | Q3 (exports) | The data leaves the HTML file: OpenMetrics, CSV, pipeline exit status, Block Kit. |
+| **1.6 -- Observability** | Q3 (exports) | The data leaves the HTML file: OpenMetrics, CSV, pipeline exit status. |
 | **1.7 -- Posture** | Q3 (security) + Q4 | Security depth, rule identifiers, and the maintainability work. |
 
 These are targets, not commitments, and a quarter may ship as more than one
-release. 1.4 is the one that matters: it is the release that decides whether
+release. Two Q3/Q4 items have already landed ahead of their quarter --
+[#52](https://github.com/sameeralam3127/linux-vitals/issues/52), which was going to
+carry the Block Kit half of 1.6, and
+[#63](https://github.com/sameeralam3127/linux-vitals/issues/63) -- so both will ship
+in 1.4 instead. Pulling work forward is fine; what is not fine is pulling it
+forward *past* Q1, which is why neither of them displaced anything in the
+trust bucket. 1.4 is the one that matters: it is the release that decides whether
 the project's central claim holds, and no feature in 1.5 or later is worth
 reordering ahead of it.
 
@@ -161,7 +167,7 @@ the HTML file and deepening what it covers.
 
 | Item | Issue | Priority |
 | --- | --- | --- |
-| Render the Slack summary with Block Kit instead of one plain-text blob | [#52](https://github.com/sameeralam3127/linux-vitals/issues/52) | medium |
+| ~~Render the Slack summary with Block Kit instead of one plain-text blob~~ | [#52](https://github.com/sameeralam3127/linux-vitals/issues/52) | done (unreleased) |
 | ~~Add severity-based finding classification and alert thresholds~~ | [#8](https://github.com/sameeralam3127/linux-vitals/issues/8) | done (unreleased) |
 | Export the fleet report as OpenMetrics and CSV | [#35](https://github.com/sameeralam3127/linux-vitals/issues/35) | medium |
 | Add an opt-in non-zero exit so an unhealthy fleet can gate a pipeline | [#41](https://github.com/sameeralam3127/linux-vitals/issues/41) | medium |
@@ -173,20 +179,24 @@ the HTML file and deepening what it covers.
 
 Ordering notes:
 
-- [#52](https://github.com/sameeralam3127/linux-vitals/issues/52) was supposed
-  to come before [#8](https://github.com/sameeralam3127/linux-vitals/issues/8),
-  and did not. The reasoning still stands and is worth keeping on the record:
-  severity classification says it should be "reflected in HTML and Slack", but
-  the Slack message is one plain-text blob with nowhere structured to put it,
-  so building Block Kit first would have given severity somewhere to land.
-  #8 landed first anyway, and the cost the note predicted is now owed --
-  the severity line and the "Needs attention first" list in
-  `slack_message.txt.j2` are plain text, and #52 will rewrite them rather than
-  wrap them. The HTML and JSON halves of #8 are unaffected.
+- [#52](https://github.com/sameeralam3127/linux-vitals/issues/52) is done, out of
+  quarter and ahead of everything above it. It was supposed to come before
+  [#8](https://github.com/sameeralam3127/linux-vitals/issues/8) and did not, and the
+  cost that note predicted was paid exactly as predicted: the severity line
+  and the "Needs attention first" list had been built as plain text in
+  `slack_message.txt.j2`, and #52 rewrote them rather than wrapping them.
 
-  Accepted deliberately: the finding-shape change was blocking more work than
-  the Slack formatting was, and redoing one template is a smaller cost than
-  reworking the three items below against a shape that had not landed yet.
+  The debt was one template, which is what the original note judged it would
+  be, so the call to let #8 go first was the right one -- it unblocked three
+  other items, and redoing one template cost less than reworking all three
+  against a finding shape that had not landed.
+
+  Worth recording for the next time this trade-off comes up: the rewrite also
+  turned out to be where a real bug was found. The old template looped over
+  every host uncapped, so a fleet of roughly 175+ produced a message past
+  Slack's 40,000-character limit, refused with a bare HTTP 400 that `no_log`
+  made nearly undiagnosable. That was a live defect nobody had filed, found
+  only because the formatting work forced someone to read the loop.
 - [#8](https://github.com/sameeralam3127/linux-vitals/issues/8) is done. It
   changed the shape of a finding to `{id, message, severity}`, and the `id` is
   the join key the three items that consume it
@@ -231,7 +241,7 @@ not write it.
 | Concurrent runs sharing an output directory can corrupt reports and snapshots | [#26](https://github.com/sameeralam3127/linux-vitals/issues/26) | low |
 | ~~Add production-grade examples, screenshots, and an operator runbook~~ | [#6](https://github.com/sameeralam3127/linux-vitals/issues/6) | done (unreleased) |
 | Split `render.yml` and de-duplicate the HTML/JSON archive sequence | [#27 (comment)](https://github.com/sameeralam3127/linux-vitals/issues/27#issuecomment-5644135601) | -- |
-| `vitals_certs` has no role README, unlike the other three roles | [#63](https://github.com/sameeralam3127/linux-vitals/issues/63) | low |
+| ~~`vitals_certs` has no role README, unlike the other three roles~~ | [#63](https://github.com/sameeralam3127/linux-vitals/issues/63) | done (unreleased) |
 
 Ordering notes:
 
@@ -240,14 +250,19 @@ Ordering notes:
   [#6](https://github.com/sameeralam3127/linux-vitals/issues/6), because the
   operator runbook should document the final concurrency contract rather than
   the current undefined one.
-- [#63](https://github.com/sameeralam3127/linux-vitals/issues/63) is a
-  documentation gap rather than a feature: `vitals_certs` shipped in
-  [#15](https://github.com/sameeralam3127/linux-vitals/issues/15) without the
-  README the other three roles have, and it is the role a reader is most
-  likely to want documented before enabling it, since it is the only one that
-  opens an outbound connection. It is in this quarter because it is
-  contributor-facing, and it is a reasonable first pull request for someone
-  new.
+- [#63](https://github.com/sameeralam3127/linux-vitals/issues/63) is done, and is
+  the first change in this project written by someone other than the
+  maintainer. It was filed as a documentation gap -- `vitals_certs` shipped in
+  [#15](https://github.com/sameeralam3127/linux-vitals/issues/15) without the README
+  the other three roles have -- and labelled `good first issue` on the theory
+  that it was a reasonable first pull request for someone new.
+
+  That theory held, with one correction worth keeping: the submitted page
+  documented a variable name that does not exist, which review caught before
+  it merged. A wrong variable name in a doc fails the same way a wrong health
+  check does -- Ansible silently accepts an undefined variable, the real
+  default stays in force, and nothing errors -- so it is the class of
+  documentation bug this project should treat as a bug, not a typo.
 - The `render.yml` split is the second half of the refactor started in
   [#27](https://github.com/sameeralam3127/linux-vitals/issues/27) and is
   tracked on that issue rather than separately; at 341 lines it is the second
