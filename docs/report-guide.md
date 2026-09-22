@@ -249,15 +249,38 @@ URL resolves. The shape, top to bottom:
 
 | Part | Content |
 | --- | --- |
+| Preview line | One short line above the card: `LinuxVitals: FAIL -- 3 host(s) checked, 1 critical, 0 auto-fixed` |
 | Colour bar | Green when everything passed, amber when the worst host severity is `warning`, red when there are critical errors or a critical-severity host |
-| Header | `linux_vitals_slack_message_header` |
+| Header | `linux_vitals_slack_message_header` (default `LinuxVitals Health Check`) |
 | Verdict | `PASS`/`FAIL` with an emoji, then the one-line snippet |
 | Counters | Servers checked, auto-fixed, critical errors, health score -- laid out in two columns |
 | Findings roll-up | Counts by severity, for findings and for hosts |
 | Needs attention first | Up to 5 critical hosts, each with up to 3 of its critical findings |
-| Per-host blocks | One block per host: status, uptime, kernel, bootloader, reboot, boot space, failed logins -- as labelled fields, not one `\|`-joined line |
+| Host breakdown | A fixed-width table: host, status, severity, kernel, bootloader, reboot, `/boot`, failed logins |
 | `+ N more` | Shown whenever the host cap applied |
-| Footer | `linux_vitals_slack_message_footer`, if set |
+| Footer | `LinuxVitals · N host(s) scanned`, plus `linux_vitals_slack_message_footer` if set |
+
+The breakdown is a table in a code block:
+
+```text
+HOST          STATUS  SEV   KERNEL         BOOTLDR  REBOOT  /BOOT    LOGINS
+------------  ------  ----  -------------  -------  ------  -------  ------
+web-01        Fail    CRIT  6.8.0-generic  latest   yes     Low      0
+db-04         Pass    WARN  6.8.0-generic  latest   no      Healthy  2
+```
+
+Slack has no table primitive, so a code block is the only way to get columns
+that line up. It is also one block rather than one per host, which is what
+keeps a large fleet inside the 50-block limit. `BOOTLDR` collapses the
+bootloader state to `latest`, `NOT latest`, `unresolved`, or `n/a`; the full
+detail is in the HTML dashboard and the JSON report.
+
+**Why the preview line is short.** Slack renders the top-level `text` field
+*above* the attachment -- it is only a silent fallback when `blocks` sit at the
+top level, which they do not here because the colour bar needs an attachment.
+Putting the full plain-text summary there printed the entire old-style message
+above the new card. The preview is also what the mobile push shows, which is
+why it leads with the verdict.
 
 The verdict word is derived exactly as the plain-text message and the generic
 webhook derive it (`PASS` when `critical_error_count` is zero), so the three
@@ -271,11 +294,10 @@ characters, and it rejects it with a bare HTTP 400 that names no cause, which
 `no_log` then makes harder to diagnose. The cap is clamped to 30 at render
 time regardless of what the variable is set to.
 
-**Plain-text fallback.** The top-level `text` field still carries the old
-plain-text message, because Slack uses it for the mobile push preview and for
-accessibility clients -- a blocks-only message shows as blank in both. That
-same text is what the email body and the generic webhook's `message` field
-carry, unchanged.
+**The plain-text message still exists.** `slack_message.txt.j2` is unchanged
+and is still what the email body and the generic webhook's `message` field
+carry. It is no longer sent to Slack, because Slack would render it above the
+card.
 
 ## Generic webhook payload
 

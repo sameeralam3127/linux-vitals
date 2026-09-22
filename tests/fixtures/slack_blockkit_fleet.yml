@@ -62,9 +62,7 @@
       ansible.builtin.set_fact:
         linux_vitals_result:
           hostname: "{{ inventory_hostname }}"
-          # An ampersand and angle brackets, so the test can prove Slack
-          # mrkdwn escaping happens and that to_json still emits valid JSON.
-          ip_address: "10.0.0.{{ inventory_hostname | regex_replace('[^0-9]', '') | int }} <primary & mgmt>"
+          ip_address: "10.0.0.{{ inventory_hostname | regex_replace('[^0-9]', '') | int }}"
           platform_type: "Virtual Machine"
           uptime: "3d 4h 5m"
           running_kernel: "6.8.0-generic"
@@ -82,7 +80,7 @@
           severity_counts: {info: 0, warning: 0, critical: "{{ 1 if host_severity == 'critical' else 0 }}"}
           findings: >-
             {{
-              [{'id': 'boot_space_low', 'message': 'Boot partition is low on space', 'severity': 'critical'}]
+              [{'id': 'boot_space_low', 'message': 'Boot partition </boot> is low on space & needs attention', 'severity': 'critical'}]
               if host_severity == 'critical' else []
             }}
           comparison:
