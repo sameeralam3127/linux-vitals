@@ -109,7 +109,20 @@ re-running with `-v`, which will not reveal it either.
 ```yaml
 linux_vitals_slack_message_header: "Nightly Fleet Health"
 linux_vitals_slack_include_host_breakdown: true
+linux_vitals_slack_max_hosts: 10
 ```
+
+The summary is sent as [Block Kit](https://api.slack.com/block-kit): a colour
+bar (green, amber, or red), a header, the counters in two columns, and one
+block per host rather than one `|`-joined line per host. See
+[report-guide.md](report-guide.md#the-slack-message) for the shape.
+
+On a large fleet, `linux_vitals_slack_max_hosts` is the setting that matters.
+Hosts are ordered worst-first, so the cap drops the hosts with nothing wrong
+and the message ends with `+ N more host(s) not shown`. Leaving the breakdown
+on for a 500-host fleet is fine; it is capped either way. Set
+`linux_vitals_slack_include_host_breakdown: false` to drop per-host detail
+entirely and keep only the counters.
 
 ```dotenv
 # .env, next to your inventory

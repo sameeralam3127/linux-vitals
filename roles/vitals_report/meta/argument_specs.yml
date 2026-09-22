@@ -117,8 +117,19 @@ argument_specs:
         type: bool
         default: true
         description:
-          - Include a per-host status line in the Slack message. Worth turning
+          - Include a per-host block in the Slack message. Worth turning
             off for large fleets, where the breakdown dominates the message.
+      linux_vitals_slack_max_hosts:
+        type: int
+        default: 10
+        description:
+          - Maximum number of per-host blocks in the Slack message. Hosts are
+            ordered worst-first, so the cap drops the least interesting ones,
+            and the message gains a C(+ N more host(s) not shown) note whenever
+            it applies.
+          - Clamped to 30 at render time regardless of this value. Slack
+            rejects a message with more than 50 blocks, and rejects it with a
+            bare HTTP 400 that says nothing about the cause.
       linux_vitals_email_enabled:
         type: bool
         default: false
