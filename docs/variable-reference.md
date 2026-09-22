@@ -69,7 +69,8 @@ Override any of these in inventory, `group_vars`, or `-e` extra vars.
 | `linux_vitals_slack_webhook_url` | `""` | Slack incoming webhook URL. Falls back to `.env`'s `SLACK_WEBHOOK_URL` if blank. Empty means Slack is skipped. |
 | `linux_vitals_slack_message_header` | `"Standard Maintenance Summary"` | First line of the Slack message. |
 | `linux_vitals_slack_message_footer` | `""` | Optional last line of the Slack message. |
-| `linux_vitals_slack_include_host_breakdown` | `true` | Include a per-host status line in the Slack message. |
+| `linux_vitals_slack_include_host_breakdown` | `true` | Include a per-host block in the Slack message. |
+| `linux_vitals_slack_max_hosts` | `10` | Maximum per-host blocks in the Slack message. Hosts are ordered worst-first, so the cap drops the least interesting ones and the message gains a `+ N more host(s) not shown` note. Clamped to 30 at render time, because Slack rejects a message over 50 blocks with a bare HTTP 400. |
 
 ## `vitals_report` -- email
 

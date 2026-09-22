@@ -20,6 +20,11 @@ linux_vitals_slack_webhook_url: ""
 linux_vitals_slack_message_header: "Standard Maintenance Summary"
 linux_vitals_slack_message_footer: ""
 linux_vitals_slack_include_host_breakdown: true
+# How many per-host blocks the Slack message may contain. Hosts are ordered
+# worst-first, so the cap drops the least interesting ones; the message ends
+# with a "+ N more" note whenever it bites. Slack refuses a message over 50
+# blocks, so this is clamped to 30 at render time no matter what it is set to.
+linux_vitals_slack_max_hosts: 10
 linux_vitals_email_enabled: false
 linux_vitals_email_to: []
 linux_vitals_email_cc: []

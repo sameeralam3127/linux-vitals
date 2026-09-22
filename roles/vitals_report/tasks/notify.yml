@@ -8,6 +8,21 @@
     - reporting
     - notifications
 
+# Rendered in its own task rather than inline in the uri body below, because
+# that task is no_log: a template error there would be reported as a masked
+# task failure with no indication of which line of the template failed. This
+# payload carries the same hostnames and findings the plain-text message
+# already carries, and no credential, so it does not need masking itself.
+- name: Render the Slack Block Kit payload
+  ansible.builtin.set_fact:
+    linux_vitals_slack_payload: "{{ lookup('ansible.builtin.template', 'slack_message.json.j2') | from_json }}"
+  delegate_to: localhost
+  run_once: true
+  when: linux_vitals_effective_slack_webhook_url | length > 0
+  tags:
+    - reporting
+    - notifications
+
 # Every send below is no_log because its arguments are credentials: an incoming
 # webhook URL *is* the bearer token for that channel, linux_vitals_generic_
 # webhook_headers is the documented place to put an Authorization header, and
@@ -24,8 +39,7 @@
     url: "{{ linux_vitals_effective_slack_webhook_url }}"
     method: POST
     body_format: json
-    body:
-      text: "{{ linux_vitals_notification_message }}"
+    body: "{{ linux_vitals_slack_payload }}"
     status_code: 200
   register: linux_vitals_slack_delivery
   no_log: true

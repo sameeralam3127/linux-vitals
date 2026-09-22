@@ -1,0 +1,171 @@
+{#-
+  Slack incoming-webhook payload, rendered as Block Kit.
+
+  The whole payload is assembled as native Jinja structures and serialised
+  once with `to_json` at the bottom, rather than written out as JSON text.
+  That is deliberate: a hand-written JSON template has to get quoting,
+  comma placement, and escaping right at every interpolation, and a single
+  hostname containing a quote breaks the message for the whole fleet. Here
+  `to_json` owns all of that, and the only escaping left to do by hand is
+  Slack's own mrkdwn escaping (`&`, `<`, `>`), which `esc()` applies.
+
+  Slack limits respected below:
+    - 50 blocks per message            -> host rendering is clamped (see budget)
+    - 3000 characters per text object  -> esc()/trunc() cap every text field
+    - 10 fields per section block      -> 7 used per host
+    - 150 characters per plain_text header
+
+  `text` at the top level is the fallback: Slack uses it for the mobile push
+  preview and for accessibility clients, and a blocks-only message shows as
+  blank in both. slack_message.txt.j2 is exactly the right content for that,
+  so it is still rendered (into linux_vitals_notification_message) and reused
+  here rather than being replaced. It goes through esc() as well, because
+  Slack parses the top-level `text` as mrkdwn: an unescaped hostname or
+  finding containing `<...>` is read as link syntax and disappears from the
+  push preview.
+-#}
+{#- Slack mrkdwn escaping. Truncate first, then escape, so an entity can
+    never be sliced in half by the length cap. -#}
+{%- macro esc(value, limit=280) -%}
+{{ value | string | truncate(limit, true, '…', 0) | replace('&', '&amp;') | replace('<', '&lt;') | replace('>', '&gt;') }}
+{%- endmacro -%}
+{%- set severity_order = ['critical', 'warning', 'info', 'none'] -%}
+{%- set severity_icon = {'critical': ':rotating_light:', 'warning': ':warning:', 'info': ':information_source:', 'none': ':white_check_mark:'} -%}
+{%- set hbs = linux_vitals_summary.hosts_by_severity | default({}) -%}
+{%- set fbs = linux_vitals_summary.findings_by_severity | default({}) -%}
+{%- set critical_errors = linux_vitals_summary.critical_error_count | int -%}
+{#- The PASS/FAIL word is derived exactly as slack_message.txt.j2 and
+    generic_webhook_payload.json.j2 derive it. Severity only chooses the
+    colour bar, so the three consumers can never disagree on the verdict. -#}
+{%- set status_word = 'PASS' if critical_errors == 0 else 'FAIL' -%}
+{%- if critical_errors > 0 or (hbs.get('critical', 0) | int) > 0 -%}
+{%- set colour = '#e01e5a' -%}
+{%- set status_icon = ':rotating_light:' -%}
+{%- elif (hbs.get('warning', 0) | int) > 0 -%}
+{%- set colour = '#ecb22e' -%}
+{%- set status_icon = ':warning:' -%}
+{%- else -%}
+{%- set colour = '#2eb67d' -%}
+{%- set status_icon = ':white_check_mark:' -%}
+{%- endif -%}
+{#- Collect the per-host results, then order them worst-first so the hosts
+    that survive the cap are the ones worth reading. Bucketing by severity
+    beats sorting: Jinja cannot sort by a rank map, and sorting tuples that
+    end in a dict risks comparing dicts when the ranks tie. -#}
+{%- set ns = namespace(results=[], ordered=[], blocks=[], lines=[]) -%}
+{%- for host in linux_vitals_reporting_hosts | default(ansible_play_hosts_all) -%}
+{%- set _ = ns.results.append(hostvars[host]['linux_vitals_result']) -%}
+{%- endfor -%}
+{%- set by_name = ns.results | sort(attribute='hostname') -%}
+{%- for level in severity_order -%}
+{%- for result in by_name -%}
+{%- if (result.severity | default('none')) == level -%}
+{%- set _ = ns.ordered.append(result) -%}
+{%- endif -%}
+{%- endfor -%}
+{%- endfor -%}
+{#- A severity value outside the known set would otherwise be dropped
+    silently, and a host missing from an alert is the failure mode this
+    project treats as worst. Append anything the buckets did not claim. -#}
+{%- for result in by_name -%}
+{%- if result not in ns.ordered -%}
+{%- set _ = ns.ordered.append(result) -%}
+{%- endif -%}
+{%- endfor -%}
+{#- Host budget. linux_vitals_slack_max_hosts is the operator's cap; 30 is a
+    hard ceiling that keeps the message inside Slack's 50-block limit no
+    matter what that variable is set to (8 non-host blocks at most). -#}
+{%- set requested_hosts = linux_vitals_slack_max_hosts | default(10) | int -%}
+{%- set host_budget = [[requested_hosts, 30] | min, 0] | max -%}
+{%- set shown = ns.ordered[:host_budget] -%}
+{%- set hidden = ns.ordered | length - shown | length -%}
+{#- 1. Header -#}
+{%- set _ = ns.blocks.append({
+  'type': 'header',
+  'text': {'type': 'plain_text', 'text': linux_vitals_slack_message_header | string | truncate(150, true, '…', 0), 'emoji': true}
+}) -%}
+{#- 2. Overall verdict -#}
+{%- set _ = ns.blocks.append({
+  'type': 'section',
+  'text': {'type': 'mrkdwn', 'text': status_icon ~ ' *Overall status: ' ~ status_word ~ '*\n' ~ esc(linux_vitals_summary.snippet)}
+}) -%}
+{#- 3. Counters, two columns -#}
+{%- set _ = ns.blocks.append({
+  'type': 'section',
+  'fields': [
+    {'type': 'mrkdwn', 'text': '*Servers checked*\n' ~ (linux_vitals_summary.servers_checked | int)},
+    {'type': 'mrkdwn', 'text': '*Auto-fixed*\n' ~ (linux_vitals_summary.auto_fixed_count | int)},
+    {'type': 'mrkdwn', 'text': '*Critical errors*\n' ~ critical_errors},
+    {'type': 'mrkdwn', 'text': '*Health score*\n' ~ (linux_vitals_summary.health_score_pct | default(0)) ~ '% (' ~ esc(linux_vitals_summary.health_score_band | default('Unknown'), 40) ~ ')'}
+  ]
+}) -%}
+{#- 4. Severity roll-up, only when there is anything to roll up -#}
+{%- if (fbs.get('critical', 0) | int) + (fbs.get('warning', 0) | int) + (fbs.get('info', 0) | int) > 0 -%}
+{%- set _ = ns.blocks.append({
+  'type': 'context',
+  'elements': [{'type': 'mrkdwn', 'text': '*Findings* ' ~ (fbs.get('critical', 0) | int) ~ ' critical · ' ~ (fbs.get('warning', 0) | int) ~ ' warning · ' ~ (fbs.get('info', 0) | int) ~ ' info  ·  *Hosts* ' ~ (hbs.get('critical', 0) | int) ~ ' critical · ' ~ (hbs.get('warning', 0) | int) ~ ' warning'}]
+}) -%}
+{%- endif -%}
+{#- 5. Needs attention first: the critical hosts and why, before the
+    breakdown. Capped independently of the breakdown, because this is the
+    part an operator reads when the channel is busy. -#}
+{%- set critical_results = ns.ordered | selectattr('severity', 'defined') | selectattr('severity', 'equalto', 'critical') | list -%}
+{%- if critical_results -%}
+{%- for result in critical_results[:5] -%}
+{%- set messages = [] -%}
+{%- for finding in result.findings | default([]) -%}
+{%- if finding is mapping and finding.severity | default('') == 'critical' -%}
+{%- set _ = messages.append(esc(finding.message, 120)) -%}
+{%- endif -%}
+{%- endfor -%}
+{%- set _ = ns.lines.append('• *' ~ esc(result.hostname, 80) ~ '* — ' ~ (messages[:3] | join('; ') if messages else 'critical severity')) -%}
+{%- endfor -%}
+{%- if critical_results | length > 5 -%}
+{%- set _ = ns.lines.append('_…and ' ~ (critical_results | length - 5) ~ ' more critical host(s)_') -%}
+{%- endif -%}
+{%- set _ = ns.blocks.append({
+  'type': 'section',
+  'text': {'type': 'mrkdwn', 'text': ('*Needs attention first*\n' ~ (ns.lines | join('\n'))) | truncate(2900, true, '…', 0)}
+}) -%}
+{%- endif -%}
+{#- 6-8. Per-host breakdown, one section per host instead of one run-on line -#}
+{%- if linux_vitals_slack_include_host_breakdown and shown -%}
+{%- set _ = ns.blocks.append({'type': 'divider'}) -%}
+{%- for result in shown -%}
+{%- set level = result.severity | default('none') -%}
+{%- if result.bootloader_default_status | default('') == 'resolved' -%}
+{%- set bootloader = esc(result.bootloader_default_kernel, 60) ~ (' (latest selected)' if result.bootloader_default_matches_latest else ' (latest not selected)') -%}
+{%- elif result.bootloader_default_status | default('') == 'entry-only' -%}
+{%- set bootloader = esc(result.bootloader_default_entry, 60) ~ ' (kernel unresolved)' -%}
+{%- else -%}
+{%- set bootloader = 'Not available' -%}
+{%- endif -%}
+{%- set _ = ns.blocks.append({
+  'type': 'section',
+  'text': {'type': 'mrkdwn', 'text': (severity_icon.get(level, ':grey_question:')) ~ ' *' ~ esc(result.hostname, 80) ~ '*  ·  ' ~ esc(result.ip_address | default('no address'), 45) ~ '  ·  ' ~ esc(result.platform_type | default('unknown'), 40)},
+  'fields': [
+    {'type': 'mrkdwn', 'text': '*Status*\n' ~ esc(result.final_status, 20) ~ (' (' ~ level ~ ')' if level != 'none' else '')},
+    {'type': 'mrkdwn', 'text': '*Uptime*\n' ~ esc(result.uptime | default('unknown'), 40)},
+    {'type': 'mrkdwn', 'text': '*Kernel*\n' ~ esc(result.running_kernel | default('unknown'), 60) ~ ('' if result.latest_kernel_selected | default(true) else ' _(latest installed not active)_')},
+    {'type': 'mrkdwn', 'text': '*Bootloader*\n' ~ bootloader},
+    {'type': 'mrkdwn', 'text': '*Reboot*\n' ~ ('Required' if result.reboot_required else 'No') ~ ' (' ~ esc(result.reboot_required_source | default('unavailable'), 60) ~ ')'},
+    {'type': 'mrkdwn', 'text': '*Boot space*\n' ~ esc(result.boot_space_status | default('unknown'), 40)},
+    {'type': 'mrkdwn', 'text': '*Failed logins*\n' ~ (result.failed_login_count | default(0) | int)}
+  ]
+}) -%}
+{%- endfor -%}
+{%- if hidden > 0 -%}
+{%- set _ = ns.blocks.append({
+  'type': 'context',
+  'elements': [{'type': 'mrkdwn', 'text': '+ ' ~ hidden ~ ' more host(s) not shown — worst-first, see the dashboard for the full fleet.'}]
+}) -%}
+{%- endif -%}
+{%- endif -%}
+{#- 9. Footer -#}
+{%- if linux_vitals_slack_message_footer | default('') | trim -%}
+{%- set _ = ns.blocks.append({
+  'type': 'context',
+  'elements': [{'type': 'mrkdwn', 'text': esc(linux_vitals_slack_message_footer)}]
+}) -%}
+{%- endif -%}
+{{ {'text': esc(linux_vitals_notification_message, 2900), 'attachments': [{'color': colour, 'fallback': linux_vitals_slack_message_header | string ~ ': ' ~ status_word, 'blocks': ns.blocks}]} | to_json }}

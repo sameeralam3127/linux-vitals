@@ -242,6 +242,41 @@ health score, raising the threshold raises the score.
 An unrecognised value falls back to failing on anything, so a typo in
 `group_vars` cannot silently pass a broken fleet.
 
+## The Slack message
+
+Sent as [Block Kit](https://api.slack.com/block-kit) whenever a Slack webhook
+URL resolves. The shape, top to bottom:
+
+| Part | Content |
+| --- | --- |
+| Colour bar | Green when everything passed, amber when the worst host severity is `warning`, red when there are critical errors or a critical-severity host |
+| Header | `linux_vitals_slack_message_header` |
+| Verdict | `PASS`/`FAIL` with an emoji, then the one-line snippet |
+| Counters | Servers checked, auto-fixed, critical errors, health score -- laid out in two columns |
+| Findings roll-up | Counts by severity, for findings and for hosts |
+| Needs attention first | Up to 5 critical hosts, each with up to 3 of its critical findings |
+| Per-host blocks | One block per host: status, uptime, kernel, bootloader, reboot, boot space, failed logins -- as labelled fields, not one `\|`-joined line |
+| `+ N more` | Shown whenever the host cap applied |
+| Footer | `linux_vitals_slack_message_footer`, if set |
+
+The verdict word is derived exactly as the plain-text message and the generic
+webhook derive it (`PASS` when `critical_error_count` is zero), so the three
+can never disagree. Severity only chooses the colour.
+
+**Ordering and the cap.** Hosts are sorted worst-first -- critical, warning,
+info, then everything else -- and only the first `linux_vitals_slack_max_hosts`
+(default 10) are rendered. The cap therefore drops the hosts with nothing
+wrong. This is not cosmetic: Slack rejects a message over 50 blocks or 40,000
+characters, and it rejects it with a bare HTTP 400 that names no cause, which
+`no_log` then makes harder to diagnose. The cap is clamped to 30 at render
+time regardless of what the variable is set to.
+
+**Plain-text fallback.** The top-level `text` field still carries the old
+plain-text message, because Slack uses it for the mobile push preview and for
+accessibility clients -- a blocks-only message shows as blank in both. That
+same text is what the email body and the generic webhook's `message` field
+carry, unchanged.
+
 ## Generic webhook payload
 
 Sent as a JSON POST body when `linux_vitals_generic_webhook_enabled: true`

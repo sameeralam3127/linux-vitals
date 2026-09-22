@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import json
+import re
 import subprocess
 from pathlib import Path
 from shutil import which
@@ -11,6 +12,14 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 PLAYBOOK = REPO_ROOT / "tests" / "fixtures" / "render_templates.yml"
 ARCHIVE_PLAYBOOK = REPO_ROOT / "tests" / "fixtures" / "report_archiving.yml"
 COMPARE_PLAYBOOK = REPO_ROOT / "tests" / "fixtures" / "maintenance_compare.yml"
+SLACK_FLEET_PLAYBOOK = REPO_ROOT / "tests" / "fixtures" / "slack_blockkit_fleet.yml"
+
+# Slack's documented Block Kit limits. Exceeding any of them is rejected
+# with a bare HTTP 400 that names no cause, so they are asserted here
+# rather than discovered in a channel.
+SLACK_MAX_BLOCKS = 50
+SLACK_MAX_TEXT = 3000
+SLACK_MAX_FIELDS = 10
 
 
 def _ensure_dev_collection_symlink() -> None:
@@ -72,6 +81,7 @@ def test_templates_render_with_representative_health_data(tmp_path: Path) -> Non
     report = (tmp_path / "report.html").read_text(encoding="utf-8")
     slack = (tmp_path / "slack.txt").read_text(encoding="utf-8")
     generic_webhook = json.loads((tmp_path / "generic_webhook.json").read_text(encoding="utf-8"))
+    slack_blocks = json.loads((tmp_path / "slack.json").read_text(encoding="utf-8"))
     json_report = json.loads((tmp_path / "report.json").read_text(encoding="utf-8"))
 
     assert "LinuxVitals Test Dashboard" in report
@@ -99,6 +109,32 @@ def test_templates_render_with_representative_health_data(tmp_path: Path) -> Non
     assert generic_webhook["hosts"][0]["reboot_required_source"] == "reboot-required-file"
     assert "Reboot: No (reboot-required-file)" in slack
     assert json_report["hosts"][0]["security"]["apparmor_status"] == "enabled"
+
+    # The plain-text message is still rendered, and is still what the email
+    # body and the generic webhook carry -- the Block Kit payload reuses it as
+    # the `text` fallback rather than replacing it. A blocks-only message
+    # shows as blank in Slack's mobile push and to accessibility clients.
+    assert slack_blocks["text"] == slack
+    attachment = slack_blocks["attachments"][0]
+    blocks = attachment["blocks"]
+    assert attachment["color"] == "#ecb22e"  # PASS, but a warning-severity host
+    assert blocks[0] == {
+        "type": "header",
+        "text": {"type": "plain_text", "text": "Standard Maintenance Summary", "emoji": True},
+    }
+    assert ":warning: *Overall status: PASS*" in blocks[1]["text"]["text"]
+    counters = {f["text"].split("\n")[0]: f["text"].split("\n")[1] for f in blocks[2]["fields"]}
+    assert counters["*Servers checked*"] == "1"
+    assert counters["*Auto-fixed*"] == "1"
+    assert counters["*Critical errors*"] == "0"
+    host_blocks = [b for b in blocks if b.get("fields") and "*Status*" in b["fields"][0]["text"]]
+    assert len(host_blocks) == 1
+    host_fields = {f["text"].split("\n")[0]: f["text"].split("\n")[1] for f in host_blocks[0]["fields"]}
+    # The whole point of the issue: these were one `|`-joined run-on line.
+    assert host_fields["*Bootloader*"] == "6.8.0-test (latest selected)"
+    assert host_fields["*Reboot*"] == "No (reboot-required-file)"
+    assert host_fields["*Boot space*"] == "Healthy"
+    _assert_block_kit_within_slack_limits(slack_blocks)
 
 
 def test_reporting_archives_timestamped_outputs_and_prunes_old_reports(tmp_path: Path) -> None:
@@ -173,3 +209,95 @@ def test_baseline_postcheck_comparison_detects_improvement_and_regression(tmp_pa
     # current wording and current severity rather than the baseline's.
     assert host_d["severity_before"] == "warning"
     assert host_d["severity_after"] == "critical"
+
+
+def _assert_block_kit_within_slack_limits(payload: dict) -> None:
+    """Structural validity, the way the generic webhook payload is checked.
+
+    Not a schema validator -- it asserts the invariants that actually break a
+    real send: the limits Slack enforces, and the shape it requires.
+    """
+    assert isinstance(payload.get("text"), str) and payload["text"].strip()
+
+    for attachment in payload["attachments"]:
+        blocks = attachment["blocks"]
+        assert len(blocks) <= SLACK_MAX_BLOCKS, f"{len(blocks)} blocks exceeds Slack's limit"
+        assert attachment["color"].startswith("#")
+
+        for block in blocks:
+            assert block["type"] in {"header", "section", "divider", "context"}
+
+            if "text" in block:
+                text = block["text"]
+                assert text["type"] in {"plain_text", "mrkdwn"}
+                assert len(text["text"]) <= SLACK_MAX_TEXT
+                if block["type"] == "header":
+                    # Slack renders no markup in a header and caps it at 150.
+                    assert text["type"] == "plain_text"
+                    assert len(text["text"]) <= 150
+
+            if "fields" in block:
+                assert len(block["fields"]) <= SLACK_MAX_FIELDS
+                for field in block["fields"]:
+                    assert field["type"] == "mrkdwn"
+                    assert 0 < len(field["text"]) <= 2000
+
+            if block["type"] == "context":
+                assert 0 < len(block["elements"]) <= 10
+
+            # Every block has to render something; an empty section is a
+            # silently blank line in the channel.
+            assert "text" in block or "fields" in block or "elements" in block or block["type"] == "divider"
+
+
+def test_slack_block_kit_caps_hosts_and_orders_worst_first(tmp_path: Path) -> None:
+    """A 25-host fleet against a cap of 10.
+
+    Covers what the single-host fixture cannot: the cap, the ordering that
+    decides which hosts survive it, the "+ N more" note, and the fact that a
+    large fleet still produces a message Slack will accept. Before this
+    template existed, ~175 hosts produced a message over Slack's 40,000
+    character limit and the send failed with an unexplained HTTP 400.
+    """
+    env = _base_env(tmp_path)
+
+    subprocess.run(
+        [_ansible_playbook_bin(), str(SLACK_FLEET_PLAYBOOK)],
+        check=True,
+        cwd=REPO_ROOT,
+        env=env,
+    )
+
+    payload = json.loads((tmp_path / "slack_fleet.json").read_text(encoding="utf-8"))
+    _assert_block_kit_within_slack_limits(payload)
+
+    attachment = payload["attachments"][0]
+    blocks = attachment["blocks"]
+    assert attachment["color"] == "#e01e5a"  # critical errors present
+
+    host_blocks = [b for b in blocks if b.get("fields") and "*Status*" in b["fields"][0]["text"]]
+    assert len(host_blocks) == 10, "linux_vitals_slack_max_hosts was not honoured"
+
+    shown = [re.search(r"\*(synthetic-\d+)\*", b["text"]["text"]).group(1) for b in host_blocks]
+    # 01-03 are critical and 04-08 warning, so a worst-first ordering shows
+    # exactly those eight before it reaches any info host.
+    assert shown[:3] == ["synthetic-01", "synthetic-02", "synthetic-03"]
+    assert shown[:8] == [f"synthetic-{n:02d}" for n in range(1, 9)]
+    # The ten "none" hosts are the least interesting, so none of them survive.
+    assert not any(host in shown for host in (f"synthetic-{n:02d}" for n in range(16, 26)))
+
+    context_text = " ".join(
+        element["text"] for block in blocks if block["type"] == "context" for element in block["elements"]
+    )
+    assert "+ 15 more host(s) not shown" in context_text
+
+    attention = [b for b in blocks if "Needs attention first" in b.get("text", {}).get("text", "")]
+    assert len(attention) == 1
+    assert "synthetic-01" in attention[0]["text"]["text"]
+    assert "Boot partition is low on space" in attention[0]["text"]["text"]
+
+    # Host-supplied text reaches the message, so Slack mrkdwn escaping has to
+    # happen -- and the payload has to stay valid JSON afterwards.
+    rendered = json.dumps(payload)
+    assert "&amp;" in rendered and "&lt;" in rendered
+    assert " & " not in rendered and "<primary" not in rendered

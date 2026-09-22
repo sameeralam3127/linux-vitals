@@ -8,6 +8,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **The Slack summary is now Block Kit, not one plain-text blob**
+  ([#52](https://github.com/sameeralam3127/linux-vitals/issues/52)). The
+  message gains a colour bar (green / amber / red), a header, the counters in
+  two columns, and one block per host with labelled fields -- replacing the
+  run-on line of nine `|`-separated fields that soft-wrapped into a paragraph
+  at exactly the moment there was most to read. `FAIL` no longer has the same
+  visual weight as `Uptime`.
+
+  New `linux_vitals_slack_max_hosts` (default `10`) caps the per-host blocks.
+  Hosts are ordered worst-first -- critical, warning, info, then the rest --
+  so the cap drops the hosts with nothing wrong, and the message ends with
+  `+ N more host(s) not shown`. This fixes a real failure rather than tidying
+  output: the old template looped over every host uncapped, so a fleet of
+  roughly 175+ produced a message past Slack's 40,000-character limit, and
+  Slack refused it with a bare HTTP 400 that `no_log` made almost impossible
+  to diagnose.
+
+  The plain-text message is unchanged and still sent as the top-level `text`
+  fallback, which Slack uses for the mobile push preview and for accessibility
+  clients. The email body and the generic webhook payload are untouched.
+
 - **An operator runbook** ([#6](https://github.com/sameeralam3127/linux-vitals/issues/6)),
   at [docs/runbook.md](docs/runbook.md). One section per finding -- what it
   actually means, the commands to confirm it independently, and what to do --
