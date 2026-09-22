@@ -1,0 +1,223 @@
+/* Command builder.
+   Uses the page's existing custom properties (--surface, --line, --accent,
+   ...) so it inherits both themes automatically and needs no colours of its
+   own beyond the two state washes. */
+
+.cb {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 420px);
+  gap: 28px;
+  align-items: start;
+}
+@media (max-width: 960px) {
+  .cb { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---------- controls ---------- */
+
+.cb-panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px;
+}
+.cb-panel + .cb-panel { margin-top: 16px; }
+
+.cb-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.cb-search {
+  flex: 1 1 200px;
+  min-width: 0;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--bg-alt);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+}
+.cb-search:focus-visible,
+.cb-field input:focus-visible,
+.cb-field select:focus-visible,
+.cb-field textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.cb-btn {
+  padding: 9px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cb-btn:hover { border-color: var(--accent-dim); }
+.cb-btn[aria-pressed="true"] {
+  background: var(--accent-wash);
+  border-color: var(--accent-dim);
+  color: var(--ink);
+}
+
+.cb-group > summary {
+  cursor: pointer;
+  padding: 12px 4px;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 650;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  list-style: none;
+}
+.cb-group > summary::-webkit-details-marker { display: none; }
+.cb-group > summary::before {
+  content: "▸";
+  color: var(--ink-3);
+  transition: transform 0.15s ease;
+}
+.cb-group[open] > summary::before { transform: rotate(90deg); }
+.cb-group + .cb-group { border-top: 1px solid var(--line-soft); }
+.cb-group-note {
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--ink-3);
+}
+.cb-count {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-3);
+  font-weight: 500;
+}
+.cb-count[data-changed="true"] {
+  color: var(--accent);
+}
+
+.cb-field {
+  display: grid;
+  gap: 5px;
+  padding: 11px 0;
+  border-top: 1px solid var(--line-soft);
+}
+.cb-field.is-hidden { display: none; }
+.cb-field-head {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+.cb-field label {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--ink);
+  word-break: break-all;
+}
+.cb-field.is-changed label { color: var(--accent); }
+.cb-type {
+  font-size: 11px;
+  color: var(--ink-3);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+.cb-help {
+  font-size: 12.5px;
+  color: var(--ink-2);
+  line-height: 1.5;
+  margin: 0;
+}
+.cb-help code {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  background: var(--surface-2);
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+.cb-field input[type="text"],
+.cb-field input[type="number"],
+.cb-field select,
+.cb-field textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--bg-alt);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+.cb-field textarea { resize: vertical; min-height: 58px; }
+.cb-check { display: flex; align-items: center; gap: 9px; }
+.cb-check input { width: 16px; height: 16px; accent-color: var(--accent); }
+
+.cb-secret {
+  border-left: 2px solid var(--warning);
+  padding-left: 10px;
+  margin-left: -12px;
+}
+.cb-warn {
+  font-size: 12px;
+  color: var(--warning);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.cb-empty {
+  padding: 20px 4px;
+  color: var(--ink-3);
+  font-size: 13.5px;
+}
+
+/* ---------- output ---------- */
+
+.cb-out { position: sticky; top: 76px; }
+@media (max-width: 960px) { .cb-out { position: static; } }
+
+.cb-out .code {
+  max-height: 460px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.cb-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.cb-chip {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--ink-2);
+}
+.cb-chip[data-tone="accent"] {
+  background: var(--accent-wash);
+  border-color: var(--accent-dim);
+  color: var(--ink);
+}
+.cb-chip[data-tone="warn"] {
+  background: var(--warning-wash);
+  border-color: var(--warning);
+  color: var(--ink);
+}
+.cb-note {
+  font-size: 12.5px;
+  color: var(--ink-2);
+  line-height: 1.55;
+  margin: 12px 0 0;
+}
+.cb-note strong { color: var(--ink); }

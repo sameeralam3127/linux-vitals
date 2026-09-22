@@ -390,6 +390,7 @@
   .reveal.in { opacity: 1; transform: none; }
   @media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; } }
 </style>
+<link rel="stylesheet" href="assets/command-builder.css">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -408,6 +409,7 @@
       <a href="#detection">Detection</a>
       <a href="#workflow">Workflow</a>
       <a href="#install">Install</a>
+      <a href="#builder">Command builder</a>
       <a href="#roadmap">Roadmap</a>
       <a class="nav-cta" href="https://github.com/sameeralam3127/linux-vitals">GitHub ↗</a>
     </nav>
@@ -718,6 +720,79 @@ ansible-playbook -i inventory.ini sameeralam3127.linux_vitals.postcheck \
   </div>
 </section>
 
+<section id="builder">
+  <div class="wrap">
+    <span class="kicker reveal">Command builder</span>
+    <h2 class="reveal">Build the exact command, from the real variables</h2>
+    <p class="sub reveal">Every option below is generated from the collection's own <code>meta/argument_specs.yml</code> &mdash; all 51 variables across the four roles, with their real defaults. Change what you need; only what differs from a default ends up in the output.</p>
+
+    <div class="cb reveal">
+      <div>
+        <div class="cb-panel">
+          <div class="cb-field" style="border-top:0;padding-top:0">
+            <div class="cb-field-head"><label for="cb-playbook">Playbook</label></div>
+            <select id="cb-playbook">
+              <option value="healthcheck">healthcheck &mdash; one-shot check</option>
+              <option value="baseline">baseline &mdash; before a maintenance window</option>
+              <option value="postcheck">postcheck &mdash; after it, with the before/after diff</option>
+            </select>
+          </div>
+          <div class="cb-field">
+            <div class="cb-field-head"><label for="cb-inventory">Inventory</label></div>
+            <input type="text" id="cb-inventory" value="inventory.ini">
+            <p class="cb-help">Report paths and the <code>.env</code> lookup resolve from this file's directory, not from the playbook's.</p>
+          </div>
+          <div class="cb-field" id="cb-maintenance-row" style="display:none">
+            <div class="cb-field-head"><label for="cb-maintenance">Maintenance ID</label></div>
+            <input type="text" id="cb-maintenance" placeholder="CHG-2026-0912">
+            <p class="cb-help">Pass the same id to <code>baseline</code> and <code>postcheck</code> to get the comparison.</p>
+          </div>
+          <div class="cb-field">
+            <div class="cb-field-head"><label for="cb-forks">Forks</label></div>
+            <input type="number" id="cb-forks" placeholder="5" min="1">
+            <p class="cb-help">Ansible's default is 5. Raising this is the cheapest fleet-scale win; match it to control-node cores and to what your bastion tolerates.</p>
+          </div>
+          <div class="cb-field">
+            <div class="cb-check"><input type="checkbox" id="cb-become"><label for="cb-become">become (privilege escalation)</label></div>
+            <p class="cb-help">Needed to read <code>/var/log/btmp</code>, the journal, and <code>grub.cfg</code>. Without it those checks degrade quietly. Set it in the inventory rather than with <code>--become</code>, which would also try to escalate on the control node during reporting.</p>
+          </div>
+          <div class="cb-field">
+            <div class="cb-check"><input type="checkbox" id="cb-checkmode"><label for="cb-checkmode">--check (dry run)</label></div>
+          </div>
+          <div class="cb-field">
+            <div class="cb-field-head"><label>Tags</label></div>
+            <div class="cb-toolbar" id="cb-tags" style="margin:4px 0 0"></div>
+            <p class="cb-help">Leave all off to run everything. Include <code>reporting</code> with any focused tag, or the run produces no output file.</p>
+          </div>
+        </div>
+
+        <div class="cb-panel">
+          <div class="cb-toolbar">
+            <input type="search" class="cb-search" id="cb-search" placeholder="Filter variables…" aria-label="Filter variables">
+            <button type="button" class="cb-btn" id="cb-only-changed" aria-pressed="false">Changed only</button>
+            <button type="button" class="cb-btn" id="cb-reset">Reset</button>
+          </div>
+          <div id="cb-form"></div>
+        </div>
+      </div>
+
+      <div class="cb-out">
+        <div class="cb-panel">
+          <div class="cb-summary" id="cb-chips"></div>
+          <div class="cb-toolbar" style="margin-bottom:12px">
+            <button type="button" class="cb-btn" data-view="cli" aria-pressed="true">Command</button>
+            <button type="button" class="cb-btn" data-view="yaml" aria-pressed="false">group_vars</button>
+            <button type="button" class="cb-btn" data-view="env" aria-pressed="false">.env</button>
+          </div>
+          <div class="code-head"><span class="fname">output</span><button class="cb-btn" id="cb-copy" type="button">Copy</button></div>
+          <pre class="code" id="cb-output"></pre>
+          <p class="cb-note" id="cb-note"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section id="roadmap" style="background: var(--bg-alt); border-block: 1px solid var(--line);">
   <div class="wrap">
     <span class="kicker reveal">What's next</span>
@@ -1009,5 +1084,7 @@ ansible-playbook -i inventory.ini sameeralam3127.linux_vitals.postcheck \
   }).catch(function () {});
 })();
 </script>
+<script src="assets/variables.js"></script>
+<script src="assets/command-builder.js"></script>
 </body>
 </html>
