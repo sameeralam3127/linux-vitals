@@ -33,7 +33,7 @@ find_chrome() {
     "/Applications/Chromium.app/Contents/MacOS/Chromium" \
     "$(command -v google-chrome-stable || true)" \
     "$(command -v chromium || true)"; do
-    [ -x "${c}" ] && { echo "${c}"; return 0; }
+    [[ -x "${c}" ]] && { echo "${c}"; return 0; }
   done
   return 1
 }
