@@ -35,7 +35,7 @@ docker info >/dev/null 2>&1 || die "the Docker daemon is not running."
 command -v ansible-playbook >/dev/null 2>&1 || die "ansible-playbook is not on PATH."
 
 SIZES=("$@")
-[ ${#SIZES[@]} -gt 0 ] || SIZES=(5)
+[[ ${#SIZES[@]} -gt 0 ]] || SIZES=(5)
 
 teardown() {
   docker ps -aq --filter "name=lv-bench-" | xargs -r docker rm -f >/dev/null 2>&1 || true
@@ -54,7 +54,7 @@ start_fleet() {
   done
   # Wait for the last one; they boot in parallel and take about the same time.
   local tries=60
-  while [ "${tries}" -gt 0 ]; do
+  while [[ "${tries}" -gt 0 ]]; do
     case "$(docker exec "lv-bench-${n}" systemctl is-system-running 2>/dev/null || true)" in
       running|degraded) return 0 ;;
     esac
@@ -121,8 +121,8 @@ run_size() {
   cpu="$(grep -Eo '(User time \(seconds\): |[0-9.]+[[:space:]]+user)' -A0 "${log}" | grep -Eo '[0-9.]+' | head -1 || true)"
 
   # macOS reports RSS in bytes, GNU time in kilobytes.
-  if [ -n "${rss}" ]; then
-    if [ "${rss}" -gt 10000000 ]; then rss="$((rss / 1048576)) MB"; else rss="$((rss / 1024)) MB"; fi
+  if [[ -n "${rss}" ]]; then
+    if [[ "${rss}" -gt 10000000 ]]; then rss="$((rss / 1048576)) MB"; else rss="$((rss / 1024)) MB"; fi
   else
     rss="n/a"
   fi

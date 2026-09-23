@@ -15,7 +15,7 @@ for attempt in $(seq 1 "$attempts"); do
     exit 0
   fi
 
-  if [ "$attempt" -lt "$attempts" ]; then
+  if [[ "$attempt" -lt "$attempts" ]]; then
     echo "::warning::Galaxy collection install failed (attempt ${attempt}/${attempts}); retrying in ${delay}s."
     sleep "$delay"
     delay=$((delay * 2))

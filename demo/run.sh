@@ -59,7 +59,7 @@ ensure_collection_link() {
   # version of the collection happens to be installed.
   local link="${REPO_DIR}/.dev-collections/ansible_collections/sameeralam3127/linux_vitals"
   mkdir -p "$(dirname "${link}")"
-  [ -L "${link}" ] || ln -sfn "${REPO_DIR}" "${link}"
+  [[ -L "${link}" ]] || ln -sfn "${REPO_DIR}" "${link}"
 }
 
 ensure_requirements() {
@@ -76,7 +76,7 @@ play() {
 
 wait_for_systemd() {
   local container="$1" tries=45
-  while [ "${tries}" -gt 0 ]; do
+  while [[ "${tries}" -gt 0 ]]; do
     # "degraded" is the normal end state in a container -- units that need real
     # hardware fail -- so anything that has finished initialising will do.
     case "$(docker exec "${container}" systemctl is-system-running 2>/dev/null || true)" in
@@ -89,7 +89,7 @@ wait_for_systemd() {
 }
 
 open_report() {
-  [ -f "${REPORT}" ] || { warn "No report at ${REPORT} yet."; return 0; }
+  [[ -f "${REPORT}" ]] || { warn "No report at ${REPORT} yet."; return 0; }
   say "Dashboard: ${REPORT}"
   case "$(uname -s)" in
     Darwin) open "${REPORT}" >/dev/null 2>&1 || true ;;
@@ -177,7 +177,7 @@ EOF
 # Anything after the subcommand is handed straight to ansible-playbook, so
 # `./run.sh break --tags service` demonstrates one check at a time.
 subcommand="${1:-all}"
-[ $# -gt 0 ] && shift
+[[ $# -gt 0 ]] && shift
 
 case "${subcommand}" in
   all|"")  cmd_all ;;
