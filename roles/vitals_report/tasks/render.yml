@@ -45,7 +45,7 @@
   ansible.builtin.file:
     path: "{{ linux_vitals_reports_dir }}"
     state: directory
-    mode: "0755"
+    mode: "{{ linux_vitals_report_dir_mode }}"
   delegate_to: localhost
   run_once: true
   tags:
@@ -55,7 +55,7 @@
   ansible.builtin.file:
     path: "{{ linux_vitals_json_output_path | dirname }}"
     state: directory
-    mode: "0755"
+    mode: "{{ linux_vitals_report_dir_mode }}"
   delegate_to: localhost
   run_once: true
   when: linux_vitals_json_output_path | trim | length > 0
@@ -66,7 +66,7 @@
   ansible.builtin.file:
     path: "{{ linux_vitals_effective_archive_dir }}"
     state: directory
-    mode: "0755"
+    mode: "{{ linux_vitals_report_dir_mode }}"
   delegate_to: localhost
   run_once: true
   when:
@@ -224,7 +224,7 @@
   ansible.builtin.template:
     src: dashboard.html.j2
     dest: "{{ linux_vitals_output_path }}"
-    mode: "0644"
+    mode: "{{ linux_vitals_report_file_mode }}"
   delegate_to: localhost
   run_once: true
   tags:
@@ -234,7 +234,7 @@
   ansible.builtin.template:
     src: report.json.j2
     dest: "{{ linux_vitals_json_output_path }}"
-    mode: "0644"
+    mode: "{{ linux_vitals_report_file_mode }}"
   delegate_to: localhost
   run_once: true
   when: linux_vitals_json_output_path | trim | length > 0
@@ -245,7 +245,7 @@
   ansible.builtin.copy:
     src: "{{ linux_vitals_output_path }}"
     dest: "{{ linux_vitals_archive_html_path }}"
-    mode: "0644"
+    mode: "{{ linux_vitals_report_file_mode }}"
     remote_src: true
   delegate_to: localhost
   run_once: true
@@ -263,7 +263,7 @@
   ansible.builtin.copy:
     src: "{{ linux_vitals_json_output_path }}"
     dest: "{{ linux_vitals_archive_json_path }}"
-    mode: "0644"
+    mode: "{{ linux_vitals_report_file_mode }}"
     remote_src: true
   delegate_to: localhost
   run_once: true

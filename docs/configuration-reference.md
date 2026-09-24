@@ -55,6 +55,8 @@ your other reports.
 ```yaml
 linux_vitals_output_path: "{{ inventory_dir }}/reports/linux_vitals_report.html"
 linux_vitals_json_output_path: "{{ inventory_dir }}/reports/linux_vitals_report.json"
+linux_vitals_report_file_mode: "0644"
+linux_vitals_report_dir_mode: "0755"
 linux_vitals_report_title: "LinuxVitals Health Check Dashboard"
 linux_vitals_archive_html_reports: true
 linux_vitals_archive_json_reports: false
@@ -65,6 +67,9 @@ linux_vitals_report_retention_count: 10
 - The **latest** report always overwrites `linux_vitals_output_path` /
   `linux_vitals_json_output_path`.
 - Set `linux_vitals_json_output_path: ""` to skip JSON generation entirely.
+- Set `linux_vitals_report_file_mode: "0600"` and
+  `linux_vitals_report_dir_mode: "0700"` to keep reports, archives, and
+  snapshots private to the automation user on a shared control node.
 - Archived copies get a UTC timestamp suffix, e.g.
   `linux_vitals_report-20260712T120000Z.html`.
 - Set `linux_vitals_report_retention_count: 0` to keep every archived

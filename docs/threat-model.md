@@ -266,12 +266,16 @@ level of the hosts it describes.
 
 Concretely:
 
-- **Reports are written world-readable.** `render.yml` and `snapshot.yml`
-  create files `0644` and directories `0755`. On a shared control node every
-  local user can read them. Put the output on a path only the automation user
-  can reach, or tighten the mode after a run:
+- **Reports are world-readable by default.** `render.yml` and `snapshot.yml`
+  create files with `linux_vitals_report_file_mode` (`0644`) and directories
+  with `linux_vitals_report_dir_mode` (`0755`). On a shared control node other
+  local users may be able to read them. Set both to `"0600"` and `"0700"`
+  respectively to restrict access to the automation user, and keep the output
+  in a suitably protected location:
   ```yaml
   linux_vitals_output_path: "/var/lib/linux-vitals/report.html"
+  linux_vitals_report_file_mode: "0600"
+  linux_vitals_report_dir_mode: "0700"
   ```
 - **Do not commit reports.** `reports` is gitignored here; the same directory
   beside an inventory in another repo is not automatically.

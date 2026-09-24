@@ -8,6 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Report and snapshot permissions are configurable**
+  ([#61](https://github.com/sameeralam3127/linux-vitals/issues/61)).
+  `linux_vitals_report_file_mode` and `linux_vitals_report_dir_mode` apply to
+  generated reports, archives, snapshots, and directories. The existing
+  `0644`/`0755` defaults remain unchanged; operators on shared control nodes
+  can opt into `0600`/`0700`.
+
 - **CI now tests the ansible-core floor**
   ([#47](https://github.com/sameeralam3127/linux-vitals/issues/47)).
   `meta/runtime.yml` has always declared 2.16, but CI only ever ran the newest

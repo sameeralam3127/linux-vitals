@@ -9,6 +9,8 @@ linux_vitals_maintenance_id: ""
 linux_vitals_snapshot_dir: "{{ inventory_dir }}/reports/snapshots"
 
 linux_vitals_output_path: "{{ inventory_dir }}/reports/linux_vitals_report.html"
+linux_vitals_report_file_mode: "0644"
+linux_vitals_report_dir_mode: "0755"
 linux_vitals_archive_html_reports: true
 linux_vitals_archive_json_reports: false
 linux_vitals_json_output_path: "{{ inventory_dir }}/reports/linux_vitals_report.json"
