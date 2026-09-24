@@ -1,9 +1,9 @@
 """Guards for constructs ansible-core 2.16 cannot parse.
 
-2.16 is the floor declared in `meta/runtime.yml`, but CI runs only on a much
-newer core (see issue #47), so nothing in the normal suite exercises it. These
-are static checks on the source, because a runtime test passes on the core it
-happens to run on and would not catch the problem on a newer one.
+2.16 is the floor declared in `meta/runtime.yml`. CI runs the whole suite on
+it (#47), but a contributor's local run is usually on a newer core, where every
+runtime test passes whether or not the source is 2.16-safe. These are static
+checks on the source, so they fail on any core.
 
 The construct that bit us: a Jinja string literal containing both a double and
 a single quote. 2.16's templating cannot lex it and fails the whole task with

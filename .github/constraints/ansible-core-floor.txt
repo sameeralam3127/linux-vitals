@@ -1,0 +1,6 @@
+# The minimum ansible-core this collection declares in meta/runtime.yml.
+# CI's floor jobs install the dev tooling under this constraint instead of
+# requirements-dev.txt's own ansible-core pin (see
+# .github/scripts/install-tooling.sh). tests/test_ci_floor.py fails if this
+# drifts from meta/runtime.yml, so raising the floor is a two-file change.
+ansible-core>=2.16,<2.17
