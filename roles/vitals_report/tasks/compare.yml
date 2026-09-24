@@ -26,6 +26,61 @@
   tags:
     - reporting
 
+# Snapshots written by 1.x hold plain-string findings. Each is translated to
+# the object it would be today, using the fixed set of messages 1.3.1 could
+# emit, so a finding that persists through a window spanning the upgrade
+# matches its 2.x counterpart instead of being reported as both resolved and
+# new. A string that matches nothing keeps the message as its id -- the only
+# identity it has. Severity follows the documented precedence minus the
+# per-finding step, which a string never had.
+- name: Normalise baseline findings written by an earlier release
+  ansible.builtin.set_fact:
+    linux_vitals_baseline_findings: >-
+      {%- set severities = linux_vitals_finding_severities | default({})
+            | combine(linux_vitals_finding_severity_overrides | default({})) -%}
+      {%- set out = [] -%}
+      {%- for finding in linux_vitals_baseline_result.findings | default([]) -%}
+      {%- if finding is mapping -%}
+      {%- set _ = out.append(finding) -%}
+      {%- elif finding is match('.+ requires manual follow-up$') -%}
+      {%- set _ = out.append({
+            'id': 'service_manual_followup',
+            'message': finding,
+            'severity': severities['service_manual_followup'] | default('warning'),
+            'subject': finding | regex_replace(' requires manual follow-up$', '')
+          }) -%}
+      {%- else -%}
+      {%- set finding_id = linux_vitals_legacy_finding_ids[finding] | default(finding) -%}
+      {%- set _ = out.append({
+            'id': finding_id,
+            'message': finding,
+            'severity': severities[finding_id] | default('warning')
+          }) -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{ out }}
+  vars:
+    linux_vitals_legacy_finding_ids:
+      "RAM usage is critical": ram_critical
+      "Recent logs contain error or failed entries": log_errors
+      "sssd is not active": sssd_inactive
+      "systemd-journald is not active": journald_inactive
+      "chronyd or ntp is not installed": time_sync_absent
+      "Time synchronization service is not active": time_sync_inactive
+      "System reboot is required": reboot_required
+      "Latest installed kernel is not currently running": kernel_not_latest
+      "Default boot entry does not select the latest installed kernel": bootloader_mismatch
+      "Boot partition free space is low": boot_space_low
+      "Kernel installation or bootloader related failures found in logs": kernel_install_failures
+      "Recent failed login attempts detected": failed_logins
+      "SELinux is disabled or unavailable": selinux_disabled
+      "AppArmor is disabled or unavailable": apparmor_disabled
+  when:
+    - linux_vitals_phase == 'postcheck'
+    - linux_vitals_baseline_snapshot_file.stat.exists | default(false)
+  tags:
+    - reporting
+
 - name: Build before/after comparison for this host
   ansible.builtin.set_fact:
     linux_vitals_comparison:
@@ -58,39 +113,38 @@
         {{ linux_vitals_baseline_result.running_kernel != linux_vitals_result.running_kernel }}
       reboot_required_before: "{{ linux_vitals_baseline_result.reboot_required }}"
       reboot_required_after: "{{ linux_vitals_result.reboot_required }}"
-      # Diffed on finding id, not on the whole finding object. Two runs of the
-      # same finding can differ in `message` (the self-healing finding embeds a
-      # service name) or in `severity` (an operator retuned it between runs),
-      # and a whole-object difference() would then report one finding as both
-      # new and resolved. The id is the stable identity; the object carried
-      # through is the current run's, so the dashboard shows current wording
-      # and current severity.
+      # Diffed on identity -- (id, subject) -- not on the whole finding
+      # object. Two runs of the same finding can differ in `message` or in
+      # `severity` (an operator retuned it between runs), and a whole-object
+      # difference() would then report one finding as both new and resolved.
+      # The object carried through is the current run's, so the dashboard
+      # shows current wording and current severity.
       #
-      # Snapshots written before severity existed hold plain strings, so each
-      # side is normalised first: a string finding becomes {id, message} keyed
-      # on the message, which is the only identity those snapshots have. A
-      # postcheck against such a baseline therefore still compares cleanly
-      # instead of failing on a missing attribute.
+      # `subject` is part of the identity because an id is not unique within a
+      # host: every service self-healing could not fix is
+      # service_manual_followup, and every certificate finding repeats per
+      # certificate. Diffing on id alone would hide a service that newly
+      # failed while another was already failing (#77).
       new_findings: >-
-        {%- set base_ids = [] -%}
-        {%- for finding in linux_vitals_baseline_result.findings | default([]) -%}
-        {%- set _ = base_ids.append(finding.id if finding is mapping else finding) -%}
+        {%- set base_keys = [] -%}
+        {%- for finding in linux_vitals_baseline_findings -%}
+        {%- set _ = base_keys.append(finding.id ~ '|' ~ finding.subject | default('', true)) -%}
         {%- endfor -%}
         {%- set out = [] -%}
         {%- for finding in linux_vitals_result.findings | default([]) -%}
-        {%- if (finding.id if finding is mapping else finding) not in base_ids -%}
+        {%- if (finding.id ~ '|' ~ finding.subject | default('', true)) not in base_keys -%}
         {%- set _ = out.append(finding) -%}
         {%- endif -%}
         {%- endfor -%}
         {{ out }}
       resolved_findings: >-
-        {%- set now_ids = [] -%}
+        {%- set now_keys = [] -%}
         {%- for finding in linux_vitals_result.findings | default([]) -%}
-        {%- set _ = now_ids.append(finding.id if finding is mapping else finding) -%}
+        {%- set _ = now_keys.append(finding.id ~ '|' ~ finding.subject | default('', true)) -%}
         {%- endfor -%}
         {%- set out = [] -%}
-        {%- for finding in linux_vitals_baseline_result.findings | default([]) -%}
-        {%- if (finding.id if finding is mapping else finding) not in now_ids -%}
+        {%- for finding in linux_vitals_baseline_findings -%}
+        {%- if (finding.id ~ '|' ~ finding.subject | default('', true)) not in now_keys -%}
         {%- set _ = out.append(finding) -%}
         {%- endif -%}
         {%- endfor -%}

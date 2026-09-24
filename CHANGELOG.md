@@ -97,11 +97,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `none`) and `severity_counts`; the fleet summary carries
   `hosts_by_severity` and `findings_by_severity`.
 
-  The `id` is the durable identity. It is what severity is keyed on, what the
-  baseline/postcheck comparison diffs on, and what an external consumer should
-  join against -- `message` wording can now change without that being a
-  breaking change. The self-healing finding also carries `subject`, the unit
-  it refers to, so nothing has to parse the message to find the service.
+  The `id` is the durable identity. It is what severity is keyed on and what
+  an external consumer should join against -- `message` wording can now
+  change without that being a breaking change. A finding that can occur more
+  than once per host also carries `subject` -- the unit for the self-healing
+  finding, the path or endpoint for certificate findings -- so nothing has to
+  parse the message to find what it refers to, and `(id, subject)` is unique
+  within a host.
 
   The dashboard shows a severity badge per finding (ordered most severe
   first), adds Critical/Warning/Info filter chips and Critical-hosts and
@@ -136,10 +138,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `severity_before` and `severity_after`.
 
   Snapshots written by an earlier release hold plain strings. A postcheck
-  against such a baseline still compares cleanly -- each side is normalised
-  and diffed on the message where no id exists -- and the dashboard renders
-  both shapes, so a maintenance window that spans the upgrade is not broken by
-  it.
+  against such a baseline translates each one to the id this release gives
+  it, using the fixed set of messages 1.3.1 could emit, so a finding that
+  persists through a maintenance window spanning the upgrade is reported as
+  neither new nor resolved. A string that matches none of them is compared on
+  its message ([#77](https://github.com/sameeralam3127/linux-vitals/issues/77)).
 
 - A severity a finding already carries is now preserved by the classification
   step, rather than being overwritten from the severity map. Findings whose
@@ -148,9 +151,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   is: an explicit operator override, then a severity the producing role
   computed, then the shipped map, then `warning`.
 
-- The baseline/postcheck comparison now diffs on finding `id` rather than on
-  the whole finding. A finding whose wording or severity changed between the
-  two runs is no longer reported as both new and resolved.
+- The baseline/postcheck comparison now diffs on finding identity --
+  `(id, subject)` -- rather than on the whole finding. A finding whose wording
+  or severity changed between the two runs is no longer reported as both new
+  and resolved. `subject` is part of the identity because an id repeats
+  within a host: two failed services are both `service_manual_followup`, and
+  one that newly failed alongside one already failing must still be reported
+  as new ([#77](https://github.com/sameeralam3127/linux-vitals/issues/77)).
 
 ### Fixed
 

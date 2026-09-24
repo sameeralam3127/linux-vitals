@@ -195,17 +195,22 @@ def test_baseline_postcheck_comparison_detects_improvement_and_regression(tmp_pa
     assert comparisons["host-a"]["status_regressed"] is False
     assert comparisons["host-a"]["kernel_changed"] is True
     assert comparisons["host-a"]["ram_used_pct_delta"] == -36.0
-    assert "RAM usage is critical" in comparisons["host-a"]["resolved_findings"]
+    # host-a's baseline was written by 1.x, so its findings are strings. They
+    # come back translated to the ids a 2.x run would have given them, with
+    # the original wording kept as the message.
+    host_a_resolved = comparisons["host-a"]["resolved_findings"]
+    assert [f["id"] for f in host_a_resolved] == ["ram_critical", "reboot_required"]
+    assert host_a_resolved[0]["message"] == "RAM usage is critical"
 
     assert comparisons["host-b"]["baseline_available"] is True
     assert comparisons["host-b"]["status_regressed"] is True
     assert comparisons["host-b"]["status_improved"] is False
-    assert "RAM usage is critical" in comparisons["host-b"]["new_findings"]
+    assert [f["id"] for f in comparisons["host-b"]["new_findings"]] == ["ram_critical"]
 
     assert comparisons["host-c"]["baseline_available"] is False
 
     # host-d carries the post-severity finding shape. The diff is on finding
-    # id, so `reboot_required` -- present in both runs but reworded and
+    # identity (id and subject), so `reboot_required` -- present in both runs but reworded and
     # retuned from warning to critical -- is neither new nor resolved. A
     # whole-object difference() would report it as both.
     host_d = comparisons["host-d"]
@@ -216,6 +221,20 @@ def test_baseline_postcheck_comparison_detects_improvement_and_regression(tmp_pa
     # current wording and current severity rather than the baseline's.
     assert host_d["severity_before"] == "warning"
     assert host_d["severity_after"] == "critical"
+
+    # host-e is a window spanning the upgrade: a 1.x string baseline against
+    # a 2.x postcheck. The two findings that persisted -- one per-host, one
+    # per-unit -- are neither new nor resolved; before #77 both were reported
+    # as both. A string no release ever emitted keeps its message as its id.
+    host_e = comparisons["host-e"]
+    assert host_e["new_findings"] == []
+    assert [f["id"] for f in host_e["resolved_findings"]] == ["A finding no release of LinuxVitals ever emitted"]
+
+    # host-f: one id, told apart by subject. redis recovered and postgresql
+    # failed during the window; an id-only diff reported neither (#77).
+    host_f = comparisons["host-f"]
+    assert [f["subject"] for f in host_f["new_findings"]] == ["postgresql.service"]
+    assert [f["subject"] for f in host_f["resolved_findings"]] == ["redis.service"]
 
 
 def _host_table(blocks: list) -> list[str]:

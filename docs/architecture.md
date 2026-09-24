@@ -131,7 +131,9 @@ to modify.
      `linux_vitals_phase` is `baseline` or `postcheck`.
    - `compare.yml`, only in the `postcheck` phase, loads the matching
      baseline snapshot per host and merges a `comparison` object into
-     `linux_vitals_result`.
+     `linux_vitals_result`. Findings are matched on `(id, subject)`, and a
+     baseline written by 1.x -- plain-string findings -- is translated to
+     ids first, so a window spanning the upgrade still compares correctly.
    - `render.yml` aggregates all per-host results (delegated to
      `localhost`, `run_once`) into `linux_vitals_summary`, then renders
      `dashboard.html.j2` and `report.json.j2`, and manages archive

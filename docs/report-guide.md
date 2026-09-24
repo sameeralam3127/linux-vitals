@@ -144,14 +144,16 @@ Every finding is an object with a stable `id`, a human `message`, and a
 {"id": "reboot_required", "message": "System reboot is required", "severity": "warning"}
 ```
 
-The `id` is the durable one. It is what severity is keyed on, what the
-baseline/postcheck comparison diffs on, and what an external system should
-join against -- `message` wording can change in any release without that
-being a breaking change.
+The `id` is the durable one. It is what severity is keyed on and what an
+external system should join against -- `message` wording can change in any
+release without that being a breaking change.
 
-The self-healing finding additionally carries `subject`, the unit it refers
-to, so a consumer does not have to parse the message to learn which service
-needs attention.
+A finding that can occur more than once on a host also carries `subject`: the
+unit for the self-healing finding, the path or `host:port` for certificate
+findings. An id alone is therefore not unique within a host -- join on
+`(id, subject)`, treating a missing `subject` as empty. That pair is what the
+baseline/postcheck comparison diffs on, so a service that newly fails while
+another was already failing is reported as new.
 
 ### Severity
 

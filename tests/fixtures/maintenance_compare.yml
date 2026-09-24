@@ -54,6 +54,51 @@
       vars:
         inventory_hostname: "host-d"
 
+    - name: Seed baseline result for host-e (as a 1.x snapshot holds it)
+      # host-e is a maintenance window spanning the upgrade: the baseline was
+      # taken by 1.x, so its findings are plain strings. Two of them persist
+      # into the postcheck and must match their 2.x counterparts (#77).
+      ansible.builtin.set_fact:
+        linux_vitals_result:
+          final_status: "Fail"
+          ram_used_pct: 40.0
+          running_kernel: "6.8.0-new"
+          reboot_required: true
+          findings:
+            - "System reboot is required"
+            - "nginx.service requires manual follow-up"
+            - "A finding no release of LinuxVitals ever emitted"
+          comparison: {baseline_available: false}
+
+    - name: Snapshot host-e baseline
+      ansible.builtin.include_role:
+        name: sameeralam3127.linux_vitals.vitals_report
+        tasks_from: snapshot
+      vars:
+        inventory_hostname: "host-e"
+
+    - name: Seed baseline result for host-f (one id, two subjects)
+      # host-f holds two findings with the same id, told apart only by
+      # subject. One service recovers and another fails during the window;
+      # an id-only diff reports neither (#77).
+      ansible.builtin.set_fact:
+        linux_vitals_result:
+          final_status: "Fail"
+          ram_used_pct: 40.0
+          running_kernel: "6.8.0-new"
+          reboot_required: false
+          findings:
+            - {id: "service_manual_followup", message: "nginx.service requires manual follow-up", severity: "warning", subject: "nginx.service"}
+            - {id: "service_manual_followup", message: "redis.service requires manual follow-up", severity: "warning", subject: "redis.service"}
+          comparison: {baseline_available: false}
+
+    - name: Snapshot host-f baseline
+      ansible.builtin.include_role:
+        name: sameeralam3127.linux_vitals.vitals_report
+        tasks_from: snapshot
+      vars:
+        inventory_hostname: "host-f"
+
     - name: Seed baseline result for host-b (passing)
       ansible.builtin.set_fact:
         linux_vitals_result:
@@ -108,7 +153,10 @@
           ram_used_pct: 96.0
           running_kernel: "6.8.0-new"
           reboot_required: false
-          findings: ["RAM usage is critical"]
+          findings:
+            - id: "ram_critical"
+              message: "RAM usage is critical"
+              severity: "critical"
 
     - name: Compare host-b against its baseline
       ansible.builtin.include_role:
@@ -168,6 +216,50 @@
       ansible.builtin.set_fact:
         comparison_host_d: "{{ linux_vitals_result.comparison }}"
 
+    - name: Seed postcheck result for host-e (2.x shape, two findings persist)
+      ansible.builtin.set_fact:
+        linux_vitals_result:
+          final_status: "Fail"
+          ram_used_pct: 40.0
+          running_kernel: "6.8.0-new"
+          reboot_required: true
+          findings:
+            - {id: "reboot_required", message: "System reboot is required", severity: "warning"}
+            - {id: "service_manual_followup", message: "nginx.service requires manual follow-up", severity: "warning", subject: "nginx.service"}
+
+    - name: Compare host-e against its 1.x baseline
+      ansible.builtin.include_role:
+        name: sameeralam3127.linux_vitals.vitals_report
+        tasks_from: compare
+      vars:
+        inventory_hostname: "host-e"
+
+    - name: Capture host-e comparison
+      ansible.builtin.set_fact:
+        comparison_host_e: "{{ linux_vitals_result.comparison }}"
+
+    - name: Seed postcheck result for host-f (redis recovered, postgresql failed)
+      ansible.builtin.set_fact:
+        linux_vitals_result:
+          final_status: "Fail"
+          ram_used_pct: 40.0
+          running_kernel: "6.8.0-new"
+          reboot_required: false
+          findings:
+            - {id: "service_manual_followup", message: "nginx.service requires manual follow-up", severity: "warning", subject: "nginx.service"}
+            - {id: "service_manual_followup", message: "postgresql.service requires manual follow-up", severity: "warning", subject: "postgresql.service"}
+
+    - name: Compare host-f against its baseline
+      ansible.builtin.include_role:
+        name: sameeralam3127.linux_vitals.vitals_report
+        tasks_from: compare
+      vars:
+        inventory_hostname: "host-f"
+
+    - name: Capture host-f comparison
+      ansible.builtin.set_fact:
+        comparison_host_f: "{{ linux_vitals_result.comparison }}"
+
     - name: Write all comparisons to a single JSON file for test assertions
       ansible.builtin.copy:
         dest: "{{ output_dir }}/comparisons.json"
@@ -177,7 +269,9 @@
               'host-a': comparison_host_a,
               'host-b': comparison_host_b,
               'host-c': comparison_host_c,
-              'host-d': comparison_host_d
+              'host-d': comparison_host_d,
+              'host-e': comparison_host_e,
+              'host-f': comparison_host_f
             } | to_nice_json
           }}
         mode: "0644"
