@@ -195,6 +195,12 @@ def test_baseline_postcheck_comparison_detects_improvement_and_regression(tmp_pa
     assert comparisons["host-a"]["status_regressed"] is False
     assert comparisons["host-a"]["kernel_changed"] is True
     assert comparisons["host-a"]["ram_used_pct_delta"] == -36.0
+    # Numbers, not numeric strings, on every core. On ansible-core 2.16 a
+    # set_fact that renders a numeric scalar stores a string, so these reached
+    # report.json as "91.0" there and 91.0 elsewhere (#81). `==` alone would
+    # not catch a regression on a newer core, hence the type check.
+    for field in ("ram_used_pct_before", "ram_used_pct_after", "ram_used_pct_delta"):
+        assert isinstance(comparisons["host-a"][field], float), (field, comparisons["host-a"][field])
     # host-a's baseline was written by 1.x, so its findings are strings. They
     # come back translated to the ids a 2.x run would have given them, with
     # the original wording kept as the message.
