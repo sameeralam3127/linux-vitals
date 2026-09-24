@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The comparison's RAM fields were strings on ansible-core 2.16.**
+  `comparison.ram_used_pct_before`, `ram_used_pct_after`, and
+  `ram_used_pct_delta` reached `report.json` as `"91.0"` on 2.16 -- the
+  declared floor -- and as `91.0` on newer cores, so a consumer doing
+  arithmetic on the delta got a different type depending on who ran the
+  playbook ([#81](https://github.com/sameeralam3127/linux-vitals/issues/81)).
+  They are now numbers on every core. The test asserts the type as well as the
+  value, because on a newer core the value alone would pass either way.
+
 ## [2.0.0] - 2026-09-24
 
 **Breaking for anything that reads the JSON report, the generic webhook

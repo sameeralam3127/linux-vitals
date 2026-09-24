@@ -167,6 +167,26 @@
   tags:
     - reporting
 
+# On ansible-core 2.16 a set_fact value that renders a numeric scalar is
+# stored as a string, so the RAM fields above reach report.json as "91.0" on
+# 2.16 and 91.0 on newer cores (#81). A template that renders a whole dict is
+# converted back to real types on every core -- the same technique
+# linux_vitals_severity_counts relies on -- so the numbers are re-applied as
+# one dict expression.
+- name: Keep the comparison's numeric fields numeric on every core
+  ansible.builtin.set_fact:
+    linux_vitals_comparison: >-
+      {{ linux_vitals_comparison | combine({
+           'ram_used_pct_before': linux_vitals_comparison.ram_used_pct_before | float,
+           'ram_used_pct_after': linux_vitals_comparison.ram_used_pct_after | float,
+           'ram_used_pct_delta': linux_vitals_comparison.ram_used_pct_delta | float
+         }) }}
+  when:
+    - linux_vitals_phase == 'postcheck'
+    - linux_vitals_baseline_snapshot_file.stat.exists | default(false)
+  tags:
+    - reporting
+
 - name: Merge the comparison into this host's result
   ansible.builtin.set_fact:
     linux_vitals_result: "{{ linux_vitals_result | combine({'comparison': linux_vitals_comparison}) }}"
