@@ -114,57 +114,9 @@
           }}
 
     - name: Refresh required service status after healing
-      ansible.builtin.set_fact:
-        linux_vitals_service_status:
-          sssd:
-            service_name: >-
-              {{
-                (
-                  ['sssd.service', 'sssd']
-                  | select('in', ansible_facts.services.keys() | list) | list
-                  | first
-                ) | default('absent', true)
-              }}
-            state: >-
-              {{
-                ansible_facts.services.get(
-                  (
-                    ['sssd.service', 'sssd']
-                    | select('in', ansible_facts.services.keys() | list) | list
-                    | first
-                  ) | default('absent', true),
-                  {}
-                ).state | default('missing')
-              }}
-          systemd_journald:
-            service_name: >-
-              {{
-                (
-                  ['systemd-journald.service', 'systemd-journald']
-                  | select('in', ansible_facts.services.keys() | list) | list
-                  | first
-                ) | default('absent', true)
-              }}
-            state: >-
-              {{
-                ansible_facts.services.get(
-                  (
-                    ['systemd-journald.service', 'systemd-journald']
-                    | select('in', ansible_facts.services.keys() | list) | list
-                    | first
-                  ) | default('absent', true),
-                  {}
-                ).state | default('missing')
-              }}
-          time_sync:
-            service_name: "{{ linux_vitals_time_sync_service }}"
-            state: >-
-              {{
-                ansible_facts.services.get(
-                  linux_vitals_time_sync_service,
-                  {}
-                ).state | default('missing')
-              }}
+      ansible.builtin.include_role:
+        name: sameeralam3127.linux_vitals.vitals_scan
+        tasks_from: services.yml
 
     - name: Rebuild the host health result with the self-healing outcomes
       # vitals_scan builds linux_vitals_result before this role runs, so at that
