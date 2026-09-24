@@ -53,6 +53,7 @@ build_ignore:
   - tests
   - molecule
   - demo
+  - CLAUDE.md
   - .pytest_cache
   - .DS_Store
 
