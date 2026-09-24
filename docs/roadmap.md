@@ -36,24 +36,33 @@ year.
 ## Releases
 
 Quarters are planning buckets; releases are what people install. The intended
-mapping, from 1.3.1:
+mapping, from 2.0.0:
 
 | Release | Quarter | What it is |
 | --- | --- | --- |
-| **1.4 -- Trust** | Q1 | The report can be believed. Nothing new on the dashboard except filesystem capacity. |
-| **1.5 -- Coverage** | Q2 | The report is complete, and the task tree is one a contributor can navigate. |
-| **1.6 -- Observability** | Q3 (exports) | The data leaves the HTML file: OpenMetrics, CSV, pipeline exit status. |
-| **1.7 -- Posture** | Q3 (security) + Q4 | Security depth, rule identifiers, and the maintainability work. |
+| **2.1 -- Trust** | Q1 | The report can be believed. Nothing new on the dashboard except filesystem capacity. |
+| **2.2 -- Coverage** | Q2 | The report is complete, and the task tree is one a contributor can navigate. |
+| **2.3 -- Observability** | Q3 (exports) | The data leaves the HTML file: OpenMetrics, CSV, pipeline exit status. |
+| **2.4 -- Posture** | Q3 (security) + Q4 | Security depth, rule identifiers, and the maintainability work. |
+
+These were numbered 1.4 to 1.7 until the severity work
+([#8](https://github.com/sameeralam3127/linux-vitals/issues/8)) turned
+findings from strings into objects. That breaks anything reading the JSON
+report or the webhook, so it shipped as 2.0.0 rather than 1.4.0. The
+consequence for Q1 is a constraint, not a renumbering: the schema changes
+still to come there -- [#62](https://github.com/sameeralam3127/linux-vitals/issues/62)'s
+check status and [#23](https://github.com/sameeralam3127/linux-vitals/issues/23)'s
+journal aggregate -- must be additive so that Trust ships as 2.1, not 3.0.
 
 These are targets, not commitments, and a quarter may ship as more than one
 release. Two Q3/Q4 items have already landed ahead of their quarter --
 [#52](https://github.com/sameeralam3127/linux-vitals/issues/52), which was going to
-carry the Block Kit half of 1.6, and
-[#63](https://github.com/sameeralam3127/linux-vitals/issues/63) -- so both will ship
-in 1.4 instead. Pulling work forward is fine; what is not fine is pulling it
+carry the Block Kit half of Observability, and
+[#63](https://github.com/sameeralam3127/linux-vitals/issues/63) -- and both
+shipped in 2.0.0 instead. Pulling work forward is fine; what is not fine is pulling it
 forward *past* Q1, which is why neither of them displaced anything in the
-trust bucket. 1.4 is the one that matters: it is the release that decides whether
-the project's central claim holds, and no feature in 1.5 or later is worth
+trust bucket. 2.1 is the one that matters: it is the release that decides whether
+the project's central claim holds, and no feature in 2.2 or later is worth
 reordering ahead of it.
 
 ## Q1 -- Trust and stability
@@ -167,14 +176,14 @@ the HTML file and deepening what it covers.
 
 | Item | Issue | Priority |
 | --- | --- | --- |
-| ~~Render the Slack summary with Block Kit instead of one plain-text blob~~ | [#52](https://github.com/sameeralam3127/linux-vitals/issues/52) | done (unreleased) |
-| ~~Add severity-based finding classification and alert thresholds~~ | [#8](https://github.com/sameeralam3127/linux-vitals/issues/8) | done (unreleased) |
+| ~~Render the Slack summary with Block Kit instead of one plain-text blob~~ | [#52](https://github.com/sameeralam3127/linux-vitals/issues/52) | shipped in 2.0.0 |
+| ~~Add severity-based finding classification and alert thresholds~~ | [#8](https://github.com/sameeralam3127/linux-vitals/issues/8) | shipped in 2.0.0 |
 | Export the fleet report as OpenMetrics and CSV | [#35](https://github.com/sameeralam3127/linux-vitals/issues/35) | medium |
 | Add an opt-in non-zero exit so an unhealthy fleet can gate a pipeline | [#41](https://github.com/sameeralam3127/linux-vitals/issues/41) | medium |
 | Extend security posture: firewall, SSH hardening, kernel taint, deleted libraries | [#36](https://github.com/sameeralam3127/linux-vitals/issues/36) | medium |
 | Make report and snapshot file modes configurable | [#61](https://github.com/sameeralam3127/linux-vitals/issues/61) | medium |
 | Upload reports and snapshots to object storage; PagerDuty/Opsgenie payloads | [#65](https://github.com/sameeralam3127/linux-vitals/issues/65) | low |
-| ~~Add `vitals_certs` role: TLS certificate expiry and hardening checks~~ | [#15](https://github.com/sameeralam3127/linux-vitals/issues/15) | done (unreleased) |
+| ~~Add `vitals_certs` role: TLS certificate expiry and hardening checks~~ | [#15](https://github.com/sameeralam3127/linux-vitals/issues/15) | shipped in 2.0.0 |
 | Map findings to CIS or STIG rule identifiers for audit evidence | [#43](https://github.com/sameeralam3127/linux-vitals/issues/43) | low |
 
 Ordering notes:
@@ -239,9 +248,9 @@ not write it.
 | Item | Issue | Priority |
 | --- | --- | --- |
 | Concurrent runs sharing an output directory can corrupt reports and snapshots | [#26](https://github.com/sameeralam3127/linux-vitals/issues/26) | low |
-| ~~Add production-grade examples, screenshots, and an operator runbook~~ | [#6](https://github.com/sameeralam3127/linux-vitals/issues/6) | done (unreleased) |
+| ~~Add production-grade examples, screenshots, and an operator runbook~~ | [#6](https://github.com/sameeralam3127/linux-vitals/issues/6) | shipped in 2.0.0 |
 | Split `render.yml` and de-duplicate the HTML/JSON archive sequence | [#27 (comment)](https://github.com/sameeralam3127/linux-vitals/issues/27#issuecomment-5644135601) | -- |
-| ~~`vitals_certs` has no role README, unlike the other three roles~~ | [#63](https://github.com/sameeralam3127/linux-vitals/issues/63) | done (unreleased) |
+| ~~`vitals_certs` has no role README, unlike the other three roles~~ | [#63](https://github.com/sameeralam3127/linux-vitals/issues/63) | shipped in 2.0.0 |
 
 Ordering notes:
 
@@ -287,6 +296,12 @@ Closed since this roadmap was first written, in release order.
 | Pin an upper bound on collection dependencies | [#42](https://github.com/sameeralam3127/linux-vitals/issues/42) | 1.3.0 |
 | Scan failed at `Build per-host report object` on ansible-core 2.16 | [#45](https://github.com/sameeralam3127/linux-vitals/issues/45) | 1.3.0 |
 | `vitals_report` failed on ansible-core 2.16: `.env` regexes unparseable | [#49](https://github.com/sameeralam3127/linux-vitals/issues/49) | 1.3.1 |
+| Add severity-based finding classification and alert thresholds | [#8](https://github.com/sameeralam3127/linux-vitals/issues/8) | 2.0.0 |
+| Add `vitals_certs` role: TLS certificate expiry and hardening checks | [#15](https://github.com/sameeralam3127/linux-vitals/issues/15) | 2.0.0 |
+| Add production-grade examples, screenshots, and an operator runbook | [#6](https://github.com/sameeralam3127/linux-vitals/issues/6) | 2.0.0 |
+| Render the Slack summary with Block Kit instead of one plain-text blob | [#52](https://github.com/sameeralam3127/linux-vitals/issues/52) | 2.0.0 |
+| `vitals_certs` has no role README, unlike the other three roles | [#63](https://github.com/sameeralam3127/linux-vitals/issues/63) | 2.0.0 |
+| Postcheck comparison hid newly failed services and mis-diffed 1.x baselines | [#77](https://github.com/sameeralam3127/linux-vitals/issues/77) | 2.0.0 |
 
 Both 2.16 failures are the evidence behind
 [#47](https://github.com/sameeralam3127/linux-vitals/issues/47)'s position at

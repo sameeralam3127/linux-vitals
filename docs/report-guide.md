@@ -66,12 +66,12 @@ keep the working view small even when the underlying table is large. What the
 
 ## JSON report
 
-`reports/linux_vitals_report.json` -- schema `1.3`, intended for ingestion
+`reports/linux_vitals_report.json` -- schema `2.0`, intended for ingestion
 by log shippers, SIEMs, or your own dashboards.
 
 ```json
 {
-  "schema_version": "1.3",
+  "schema_version": "2.0",
   "generated_at": "20260712T120000Z",
   "report": { "title": "...", "html_output_path": "...", "json_output_path": "..." },
   "maintenance": { "phase": "postcheck", "maintenance_id": "2026-07-12-patch-window" },

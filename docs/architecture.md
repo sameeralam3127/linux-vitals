@@ -34,7 +34,7 @@ flowchart TB
     CERTS ==>|"findings merged"| REPORT
 
     REPORT --> HTML["HTML dashboard<br/>self-contained, no CDN"]
-    REPORT --> JSON["JSON report<br/>schema 1.3"]
+    REPORT --> JSON["JSON report<br/>schema 2.0"]
     REPORT --> NOTIFY["Slack · email · webhook<br/>summary only"]
 
     classDef stage fill:#0b7285,stroke:#095c6b,color:#ffffff

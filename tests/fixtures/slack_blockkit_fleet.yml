@@ -92,4 +92,6 @@
         dest: "{{ output_dir }}/slack_fleet.json"
         mode: "0644"
       delegate_to: localhost
-      run_once: true
+      # Mirrors the role's own run_once render in notify.yml; the play uses the
+      # default linear strategy, so the rule's free-strategy concern cannot apply.
+      run_once: true  # noqa: run-once[task]

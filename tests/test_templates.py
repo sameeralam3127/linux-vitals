@@ -95,7 +95,7 @@ def test_templates_render_with_representative_health_data(tmp_path: Path) -> Non
     assert generic_webhook["summary"]["overall_status"] == "PASS"
     assert generic_webhook["hosts"][0]["hostname"] == "localhost"
     assert "Standard Maintenance Summary" in generic_webhook["message"]
-    assert json_report["schema_version"] == "1.3"
+    assert json_report["schema_version"] == "2.0"
     assert json_report["summary"]["health_score_pct"] == 100.0
     assert json_report["hosts"][0]["asset_serial"] == "TEST-SERIAL-0001"
     assert json_report["hosts"][0]["comparison"]["baseline_available"] is False

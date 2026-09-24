@@ -331,7 +331,7 @@ flowchart TB
     CERTS ==>|"findings merged"| REPORT
 
     REPORT --> HTML["HTML dashboard<br/>self-contained, no CDN"]
-    REPORT --> JSON["JSON report<br/>schema 1.3"]
+    REPORT --> JSON["JSON report<br/>schema 2.0"]
     REPORT --> NOTIFY["Slack · email · webhook<br/>summary only"]
 
     classDef stage fill:#0b7285,stroke:#095c6b,color:#ffffff
@@ -347,7 +347,7 @@ Why the roles share one variable namespace, and why paths resolve from
 
 ### Consuming the JSON
 
-`reports/linux_vitals_report.json` is **schema 1.3**. Findings are objects
+`reports/linux_vitals_report.json` is **schema 2.0**. Findings are objects
 (`{id, message, severity}`), not strings, and each carries a stable `id` you can
 join on — `message` wording may change between releases, ids will not.
 

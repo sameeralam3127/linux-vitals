@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-09-24
+
+**Breaking for anything that reads the JSON report, the generic webhook
+payload, or the `linux_vitals_result` host fact.** Findings changed from
+strings to `{id, message, severity}` objects (see *Changed*), which is why
+this is a major release rather than 1.4.0. Before upgrading:
+
+- Update any consumer of `findings`, `comparison.new_findings`, or
+  `comparison.resolved_findings` to key on `(.id, .subject)` -- stable, and
+  unique within a host -- and to treat `.message` as display text only.
+  `schema_version` is now `2.0`, so a consumer can branch on it.
+- A maintenance window can span the upgrade: a baseline taken on 1.x is
+  translated to 2.0 ids, so a finding that persists through the window is
+  reported as neither new nor resolved.
+- The pass/fail outcome of a run is unchanged: `linux_vitals_fail_on_severity`
+  defaults to `info`, the behaviour of every earlier release.
+- The Slack message is restructured and its default header changed (see
+  *Added*). Set `linux_vitals_slack_message_header` to keep the old one.
+
+A `requirements.yml` pin of `<2.0.0` keeps you on 1.3.1 until the consumers
+are updated.
+
 ### Added
 
 - **The Slack summary is now Block Kit, not one plain-text blob**
@@ -129,7 +151,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
-- **JSON report schema is now `1.3`.** `findings`, `comparison.new_findings`,
+- **JSON report schema is now `2.0`** (from `1.2`). `findings`, `comparison.new_findings`,
   and `comparison.resolved_findings` changed from arrays of strings to arrays
   of `{id, message, severity}` objects. **A consumer that reads finding
   strings out of the JSON or webhook payload needs updating.** The host object
