@@ -55,9 +55,13 @@ def _load_yaml(path: Path):
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
-def _ci_matrix_scenarios() -> list[str]:
+def _ci_matrix_scenarios(tooling: str = "latest") -> list[str]:
+    # The matrix is a list of explicit legs, one per (scenario, ansible-core
+    # target) -- see docs/testing.md. The latest core sweeps every
+    # distribution; the floor runs a subset.
     workflow = _load_yaml(CI_WORKFLOW)
-    return workflow["jobs"]["molecule"]["strategy"]["matrix"]["scenario"]
+    legs = workflow["jobs"]["molecule"]["strategy"]["matrix"]["include"]
+    return [leg["scenario"] for leg in legs if leg["tooling"] == tooling]
 
 
 def test_ci_matrix_covers_exactly_the_scenario_directories() -> None:
@@ -71,6 +75,14 @@ def test_ci_matrix_has_no_duplicate_scenarios() -> None:
     matrix = _ci_matrix_scenarios()
 
     assert len(matrix) == len(set(matrix))
+
+
+def test_ci_floor_legs_name_real_scenarios() -> None:
+    scenario_names = {path.name for path in _scenario_dirs()}
+    floor = _ci_matrix_scenarios("floor")
+
+    assert floor, "no Molecule scenario runs on the ansible-core floor"
+    assert set(floor) <= scenario_names
 
 
 def test_validate_job_lints_the_molecule_directory() -> None:

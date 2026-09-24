@@ -8,8 +8,73 @@ and pull request:
 | Unit / template | `pytest -q` | Report templates render, reboot/kernel detection logic derives the right facts, and the embedded discovery shell scripts are POSIX-clean. No hosts involved. |
 | Molecule scenarios | `molecule test -s <scenario>` | The roles actually run end to end against a live systemd host of each supported distribution. |
 
-Plus `ansible-lint roles/ playbooks/ molecule/` and
+Plus `ansible-lint roles/ playbooks/ molecule/ demo/` and
 `ansible-playbook playbooks/healthcheck.yml --syntax-check`.
+
+## ansible-core versions
+
+`meta/runtime.yml` declares `requires_ansible: ">=2.16.0"`, and CI tests both
+ends of that range rather than only the newest core. Two total failures on
+2.16 ([#45](https://github.com/sameeralam3127/linux-vitals/issues/45),
+[#49](https://github.com/sameeralam3127/linux-vitals/issues/49)) reached users
+through a CI that never ran it, and two more
+([#81](https://github.com/sameeralam3127/linux-vitals/issues/81),
+[#85](https://github.com/sameeralam3127/linux-vitals/issues/85)) were found the
+first time the suite did.
+
+| Job | ansible-core | Python | Collections |
+| --- | --- | --- | --- |
+| `validate` | latest (`requirements-dev.txt`) | 3.12 | `requirements.yml` |
+| `validate (ansible-core 2.16)` | 2.16.x | 3.10 | `.github/constraints/collections-floor.yml` |
+| `molecule (ubuntu \| rocky \| fedora \| opensuse)` | latest | 3.12 | `requirements.yml` + `molecule/collections.yml` |
+| `molecule (rocky, ansible-core 2.16)` | 2.16.x | 3.10 | `.github/constraints/collections-floor.yml` |
+
+The floor runs the full validate job (syntax check, ansible-lint, pytest) but
+Molecule on one distribution only. Every 2.16 failure so far has been a core
+failure rather than a distribution one, so one scenario catches that class,
+and Rocky stands in for the RHEL estates most likely to sit on an older core.
+Python 3.10 is the oldest Python the README supports, so the floor job tests
+that claim too.
+
+**How the floor is pinned.** `.github/constraints/ansible-core-floor.txt`
+pins the `2.16.x` series. `.github/scripts/install-tooling.sh floor` installs
+`requirements-dev.txt` without its own `ansible-core` line, under that
+constraint, then refuses to continue unless the installed core really is
+`2.16.x`. The pin in `requirements-dev.txt` is left alone because a
+constraints file can narrow a requirement but not contradict it, and a widened
+pin would be raised straight back by Dependabot.
+
+**Floor collections.** `community.general` 12 and `community.docker` 5 require
+ansible-core 2.17 or later, so the floor jobs install the newest majors that
+still support 2.16 (`collections-floor.yml`). See
+[#86](https://github.com/sameeralam3127/linux-vitals/issues/86) for what this
+means for users on 2.16.
+
+**Raising the floor** is a change to `meta/runtime.yml` and
+`ansible-core-floor.txt` together, plus the job names in `ci.yml`.
+`tests/test_ci_floor.py` fails if the constraint and `meta/runtime.yml`
+disagree, or if a latest-core job loses the name branch protection requires.
+
+### Running the floor locally
+
+```bash
+python3.10 -m venv .venv-floor && . .venv-floor/bin/activate
+./.github/scripts/install-tooling.sh floor
+pytest -q
+```
+
+That runs the suite on 2.16 against whatever collections you already have
+installed, which is what catches core failures such as #81 and #85. To match
+CI exactly, also install the floor collections:
+
+```bash
+ansible-galaxy collection install -r .github/constraints/collections-floor.yml --force
+```
+
+`--force` is needed because `ansible-galaxy` will not downgrade an installed
+collection. The collections path is shared with your usual environment, so
+switch back afterwards with
+`ansible-galaxy collection install -r requirements.yml --force`.
 
 ## Molecule scenarios
 

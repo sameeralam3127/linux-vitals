@@ -74,7 +74,7 @@ the one check whose absence is hardest to defend.
 
 | Item | Issue | Priority |
 | --- | --- | --- |
-| CI never tests the declared minimum ansible-core | [#47](https://github.com/sameeralam3127/linux-vitals/issues/47) | high |
+| ~~CI never tests the declared minimum ansible-core~~ | [#47](https://github.com/sameeralam3127/linux-vitals/issues/47) | done (unreleased) |
 | Promote PASS/FAIL/UNKNOWN to a collection-wide finding contract | [#62](https://github.com/sameeralam3127/linux-vitals/issues/62) | high |
 | Race between service restart and `service_facts` can report a dead service as "Fixed" | [#24](https://github.com/sameeralam3127/linux-vitals/issues/24) | high |
 | Journal scans are unbounded and ship whole-window logs to the control node | [#23](https://github.com/sameeralam3127/linux-vitals/issues/23) | high |

@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **CI now tests the ansible-core floor**
+  ([#47](https://github.com/sameeralam3127/linux-vitals/issues/47)).
+  `meta/runtime.yml` has always declared 2.16, but CI only ever ran the newest
+  core, and two total failures on 2.16 (#45, #49) reached users through a
+  green build. The validate job (syntax check, ansible-lint, pytest) now also
+  runs on ansible-core 2.16 with Python 3.10, and Molecule runs the Rocky
+  scenario on it. The floor is pinned by
+  `.github/constraints/ansible-core-floor.txt`, checked against
+  `meta/runtime.yml` by `tests/test_ci_floor.py`, and documented in
+  [docs/testing.md](docs/testing.md#ansible-core-versions).
+
 ### Fixed
 
 - **The comparison's RAM fields were strings on ansible-core 2.16.**
