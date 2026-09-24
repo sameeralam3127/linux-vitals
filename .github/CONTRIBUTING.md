@@ -3,6 +3,37 @@
 Thanks for considering a contribution to LinuxVitals
 (`sameeralam3127.linux_vitals`).
 
+## Your first pull request
+
+You do not need Docker, a lab, or any Linux hosts to make a useful first
+change. Most of the test suite runs locally in about a minute, and CI does the
+heavy part for you.
+
+1. Pick an issue labelled
+   [`good first issue`](https://github.com/sameeralam3127/linux-vitals/issues?q=is%3Aopen+label%3A%22good+first+issue%22).
+   Each one has a comment listing the files to change and the test to add.
+   Comment on the issue to claim it, and ask anything there.
+2. Set up and run the quick loop:
+
+   ```bash
+   git clone https://github.com/<you>/linux-vitals.git && cd linux-vitals
+   python3 -m venv .venv && source .venv/bin/activate
+   pip install -r requirements-dev.txt
+   ansible-galaxy collection install -r requirements.yml
+   pytest -q                     # ~200 tests, no hosts involved
+   pre-commit run --all-files    # lint, YAML, whitespace, shellcheck
+   ```
+
+3. Open the pull request. CI then runs what you could not run locally:
+   Molecule against live systemd containers for Ubuntu, Rocky, Fedora, and
+   openSUSE, and the whole suite again on the oldest ansible-core this
+   collection supports. If one of those fails and the reason is not obvious,
+   say so in the PR -- that is a normal part of review, not a failure on
+   your part.
+
+Add a line to `CHANGELOG.md` under `[Unreleased]` for anything a user would
+notice. The rest of this document is reference for when you need it.
+
 ## Development setup
 
 ```bash
@@ -24,21 +55,25 @@ ln -s "$(pwd)" .dev-collections/ansible_collections/sameeralam3127/linux_vitals
 ```
 
 See [docs/architecture.md](../docs/architecture.md) before making structural
-changes -- in particular, why the three roles share one variable namespace
+changes -- in particular, why the roles share one variable namespace
 and why report/`.env` paths resolve from `inventory_dir`.
 
 ## Running the checks
 
 ```bash
 pre-commit run --all-files
-ansible-lint roles/ playbooks/ molecule/
+ansible-lint roles/ playbooks/ molecule/ demo/
 ansible-playbook playbooks/healthcheck.yml --syntax-check
 pytest -q
 ```
 
 All four run in CI ([.github/workflows/ci.yml](workflows/ci.yml))
-on every push and pull request; a change isn't done until all four pass
-locally.
+on every pull request; a change isn't done until all four pass locally.
+CI runs them twice: on the newest ansible-core, and on 2.16, the minimum
+declared in `meta/runtime.yml`. A change can pass locally on a new core and
+still break 2.16 -- see
+[docs/testing.md](../docs/testing.md#ansible-core-versions) for what that
+usually looks like and how to run the 2.16 suite yourself.
 
 On top of those, CI runs the Molecule scenarios -- one live systemd
 container per supported distribution (Ubuntu, Rocky, Fedora, openSUSE) --
@@ -108,11 +143,19 @@ change:
    ansible-playbook -i examples/inventory/hosts.example.ini sameeralam3127.linux_vitals.healthcheck --syntax-check
    ```
 
-3. Tag the release (`git tag vX.Y.Z && git push --tags`) and publish:
+3. After the release PR is merged, tag the merge commit on `main` and push
+   the tag:
 
    ```bash
-   ansible-galaxy collection publish sameeralam3127-linux_vitals-X.Y.Z.tar.gz --api-key <your-galaxy-api-key>
+   git tag -a vX.Y.Z -m "LinuxVitals X.Y.Z"
+   git push origin vX.Y.Z
    ```
+
+   The tag starts [.github/workflows/release.yml](workflows/release.yml),
+   which refuses a tag that does not match `galaxy.yml`, re-runs the fast
+   checks, builds, publishes to Galaxy, and confirms the version is live.
+   There is no manual `ansible-galaxy collection publish` step and no API key
+   on anyone's machine; the key is the repository's `API_KEY` secret.
 
 4. Verify on the [Galaxy collection page](https://galaxy.ansible.com/ui/repo/published/sameeralam3127/linux_vitals/)
    that the README, tags, and version rendered as expected.
