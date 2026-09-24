@@ -17,6 +17,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   They are now numbers on every core. The test asserts the type as well as the
   value, because on a newer core the value alone would pass either way.
 
+- **The generic webhook never sent on ansible-core 2.16**, the declared floor,
+  in any release since 1.0.0
+  ([#85](https://github.com/sameeralam3127/linux-vitals/issues/85)). On 2.16
+  the template lookup turns JSON-looking output into a dict before
+  `from_json` sees it, and `from_json` raised on the dict. The error happened
+  while templating the arguments of a `no_log` task, so the operator saw only
+  `"censored"` and never the actionable "Generic webhook notification failed"
+  message. The payload is now parsed only when the lookup returns a string,
+  and is rendered in its own task outside `no_log` -- as the Slack payload
+  already was -- so a template error is visible. The URL and headers, which
+  are the credentials, stay masked. The Slack Block Kit payload used the same
+  pattern and gets the same fix; it only worked on 2.16 by accident of its
+  content.
+
+  `tests/test_core216_compat.py` now rejects a template lookup piped straight
+  into `from_json`, since a runtime test passes on any newer core.
+
 ## [2.0.0] - 2026-09-24
 
 **Breaking for anything that reads the JSON report, the generic webhook

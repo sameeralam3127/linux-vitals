@@ -77,3 +77,32 @@ def test_the_guard_catches_the_original_shape() -> None:
     assert _bad_literals(original), "guard failed to flag the pre-fix pattern"
     fixed = """{{ x | regex_findall('(?m)^K=(.*)$') | trim('"') }}"""
     assert not _bad_literals(fixed), "guard false-positives on the fixed pattern"
+
+
+# `lookup('ansible.builtin.template', ...) | from_json`: on 2.16 the lookup
+# has already turned JSON-looking output into a dict, and from_json raises on
+# it. On newer cores the lookup returns a string and the pipe works, so only a
+# static check sees it. This took out every generic webhook send on 2.16 (#85).
+TEMPLATE_LOOKUP_INTO_FROM_JSON = re.compile(
+    r"lookup\(\s*['\"]ansible\.builtin\.template['\"][^)]*\)\s*\|\s*from_json"
+)
+
+
+@pytest.mark.parametrize(
+    "path", sorted((REPO_ROOT / "roles").glob("*/tasks/*.yml")), ids=lambda p: f"{p.parts[-3]}/{p.name}"
+)
+def test_no_template_lookup_is_piped_into_from_json(path: Path) -> None:
+    offenders = TEMPLATE_LOOKUP_INTO_FROM_JSON.findall(path.read_text(encoding="utf-8"))
+
+    assert not offenders, (
+        f"{path.relative_to(REPO_ROOT)}: {offenders} -- on ansible-core 2.16 the template "
+        f"lookup already returns a dict here, so from_json fails. Parse only a string: "
+        f"`payload if payload is mapping else payload | from_json`."
+    )
+
+
+def test_the_from_json_guard_catches_the_original_shape() -> None:
+    original = "body: {{ lookup('ansible.builtin.template', 'generic_webhook_payload.json.j2') | from_json }}"
+    assert TEMPLATE_LOOKUP_INTO_FROM_JSON.search(original), "guard failed to flag the pre-fix shape"
+    fixed = "{{ payload if payload is mapping else payload | from_json }}"
+    assert not TEMPLATE_LOOKUP_INTO_FROM_JSON.search(fixed), "guard false-positives on the fixed shape"
