@@ -48,8 +48,8 @@ host in the play, simultaneously.
 
 **This is the single biggest lever on both runtime and control-node memory.**
 It is tracked as
-[#23](https://github.com/sameeralam3127/linux-vitals/issues/23) and is a Q1
-item on the [roadmap](roadmap.md); the fix is to filter on the managed host and
+[#23](https://github.com/sameeralam3127/linux-vitals/issues/23), planned for
+November 2026 and the 2.2.0 Trust release on the [roadmap](roadmap.md); the fix is to filter on the managed host and
 return counts plus a bounded excerpt, rather than shipping the window. Until
 then, the mitigation is to narrow the windows -- see Tuning below.
 
