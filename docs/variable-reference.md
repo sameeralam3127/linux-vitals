@@ -54,6 +54,8 @@ Override any of these in inventory, `group_vars`, or `-e` extra vars.
 | Variable | Default | Description |
 |---|---|---|
 | `linux_vitals_output_path` | `"{{ inventory_dir }}/reports/linux_vitals_report.html"` | Where the HTML dashboard is written. |
+| `linux_vitals_report_file_mode` | `"0644"` | Mode for generated HTML/JSON reports, archives, and per-host snapshots. Use `"0600"` to restrict reading to the automation user. |
+| `linux_vitals_report_dir_mode` | `"0755"` | Mode for report, archive, and snapshot directories created by the role. Use `"0700"` to restrict traversal to the automation user. |
 | `linux_vitals_json_output_path` | `"{{ inventory_dir }}/reports/linux_vitals_report.json"` | Where the JSON report is written. Set to `""` to skip JSON generation. |
 | `linux_vitals_report_title` | `"LinuxVitals Health Check Dashboard"` | Title shown in the dashboard `<title>` and hero heading. |
 | `linux_vitals_archive_html_reports` | `true` | Copy the HTML dashboard into `linux_vitals_report_archive_dir` with a UTC timestamp on every run. |

@@ -53,6 +53,19 @@ argument_specs:
         default: "{{ inventory_dir }}/reports/linux_vitals_report.html"
         description:
           - Where the self-contained HTML dashboard is written.
+      linux_vitals_report_file_mode:
+        type: str
+        default: "0644"
+        description:
+          - Mode for generated HTML/JSON reports, archives, and per-host snapshots.
+          - Set to C(0600) to restrict report contents to the automation user.
+      linux_vitals_report_dir_mode:
+        type: str
+        default: "0755"
+        description:
+          - Mode for report, archive, and snapshot directories created by the role.
+          - Set to C(0700) alongside C(linux_vitals_report_file_mode=0600)
+            to restrict traversal to the automation user.
       linux_vitals_json_output_path:
         type: str
         default: "{{ inventory_dir }}/reports/linux_vitals_report.json"
