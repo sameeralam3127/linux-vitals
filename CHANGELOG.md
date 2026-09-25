@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- Build the required-service status map in one shared task for both initial
+  scanning and post-healing refresh, preventing the two paths from drifting
+  ([#28](https://github.com/sameeralam3127/linux-vitals/issues/28)).
+
 ### Added
 
 - **Report and snapshot permissions are configurable**
