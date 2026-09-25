@@ -6,12 +6,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-### Changed
-
-- Build the required-service status map in one shared task for both initial
-  scanning and post-healing refresh, preventing the two paths from drifting
-  ([#28](https://github.com/sameeralam3127/linux-vitals/issues/28)).
-
 ### Added
 
 - **Report and snapshot permissions are configurable**
@@ -19,7 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `linux_vitals_report_file_mode` and `linux_vitals_report_dir_mode` apply to
   generated reports, archives, snapshots, and directories. The existing
   `0644`/`0755` defaults remain unchanged; operators on shared control nodes
-  can opt into `0600`/`0700`.
+  can opt into `0600`/`0700`. Thanks [@GreedyC](https://github.com/GreedyC).
 
 - **CI now tests the ansible-core floor**
   ([#47](https://github.com/sameeralam3127/linux-vitals/issues/47)).
@@ -31,6 +25,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `.github/constraints/ansible-core-floor.txt`, checked against
   `meta/runtime.yml` by `tests/test_ci_floor.py`, and documented in
   [docs/testing.md](docs/testing.md#ansible-core-versions).
+
+### Changed
+
+- Build the required-service status map in one shared task for both initial
+  scanning and post-healing refresh, preventing the two paths from drifting
+  ([#28](https://github.com/sameeralam3127/linux-vitals/issues/28)). Thanks
+  [@rupayon123](https://github.com/rupayon123).
 
 ### Fixed
 
