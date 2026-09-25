@@ -139,7 +139,7 @@ adding them to the current structure compounds a known problem.
 | Item | Issue | Priority |
 | --- | --- | --- |
 | Split the 1028-line `discovery.yml` into focused task files | [#27](https://github.com/sameeralam3127/linux-vitals/issues/27) | medium |
-| De-duplicate the required-service status map | [#28](https://github.com/sameeralam3127/linux-vitals/issues/28) | medium |
+| ~~De-duplicate the required-service status map~~ | [#28](https://github.com/sameeralam3127/linux-vitals/issues/28) | done (unreleased) |
 | Report all failed systemd units; make the required-service list configurable | [#32](https://github.com/sameeralam3127/linux-vitals/issues/32) | medium |
 | Report pending package updates and pending security updates, per distro | [#31](https://github.com/sameeralam3127/linux-vitals/issues/31) | high |
 | Check time-sync quality (offset, synchronised state), not just daemon liveness | [#33](https://github.com/sameeralam3127/linux-vitals/issues/33) | medium |
@@ -153,10 +153,12 @@ Ordering notes:
   it add tasks to `discovery.yml`; doing them first would mean splitting a file
   substantially larger than 1028 lines, and the tag-coverage bug that issue
   describes gets likelier with every task added.
-- [#28](https://github.com/sameeralam3127/linux-vitals/issues/28) is the stated
-  prerequisite for the configurable required-service list in
-  [#32](https://github.com/sameeralam3127/linux-vitals/issues/32), so it
-  immediately precedes it.
+- [#28](https://github.com/sameeralam3127/linux-vitals/issues/28) is done
+  ([#91](https://github.com/sameeralam3127/linux-vitals/pull/91), by
+  @rupayon123): scan and heal now share `roles/vitals_scan/tasks/services.yml`.
+  It was the stated prerequisite for the configurable required-service list
+  in [#32](https://github.com/sameeralam3127/linux-vitals/issues/32), which
+  can now build on that one task instead of two.
 - [#31](https://github.com/sameeralam3127/linux-vitals/issues/31) carries a
   high priority but sits mid-quarter: it is the largest item here, and it
   benefits from the split landing first.
@@ -181,7 +183,7 @@ the HTML file and deepening what it covers.
 | Export the fleet report as OpenMetrics and CSV | [#35](https://github.com/sameeralam3127/linux-vitals/issues/35) | medium |
 | Add an opt-in non-zero exit so an unhealthy fleet can gate a pipeline | [#41](https://github.com/sameeralam3127/linux-vitals/issues/41) | medium |
 | Extend security posture: firewall, SSH hardening, kernel taint, deleted libraries | [#36](https://github.com/sameeralam3127/linux-vitals/issues/36) | medium |
-| Make report and snapshot file modes configurable | [#61](https://github.com/sameeralam3127/linux-vitals/issues/61) | medium |
+| ~~Make report and snapshot file modes configurable~~ | [#61](https://github.com/sameeralam3127/linux-vitals/issues/61) | done (unreleased) |
 | Upload reports and snapshots to object storage; PagerDuty/Opsgenie payloads | [#65](https://github.com/sameeralam3127/linux-vitals/issues/65) | low |
 | ~~Add `vitals_certs` role: TLS certificate expiry and hardening checks~~ | [#15](https://github.com/sameeralam3127/linux-vitals/issues/15) | shipped in 2.0.0 |
 | Map findings to CIS or STIG rule identifiers for audit evidence | [#43](https://github.com/sameeralam3127/linux-vitals/issues/43) | low |
@@ -226,15 +228,15 @@ Ordering notes:
   as evidence, plus the case #35 does not cover: baseline and postcheck run
   from two different ephemeral control nodes, where the baseline snapshot has
   to outlive the pod that wrote it.
-- [#61](https://github.com/sameeralam3127/linux-vitals/issues/61) is grouped with
-  the security items rather than with the export items, because it is about
-  the same report the exports move around. `docs/threat-model.md` already
-  documents that reports are written `0644` and describes their contents as
-  "a fleet inventory cross-referenced with an unpatched-kernel list" -- the
-  most sensitive artefact the project produces currently has its loosest
-  default. It is a small change; it is here rather than in Q1 because it
-  concerns the report's confidentiality, not its truth, and Q1 is about
-  truth.
+- [#61](https://github.com/sameeralam3127/linux-vitals/issues/61) is done
+  ([#92](https://github.com/sameeralam3127/linux-vitals/pull/92), by @GreedyC),
+  ahead of its quarter, because it was small and well-fenced enough to be a
+  good first issue. `linux_vitals_report_file_mode` and
+  `linux_vitals_report_dir_mode` make the modes configurable. The defaults
+  deliberately stay `0644`/`0755`, so the question the issue raised --
+  whether the most sensitive artefact the project produces should default to
+  `0640`/`0750` -- is still open, and is a breaking change to be decided
+  under a compatibility policy rather than slipped into a first contribution.
 - [#43](https://github.com/sameeralam3127/linux-vitals/issues/43) closes the
   quarter because it extends the finding object #8 introduced -- adding a
   `rule_id` alongside the existing `id` is now an additive change -- and
