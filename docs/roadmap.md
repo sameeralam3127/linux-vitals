@@ -36,7 +36,7 @@ waits for February.
 
 | Month | Theme | Release | Issues |
 | --- | --- | --- | --- |
-| [October 2026](#october-2026-ship-what-is-done-then-the-finding-contract) | Ship what is done; the finding contract | **2.1.0** (early October) | 4 |
+| [October 2026](#october-2026-ship-what-is-done-then-the-finding-contract) | Ship what is done; the finding contract | **2.1.0** (early October) | 5 |
 | [November 2026](#november-2026-finish-trust-scale-and-safety) | Finish Trust: scale and safety | **2.2.0 -- Trust** (end of November) | 5 |
 | [December 2026](#december-2026-artefacts-and-the-task-tree) | Artefacts and the task tree | -- | 4 |
 | [January 2027](#january-2027-coverage-and-adoption) | Coverage and adoption | **2.3.0 -- Coverage** (end of January) | 4 |
@@ -90,6 +90,7 @@ else builds on.
 | ~~Generic webhook never sent on ansible-core 2.16~~ | [#85](https://github.com/sameeralam3127/linux-vitals/issues/85) | done -- ships in 2.1.0 |
 | ~~De-duplicate the required-service status map~~ | [#28](https://github.com/sameeralam3127/linux-vitals/issues/28) | done -- ships in 2.1.0 |
 | ~~Make report and snapshot file modes configurable~~ | [#61](https://github.com/sameeralam3127/linux-vitals/issues/61) | done -- ships in 2.1.0 |
+| Golden-file tests for every `vitals_scan` finding, before the contract change | [#98](https://github.com/sameeralam3127/linux-vitals/issues/98) | high |
 | Promote PASS/FAIL/UNKNOWN to a collection-wide finding contract | [#62](https://github.com/sameeralam3127/linux-vitals/issues/62) | high |
 | Failed-login check reports a clean host when `lastb` cannot run | [#39](https://github.com/sameeralam3127/linux-vitals/issues/39) | high |
 | Race between service restart and `service_facts` can report a dead service as "Fixed" | [#24](https://github.com/sameeralam3127/linux-vitals/issues/24) | high |
@@ -107,8 +108,13 @@ Ordering notes:
   dependency that does not support the floor at all
   ([#86](https://github.com/sameeralam3127/linux-vitals/issues/86)). Every
   change from here is tested on 2.16 as well as the newest core.
-- [#62](https://github.com/sameeralam3127/linux-vitals/issues/62) leads the new
-  work because the two items under it are both consumers of it. Today a
+- [#98](https://github.com/sameeralam3127/linux-vitals/issues/98) comes before
+  everything that changes a finding. It is tests only -- no role file changes --
+  and it records what every finding produces today for a fixed host state. Each
+  item below then updates those golden files on purpose, so the diff in its
+  pull request is the behaviour change a reviewer checks.
+- [#62](https://github.com/sameeralam3127/linux-vitals/issues/62) leads the
+  product changes because the two items under it are both consumers of it. Today a
   finding exists only when something is wrong and `final_status` is `Pass` or
   `Fail`, so there is nowhere to record that a check *could not run* -- which
   is why a missing `lastb` reads as a clean host. Fixing that per-check leaves

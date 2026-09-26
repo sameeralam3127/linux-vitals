@@ -1,0 +1,85 @@
+# openSUSE Leap 15.6 KVM guest in trouble: RAM exhausted, no sssd or time sync installed, grub2-mkconfig errors, no readable bootloader default.
+state:
+  state_schema: 1
+  collected_at: "2026-09-26T14:02:11Z"
+  host:
+    inventory_hostname: opensuse-critical
+    hostname: app-04
+    ip_address: null
+    product_serial: 9d4c7b2e-1f3a-4e6d-8c5b-2a7f0e9d1c30
+  platform:
+    os_family: Suse
+    distribution: openSUSE Leap
+    distribution_version: "15.6"
+    kernel: 6.4.0-150600.23.22-default
+    service_mgr: systemd
+    uptime_seconds: 259200
+    virtualization_type: kvm
+    virtualization_role: guest
+  memory:
+    # 97.0% used.
+    total_mb: 3931
+    available_mb: 118
+    free_mb: 52
+  mounts:
+    - {mount: /boot/efi, size_available: 529240064, size_total: 535805952}
+  services:
+    systemd-journald.service: {state: running, status: static}
+    sshd.service: {state: running, status: enabled}
+  probes:
+    logs:
+      ran: true
+      rc: 0
+      window: 30 minutes ago
+      stdout: |-
+        2026-09-26T13:30:00+0000 app-04 zypper[4412]: error: Download (curl) error for 'https://download.opensuse.org/update/leap/15.6/oss/repodata/repomd.xml'
+    audit_logs:
+      ran: true
+      rc: 0
+      window: 7 days ago
+      stdout: |-
+        2026-09-24T07:18:10+0000 app-04 grub2-mkconfig[5102]: /etc/grub.d/40_custom: line 7: syntax error near unexpected token
+    failed_logins:
+      ran: true
+      rc: 0
+      stdout_lines:
+        - ""
+        - "btmp begins Tue Sep  1 00:00:03 2026"
+    last_reboot:
+      ran: true
+      rc: 0
+      stdout: "         system boot  2026-09-23 14:02"
+    installed_kernels:
+      ran: true
+      rc: 0
+      latest: 6.4.0-150600.23.22-default
+      updated_at: "2026-09-10 07:18:02.000000000 +0000"
+      filtered: true
+    bootloader:
+      ran: true
+      rc: 0
+      supported: false
+      source: unavailable
+      default_entry: ""
+      default_kernel: ""
+      status: unavailable
+    reboot_required:
+      ran: true
+      rc: 0
+      supported: true
+      detected: false
+      source: zypper-needs-rebooting
+      detail: ""
+      packages: []
+    selinux:
+      ran: true
+      rc: 2
+      stdout: ""
+      unsupported_reason: getenforce not found
+    apparmor:
+      ran: true
+      rc: 0
+    rescue_images:
+      ran: true
+      rc: 0
+      stdout_lines: []

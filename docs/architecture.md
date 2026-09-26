@@ -141,6 +141,16 @@ to modify.
    - `notify.yml` sends the same summary through whichever channels are
      configured.
 
+Today collection and evaluation both happen inside step 1: `discovery.yml`
+gathers raw state and also decides several statuses from it (RAM, boot space,
+kernel selection, AppArmor, bootloader match, reboot fallback). The raw state
+on its own is specified as a separate, independently versioned document,
+`state_schema: 1`, in [state-schema.md](state-schema.md). Nothing emits it
+yet; it is the contract the collection/evaluation split
+([#98](https://github.com/sameeralam3127/linux-vitals/issues/98)) builds
+against. What step 1 produces for a given state is pinned by the golden-file
+tests described in [testing.md](testing.md#golden-file-tests).
+
 ## The finding object, and what it cannot yet say
 
 Every check that has something to report appends a finding. Since
