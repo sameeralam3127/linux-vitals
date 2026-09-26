@@ -36,6 +36,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   ([#28](https://github.com/sameeralam3127/linux-vitals/issues/28)). Thanks
   [@rupayon123](https://github.com/rupayon123).
 
+- CI Python tooling installs now require binary wheels with
+  `--only-binary :all:`, preventing dependency source build scripts from
+  running during installation
+  ([#74](https://github.com/sameeralam3127/linux-vitals/issues/74)).
+
 ### Fixed
 
 - **The comparison's RAM fields were strings on ansible-core 2.16.**
