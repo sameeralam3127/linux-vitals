@@ -80,3 +80,29 @@ def test_latest_core_jobs_keep_their_required_check_names() -> None:
         f"required status check(s) {sorted(missing)} no longer exist in ci.yml; every PR "
         f"would wait on them forever. Rename in branch protection at the same time."
     )
+
+
+def test_ci_pip_installs_require_binary_only() -> None:
+    paths = [
+        *(
+            REPO_ROOT / ".github" / "workflows"
+        ).glob("*.yml"),
+        *(
+            REPO_ROOT / ".github" / "scripts"
+        ).glob("*.sh"),
+    ]
+
+    for path in paths:
+        content = path.read_text(encoding="utf-8")
+
+        # Join shell commands split with a backslash continuation.
+        content = content.replace("\\\n", " ")
+
+        for line in content.splitlines():
+            if "pip install" not in line:
+                continue
+
+            assert "--only-binary :all:" in line, (
+                f"{path.relative_to(REPO_ROOT)} contains a pip install "
+                f"without '--only-binary :all:': {line.strip()}"
+            )
