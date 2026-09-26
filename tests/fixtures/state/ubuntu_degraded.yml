@@ -1,0 +1,95 @@
+# Ubuntu 24.04 VM after patching, before its reboot: new kernel pending, /boot nearly full, RAM high but under critical, noisy logs, SSH brute force.
+state:
+  state_schema: 1
+  collected_at: "2026-09-26T14:02:11Z"
+  host:
+    inventory_hostname: ubuntu-degraded
+    hostname: web-01
+    ip_address: 10.0.3.11
+    product_serial: VMware-42 1a 7c 3e
+  platform:
+    os_family: Debian
+    distribution: Ubuntu
+    distribution_version: "24.04"
+    kernel: 6.8.0-45-generic
+    service_mgr: systemd
+    uptime_seconds: 2592300
+    virtualization_type: VMware
+    virtualization_role: guest
+  memory:
+    # 88.0% used: ram_status Warning, which is not a finding (only Critical is).
+    total_mb: 7938
+    available_mb: 952
+    free_mb: 311
+  mounts:
+    # 13.0% free: under the 20% boot warning threshold.
+    - {mount: /boot, size_available: 249036800, size_total: 1918672896}
+    - {mount: /boot/efi, size_available: 1112408064, size_total: 1124999168}
+  services:
+    systemd-journald.service: {state: running, status: static}
+    sssd.service: {state: running, status: enabled}
+    systemd-timesyncd.service: {state: running, status: enabled}
+    ssh.service: {state: running, status: enabled}
+    payments-api.service: {state: stopped, status: enabled}
+  probes:
+    logs:
+      ran: true
+      rc: 0
+      window: 30 minutes ago
+      stdout: |-
+        2026-09-26T13:41:07+0000 web-01 systemd[1]: Started session-12.scope - Session 12 of User ubuntu.
+        2026-09-26T13:44:19+0000 web-01 payments-api[3312]: ERROR connection refused: db-01:5432
+        2026-09-26T13:44:19+0000 web-01 systemd[1]: payments-api.service: Failed with result 'exit-code'.
+    audit_logs:
+      ran: true
+      rc: 0
+      window: 7 days ago
+      stdout: |-
+        2026-09-25T02:14:51+0000 web-01 kernel: Linux version 6.8.0-45-generic (buildd@lcy02-amd64-075)
+    failed_logins:
+      ran: true
+      rc: 0
+      stdout_lines:
+        - "root     ssh:notty    203.0.113.9      Sat Sep 26 13:01 - 13:01  (00:00)"
+        - "admin    ssh:notty    203.0.113.9      Sat Sep 26 13:00 - 13:00  (00:00)"
+        - ""
+        - "btmp begins Tue Sep  1 00:00:02 2026"
+    last_reboot:
+      ran: true
+      rc: 0
+      stdout: "         system boot  2026-08-27 13:57"
+    installed_kernels:
+      ran: true
+      rc: 0
+      latest: 6.8.0-60-generic
+      updated_at: "2026-09-25 02:14:49.000000000 +0000"
+      filtered: true
+    bootloader:
+      # GRUB already points at the new kernel; only the running kernel lags.
+      ran: true
+      rc: 0
+      supported: true
+      source: grub_default
+      default_entry: "0"
+      default_kernel: 6.8.0-60-generic
+      status: resolved
+    reboot_required:
+      ran: true
+      rc: 0
+      supported: true
+      detected: true
+      source: /run/reboot-required
+      detail: "*** System restart required ***"
+      packages: [libssl3, linux-image-6.8.0-60-generic]
+    selinux:
+      ran: true
+      rc: 2
+      stdout: ""
+      unsupported_reason: getenforce not found
+    apparmor:
+      ran: true
+      rc: 0
+    rescue_images:
+      ran: true
+      rc: 0
+      stdout_lines: []

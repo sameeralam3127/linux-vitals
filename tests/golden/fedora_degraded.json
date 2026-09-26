@@ -1,0 +1,82 @@
+{
+  "apparmor_status": "disabled",
+  "asset_serial": "PF3KX9QZ",
+  "boot_free_mb": 560.0,
+  "boot_free_pct": 57.5,
+  "boot_mount": "/boot",
+  "boot_space_status": "Healthy",
+  "boot_total_mb": 973.4,
+  "bootloader_default_entry": "8f2c1d4e5a6b7c8d9e0f1a2b3c4d5e6f-6.10.12-200.fc40.x86_64",
+  "bootloader_default_kernel": "6.10.12-200.fc40.x86_64",
+  "bootloader_default_matches_latest": true,
+  "bootloader_default_source": "grubenv",
+  "bootloader_default_status": "resolved",
+  "bootloader_supported": true,
+  "bootloader_validation_message": "Default boot entry selects the latest installed kernel",
+  "comparison": {
+    "baseline_available": false
+  },
+  "failed_login_count": 0,
+  "final_status": "Fail",
+  "findings": [
+    {
+      "id": "log_errors",
+      "message": "Recent logs contain error or failed entries",
+      "severity": "info"
+    },
+    {
+      "id": "reboot_required",
+      "message": "System reboot is required",
+      "severity": "warning"
+    },
+    {
+      "id": "kernel_not_latest",
+      "message": "Latest installed kernel is not currently running",
+      "severity": "warning"
+    }
+  ],
+  "healing_results": [],
+  "hostname": "ws-07",
+  "ip_address": "10.0.5.37",
+  "kernel_install_failure_excerpt": [],
+  "kernel_install_failures": 0,
+  "last_failed_login": "No failed login attempts found",
+  "last_reboot": "system boot  2026-09-12 08:30",
+  "latest_installed_kernel": "6.10.12-200.fc40.x86_64",
+  "latest_kernel_selected": false,
+  "latest_kernel_updated_at": "2026-09-25 20:12:41.000000000 +0000",
+  "log_errors": 2,
+  "log_excerpt": [
+    "2026-09-26T13:50:11+0000 ws-07 gnome-shell[2210]: Failed to set CRTC gamma: No such file or directory",
+    "2026-09-26T13:51:03+0000 ws-07 pipewire[1988]: spa.alsa: hw:0: snd_pcm_open error: Device or resource busy"
+  ],
+  "log_source": "journald",
+  "os": "Fedora 40",
+  "os_family": "RedHat",
+  "package_manager": "dnf",
+  "platform_type": "Physical",
+  "ram_status": "OK",
+  "ram_total_mb": 31845.0,
+  "ram_used_mb": 13612.0,
+  "ram_used_pct": 42.7,
+  "reboot_detection_supported": true,
+  "reboot_reason": "Reboot required (dnf-needs-restarting): Reboot is required to fully utilize these updates.",
+  "reboot_required": true,
+  "reboot_required_packages": [],
+  "reboot_required_source": "dnf-needs-restarting",
+  "rescue_image_available": true,
+  "rescue_image_paths": [
+    "/boot/initramfs-0-rescue-8f2c1d4e5a6b7c8d9e0f1a2b3c4d5e6f.img"
+  ],
+  "running_kernel": "6.10.10-200.fc40.x86_64",
+  "selinux_status": "Enforcing",
+  "services_healed": [],
+  "severity": "warning",
+  "severity_counts": {
+    "critical": 0,
+    "info": 1,
+    "warning": 2
+  },
+  "uptime": "14d 0h 0m",
+  "virtualization_type": "NA"
+}

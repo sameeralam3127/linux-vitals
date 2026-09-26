@@ -1,0 +1,87 @@
+# Fedora 40 KVM guest in trouble: RAM exactly at the 95% critical line, journald stopped, ntpd installed but stopped, SELinux disabled, systemd-boot entry unresolvable.
+state:
+  state_schema: 1
+  collected_at: "2026-09-26T14:02:11Z"
+  host:
+    inventory_hostname: fedora-critical
+    hostname: build-04
+    ip_address: 10.0.5.44
+    product_serial: null
+  platform:
+    os_family: RedHat
+    distribution: Fedora
+    distribution_version: "40"
+    kernel: 6.10.10-200.fc40.x86_64
+    service_mgr: systemd
+    uptime_seconds: 7200
+    virtualization_type: kvm
+    virtualization_role: guest
+  memory:
+    # Exactly 95.0% used: the critical threshold is inclusive.
+    total_mb: 8000
+    available_mb: 400
+    free_mb: 212
+  mounts:
+    - {mount: /boot/efi, size_available: 609222656, size_total: 627900416}
+  services:
+    systemd-journald.service: {state: stopped, status: static}
+    sssd.service: {state: running, status: enabled}
+    ntpd.service: {state: stopped, status: disabled}
+    sshd.service: {state: running, status: enabled}
+  probes:
+    logs:
+      ran: true
+      rc: 0
+      window: 30 minutes ago
+      stdout: ""
+    audit_logs:
+      ran: true
+      rc: 0
+      window: 7 days ago
+      stdout: ""
+    failed_logins:
+      ran: true
+      rc: 0
+      stdout_lines:
+        - ""
+        - "btmp begins Tue Sep  1 00:00:09 2026"
+    last_reboot:
+      ran: true
+      rc: 0
+      stdout: "         system boot  2026-09-26 12:02"
+    installed_kernels:
+      ran: true
+      rc: 0
+      latest: 6.10.10-200.fc40.x86_64
+      updated_at: "2026-09-22 18:03:55.000000000 +0000"
+      filtered: true
+    bootloader:
+      # systemd-boot names a default entry but no kernel could be resolved
+      # from it, so bootloader_mismatch cannot fire (finding-inventory NOTES 1).
+      ran: true
+      rc: 0
+      supported: true
+      source: systemd-boot
+      default_entry: ""
+      default_kernel: ""
+      status: entry-only
+    reboot_required:
+      ran: true
+      rc: 0
+      supported: true
+      detected: false
+      source: needs-restarting
+      detail: Reboot should not be necessary.
+      packages: []
+    selinux:
+      ran: true
+      rc: 0
+      stdout: Disabled
+    apparmor:
+      ran: true
+      rc: 2
+      unsupported_reason: aa-status not found
+    rescue_images:
+      ran: true
+      rc: 0
+      stdout_lines: []

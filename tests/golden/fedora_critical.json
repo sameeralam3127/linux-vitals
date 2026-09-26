@@ -1,0 +1,82 @@
+{
+  "apparmor_status": "disabled",
+  "asset_serial": "unavailable",
+  "boot_free_mb": 581.0,
+  "boot_free_pct": 97.0,
+  "boot_mount": "/boot/efi",
+  "boot_space_status": "Healthy",
+  "boot_total_mb": 598.8,
+  "bootloader_default_entry": "",
+  "bootloader_default_kernel": "",
+  "bootloader_default_matches_latest": false,
+  "bootloader_default_source": "systemd-boot",
+  "bootloader_default_status": "entry-only",
+  "bootloader_supported": true,
+  "bootloader_validation_message": "Default boot entry detected but the kernel could not be resolved",
+  "comparison": {
+    "baseline_available": false
+  },
+  "failed_login_count": 0,
+  "final_status": "Fail",
+  "findings": [
+    {
+      "id": "ram_critical",
+      "message": "RAM usage is critical",
+      "severity": "critical"
+    },
+    {
+      "id": "journald_inactive",
+      "message": "systemd-journald is not active",
+      "severity": "critical"
+    },
+    {
+      "id": "time_sync_inactive",
+      "message": "Time synchronization service is not active",
+      "severity": "warning"
+    },
+    {
+      "id": "selinux_disabled",
+      "message": "SELinux is disabled or unavailable",
+      "severity": "warning"
+    }
+  ],
+  "healing_results": [],
+  "hostname": "build-04",
+  "ip_address": "10.0.5.44",
+  "kernel_install_failure_excerpt": [],
+  "kernel_install_failures": 0,
+  "last_failed_login": "No failed login attempts found",
+  "last_reboot": "system boot  2026-09-26 12:02",
+  "latest_installed_kernel": "6.10.10-200.fc40.x86_64",
+  "latest_kernel_selected": true,
+  "latest_kernel_updated_at": "2026-09-22 18:03:55.000000000 +0000",
+  "log_errors": 0,
+  "log_excerpt": [],
+  "log_source": "journald",
+  "os": "Fedora 40",
+  "os_family": "RedHat",
+  "package_manager": "dnf",
+  "platform_type": "Virtual Machine",
+  "ram_status": "Critical",
+  "ram_total_mb": 8000.0,
+  "ram_used_mb": 7600.0,
+  "ram_used_pct": 95.0,
+  "reboot_detection_supported": true,
+  "reboot_reason": "No reboot required (needs-restarting)",
+  "reboot_required": false,
+  "reboot_required_packages": [],
+  "reboot_required_source": "needs-restarting",
+  "rescue_image_available": false,
+  "rescue_image_paths": [],
+  "running_kernel": "6.10.10-200.fc40.x86_64",
+  "selinux_status": "Disabled",
+  "services_healed": [],
+  "severity": "critical",
+  "severity_counts": {
+    "critical": 2,
+    "info": 0,
+    "warning": 2
+  },
+  "uptime": "0d 2h 0m",
+  "virtualization_type": "kvm"
+}
