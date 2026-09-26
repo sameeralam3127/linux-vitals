@@ -213,3 +213,11 @@ golden files deliberately, so the behaviour change is visible in its PR.
     `linux_vitals_severity_order`, so the finding never fails the host. The
     report shows a `warning` host with a finding attached and `Pass`. Same
     class as NOTES 1 and 8, and worse: it is a wrong answer, not a missing one.
+
+12. **`last_reboot` is never stripped of its `system boot` prefix.** Not a
+    finding, but it is in the report. `discovery.yml:857` writes the regex
+    as `'^\\s*system boot\\s+'` inside a folded (`>-`) scalar, where YAML
+    does not unescape backslashes, so the pattern Jinja receives looks for a
+    literal backslash and never matches. Every report shows
+    `system boot  2026-09-24 10:55` instead of the date. Found by the golden
+    tests (#98); the same regex in a double-quoted scalar works.

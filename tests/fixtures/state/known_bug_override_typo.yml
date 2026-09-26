@@ -1,4 +1,4 @@
-# Known bug (finding-inventory NOTES 11): a mistyped override (critcal) leaves an Ubuntu host with a finding reporting Pass. Its fix must change this golden file.
+# Known bug (inventory NOTES 11): a mistyped override (critcal) lets an Ubuntu host with a finding report Pass. Its fix must change this golden file.
 role_vars:
   linux_vitals_finding_severity_overrides:
     sssd_inactive: critcal

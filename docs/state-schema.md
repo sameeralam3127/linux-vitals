@@ -4,7 +4,7 @@
 > emits this document today. It is the contract the collection/evaluation
 > refactor ([#98](https://github.com/sameeralam3127/linux-vitals/issues/98))
 > builds against, written before the tasks that produce it, and it is what
-> `tests/fixtures/state/` will encode. The shipped report keeps its own
+> `tests/fixtures/state/` encodes. The shipped report keeps its own
 > `schema_version: 2.0` — the two version independently, which is the point
 > of separating them.
 
@@ -90,7 +90,7 @@ schema bump — the data is already there, nothing is judging it yet.
       "supported": true, "detected": false,
       "source": "reboot-required-file", "detail": "", "packages": []
     },
-    "selinux":  {"ran": true, "rc": 127, "stdout": "", "unsupported_reason": "getenforce not found"},
+    "selinux":  {"ran": true, "rc": 2, "stdout": "", "unsupported_reason": "getenforce not found"},
     "apparmor": {"ran": true, "rc": 0},
     "rescue_images": {"ran": true, "rc": 0, "stdout_lines": []}
   },
@@ -162,7 +162,7 @@ Every probe object carries:
 
 | Key | Meaning |
 | --- | --- |
-| `ran` | `false` when the task was skipped — a `when:` excluded it, or the binary is absent. **`false` is not a pass.** |
+| `ran` | `false` only when a `when:` skipped the task. A probe whose binary is missing still ran: `ansible.builtin.command` reports rc 2, and `unsupported_reason` says why. **Neither is a pass.** |
 | `rc` | Exit code. `null` when `ran` is `false`. |
 | `unsupported_reason` | Free text for why `ran` is `false` or the tool could not answer. `null` otherwise. |
 
@@ -239,6 +239,15 @@ each is a judgement:
 
 Excerpts are a render concern: the state document holds full `stdout`, and
 truncation to five lines is presentation.
+
+## Test fixtures
+
+`tests/fixtures/state/*.yml` hold one document each under a `state:` key,
+with an optional `role_vars:` beside it for fixtures that exercise an
+operator setting (a severity override, say) rather than a host condition.
+YAML rather than JSON so each fixture can open with the comment saying what
+it represents. How they are run is in
+[testing.md](testing.md#golden-file-tests).
 
 ## Versioning
 
