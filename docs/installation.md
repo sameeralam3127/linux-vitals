@@ -13,6 +13,25 @@
   `>=9.0.0` (only needed if you enable email notifications, which use
   `community.general.mail`)
 
+If your control node runs ansible-core 2.16, install `community.general` 11.x
+or earlier. Its 12.x series requires ansible-core 2.17 or newer, but Galaxy
+does not select a compatible dependency version automatically for 2.16. Put
+both collections in the same project requirements file so their constraints
+are resolved together:
+
+```yaml
+collections:
+  - name: sameeralam3127.linux_vitals
+  - name: community.general
+    version: ">=9.0.0,<12.0.0"
+```
+
+Save this as `requirements-ansible216.yml`, then run
+`ansible-galaxy collection install -r requirements-ansible216.yml` from the
+directory containing that file. The repository's own `requirements.yml` is
+for development with newer ansible-core versions and has a wider dependency
+range; do not use it to select 2.16-compatible collections.
+
 ## From Ansible Galaxy
 
 ```bash
