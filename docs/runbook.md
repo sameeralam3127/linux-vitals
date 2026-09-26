@@ -370,9 +370,10 @@ It sometimes is, and knowing where saves you chasing a phantom:
 - **`--check` mode does not work**
   ([#38](https://github.com/sameeralam3127/linux-vitals/issues/38)). The scan
   is read-only regardless, so run it for real.
-- **Facts may be cached.** The fact cache has no expiry
-  ([#25](https://github.com/sameeralam3127/linux-vitals/issues/25)); a
-  suspiciously unchanged report may be stale. Clear `.facts/` and re-run.
+- **Facts may be cached.** The source checkout bounds cache reuse to one hour;
+  your own Ansible configuration may differ. For a suspiciously unchanged
+  report, [run a cold scan](troubleshooting.md#cached-facts) with
+  `--flush-cache`.
 
 If a finding is wrong rather than unwelcome, that is a bug --
 [open an issue](https://github.com/sameeralam3127/linux-vitals/issues). If it

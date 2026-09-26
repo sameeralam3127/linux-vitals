@@ -61,11 +61,12 @@ cheapest thing to change and usually the first thing worth changing.
 
 ### 3. Fact gathering and per-host probes
 
-`gathering = smart` with a `jsonfile` fact cache under `.facts` is already
-configured, so repeat runs skip re-gathering. Note that the cache has **no
-expiry set** ([#25](https://github.com/sameeralam3127/linux-vitals/issues/25)),
-which is a correctness caveat as much as a performance one: a fast run may be
-fast because it is reporting stale facts.
+`gathering = smart` with a `jsonfile` fact cache under `.facts` can skip
+implicit gathering while entries are younger than the configured one-hour
+lifetime (`fact_caching_timeout = 3600`). `vitals_scan` still explicitly
+refreshes its platform fact subsets and runs its health probes on every
+discovery run. See [the cache policy](architecture.md#fact-cache-lifetime)
+and [how to force a cold run](troubleshooting.md#cached-facts).
 
 Beyond facts, each host runs 13 short commands. They are cheap individually;
 at 500 hosts they are 6,500 SSH round trips, which is where connection reuse

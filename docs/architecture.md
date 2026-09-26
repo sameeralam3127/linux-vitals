@@ -197,3 +197,16 @@ tag automatically, while specific tasks additionally carry `kernel`,
 the whole scan. The `always` tag on `vitals_report`'s `config.yml` ensures
 notification configuration loads even when you run a narrowly-tagged
 subset.
+
+## Fact cache lifetime
+
+The checkout keeps platform facts in `.facts/` for up to one hour
+(`fact_caching_timeout = 3600`). This lets nearby runs reuse facts without
+falling back to Ansible's 24-hour default. Discovery still refreshes its
+`min`, `hardware`, `network`, and `virtual` subsets and reruns health probes.
+A report-only run does not perform a fresh scan.
+
+Expiry is checked when entries are read; it does not remove files for retired
+hosts on a schedule. See [cached facts](troubleshooting.md#cached-facts) for
+cold runs and cleanup. This `ansible.cfg` is not shipped in the Galaxy
+collection, so Galaxy users keep their own cache settings.

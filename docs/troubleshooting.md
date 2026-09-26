@@ -78,3 +78,24 @@ the latest installed one instead, and `reboot_required_source` reports
 **A finding fires that you don't expect.**
 See [report-guide.md#findings](report-guide.md#findings) for the exact
 list of conditions and which threshold/variable controls each one.
+
+### Cached facts
+
+If a report seems stale, check the active configuration with `ansible
+--version` and `ansible-config dump --only-changed`. The checkout caches facts
+in `.facts/`, relative to `ansible.cfg`, for one hour. Your configuration or
+environment may override this.
+
+Add `--flush-cache` to your usual scan command to clear cached facts for the
+inventory before gathering fresh data:
+
+```bash
+ansible-playbook -i inventory.ini sameeralam3127.linux_vitals.healthcheck --flush-cache
+```
+
+This leaves report archives and baseline/postcheck snapshots intact. Run the
+scan as well as reporting; reporting alone does not refresh health data.
+
+Cache files for retired hosts can remain on disk. With no Ansible runs using
+the cache, remove their files from the confirmed cache directory. Reports and
+snapshots are separate and do not need to be deleted.

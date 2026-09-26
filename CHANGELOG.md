@@ -28,6 +28,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Set the source checkout's fact cache timeout explicitly to one hour and
+  document cache reuse, cold scans, and cleanup of retired hosts
+  ([#25](https://github.com/sameeralam3127/linux-vitals/issues/25)).
+
 - Document the `community.general` version constraint needed when installing
   on ansible-core 2.16 ([#86](https://github.com/sameeralam3127/linux-vitals/issues/86)).
 
