@@ -23,17 +23,18 @@ if [[ "$target" != "latest" && "$target" != "floor" ]]; then
   exit 2
 fi
 
-python -m pip install --upgrade pip
+python -m pip install --only-binary :all: --upgrade pip
 
 case "$target" in
   latest)
-    python -m pip install -r "$repo_root/requirements-dev.txt"
+    python -m pip install --only-binary :all: -r "$repo_root/requirements-dev.txt"
     ;;
   floor)
     requirements="$(mktemp)"
     trap 'rm -f "$requirements"' EXIT
     grep -v '^ansible-core' "$repo_root/requirements-dev.txt" > "$requirements"
-    python -m pip install -r "$requirements" ansible-core -c "$floor_constraints"
+    python -m pip install --only-binary :all: \
+      -r "$requirements" ansible-core -c "$floor_constraints"
     ;;
 esac
 

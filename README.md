@@ -66,6 +66,9 @@ ansible-galaxy collection install sameeralam3127.linux_vitals
 ```
 
 That pulls `community.general` too, which the notification tasks need.
+If the control node runs ansible-core 2.16, install both collections with a
+`community.general` `<12` constraint instead; see the
+[2.16 installation instructions](docs/installation.md#requirements).
 
 ### 2. Point it at your hosts
 
@@ -357,7 +360,7 @@ join on — `message` wording may change between releases, ids will not.
 
 | | |
 | --- | --- |
-| **Control node** | Python 3.10+, `ansible-core` 2.16+, and the `community.general` collection |
+| **Control node** | Python 3.10+, `ansible-core` 2.16+, and the `community.general` collection (use 9.x–11.x with ansible-core 2.16; see [installation](docs/installation.md#requirements)) |
 | **Managed hosts** | Linux with `systemd`. Nothing installed — no agent, no Python packages beyond what Ansible itself needs |
 | **Access** | SSH from the control node, plus `become` for the checks that read privileged state |
 

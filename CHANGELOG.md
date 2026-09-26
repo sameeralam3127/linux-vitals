@@ -32,10 +32,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   document cache reuse, cold scans, and cleanup of retired hosts
   ([#25](https://github.com/sameeralam3127/linux-vitals/issues/25)).
 
+- Document the `community.general` version constraint needed when installing
+  on ansible-core 2.16 ([#86](https://github.com/sameeralam3127/linux-vitals/issues/86)).
+
 - Build the required-service status map in one shared task for both initial
   scanning and post-healing refresh, preventing the two paths from drifting
   ([#28](https://github.com/sameeralam3127/linux-vitals/issues/28)). Thanks
   [@rupayon123](https://github.com/rupayon123).
+
+- CI Python tooling installs now require binary wheels with
+  `--only-binary :all:`, preventing dependency source build scripts from
+  running during installation
+  ([#74](https://github.com/sameeralam3127/linux-vitals/issues/74)).
 
 ### Fixed
 
