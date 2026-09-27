@@ -44,6 +44,14 @@ Confirm `linux_vitals_email_enabled: true`, at least one entry in
 `community.general` is installed (`ansible-galaxy collection install -r
 requirements.yml`).
 
+**`Collection community.general does not support Ansible version 2.16.x` appears.**
+The installed `community.general` release requires a newer ansible-core than
+your control node has. For ansible-core 2.16, install both collections with a
+`community.general` constraint of `>=9.0.0,<12.0.0` as shown in the
+[installation requirements](installation.md#requirements). Installing this
+repository's unconstrained `requirements.yml` again can select the same
+incompatible release.
+
 **A tagged run skips expected output.**
 Include `reporting` with your focused tags -- e.g.
 `--tags discovery,kernel,reporting` -- since dashboard/JSON generation only
