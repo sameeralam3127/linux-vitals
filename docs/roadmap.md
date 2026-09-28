@@ -269,7 +269,7 @@ to keep two to four open at all times rather than to schedule them.
 
 | Item | Issue | Size |
 | --- | --- | --- |
-| Tell users on ansible-core 2.16 to use `community.general` 11 | [#86](https://github.com/sameeralam3127/linux-vitals/issues/86) | small |
+| ~~Tell users on ansible-core 2.16 to use `community.general` 11~~ | [#86](https://github.com/sameeralam3127/linux-vitals/issues/86) | done -- ships in 2.1.0 |
 | Install CI tooling with `--only-binary` (the lockfile half stays with the maintainer) | [#74](https://github.com/sameeralam3127/linux-vitals/issues/74) | small |
 
 ## Not before February 2027
