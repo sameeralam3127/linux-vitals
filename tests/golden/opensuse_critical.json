@@ -1,0 +1,91 @@
+{
+  "apparmor_status": "enabled",
+  "asset_serial": "9d4c7b2e-1f3a-4e6d-8c5b-2a7f0e9d1c30",
+  "boot_free_mb": 504.7,
+  "boot_free_pct": 98.8,
+  "boot_mount": "/boot/efi",
+  "boot_space_status": "Healthy",
+  "boot_total_mb": 511.0,
+  "bootloader_default_entry": "",
+  "bootloader_default_kernel": "",
+  "bootloader_default_matches_latest": false,
+  "bootloader_default_source": "unavailable",
+  "bootloader_default_status": "unavailable",
+  "bootloader_supported": false,
+  "bootloader_validation_message": "Bootloader default kernel validation is not available on this host",
+  "comparison": {
+    "baseline_available": false
+  },
+  "failed_login_count": 0,
+  "final_status": "Fail",
+  "findings": [
+    {
+      "id": "ram_critical",
+      "message": "RAM usage is critical",
+      "severity": "critical"
+    },
+    {
+      "id": "log_errors",
+      "message": "Recent logs contain error or failed entries",
+      "severity": "info"
+    },
+    {
+      "id": "sssd_inactive",
+      "message": "sssd is not active",
+      "severity": "warning"
+    },
+    {
+      "id": "time_sync_absent",
+      "message": "chronyd or ntp is not installed",
+      "severity": "warning"
+    },
+    {
+      "id": "kernel_install_failures",
+      "message": "Kernel installation or bootloader related failures found in logs",
+      "severity": "warning"
+    }
+  ],
+  "healing_results": [],
+  "hostname": "app-04",
+  "ip_address": "golden-opensuse_critical",
+  "kernel_install_failure_excerpt": [
+    "2026-09-24T07:18:10+0000 app-04 grub2-mkconfig[5102]: /etc/grub.d/40_custom: line 7: syntax error near unexpected token"
+  ],
+  "kernel_install_failures": 1,
+  "last_failed_login": "No failed login attempts found",
+  "last_reboot": "system boot  2026-09-23 14:02",
+  "latest_installed_kernel": "6.4.0-150600.23.22-default",
+  "latest_kernel_selected": true,
+  "latest_kernel_updated_at": "2026-09-10 07:18:02.000000000 +0000",
+  "log_errors": 1,
+  "log_excerpt": [
+    "2026-09-26T13:30:00+0000 app-04 zypper[4412]: error: Download (curl) error for 'https://download.opensuse.org/update/leap/15.6/oss/repodata/repomd.xml'"
+  ],
+  "log_source": "journald",
+  "os": "openSUSE Leap 15.6",
+  "os_family": "Suse",
+  "package_manager": "zypper",
+  "platform_type": "Virtual Machine",
+  "ram_status": "Critical",
+  "ram_total_mb": 3931.0,
+  "ram_used_mb": 3813.0,
+  "ram_used_pct": 97.0,
+  "reboot_detection_supported": true,
+  "reboot_reason": "No reboot required (zypper-needs-rebooting)",
+  "reboot_required": false,
+  "reboot_required_packages": [],
+  "reboot_required_source": "zypper-needs-rebooting",
+  "rescue_image_available": false,
+  "rescue_image_paths": [],
+  "running_kernel": "6.4.0-150600.23.22-default",
+  "selinux_status": "not-installed",
+  "services_healed": [],
+  "severity": "critical",
+  "severity_counts": {
+    "critical": 1,
+    "info": 1,
+    "warning": 3
+  },
+  "uptime": "3d 0h 0m",
+  "virtualization_type": "kvm"
+}

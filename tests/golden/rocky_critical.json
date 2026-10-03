@@ -1,0 +1,100 @@
+{
+  "apparmor_status": "disabled",
+  "asset_serial": "7c9e1b2a-44d0-4f3e-8a61-0b2c3d4e5f60",
+  "boot_free_mb": 122.0,
+  "boot_free_pct": 12.0,
+  "boot_mount": "/boot",
+  "boot_space_status": "Low",
+  "boot_total_mb": 1014.0,
+  "bootloader_default_entry": "/boot/vmlinuz-5.14.0-362.8.1.el9_3.x86_64",
+  "bootloader_default_kernel": "5.14.0-362.8.1.el9_3.x86_64",
+  "bootloader_default_matches_latest": false,
+  "bootloader_default_source": "grubby",
+  "bootloader_default_status": "resolved",
+  "bootloader_supported": true,
+  "bootloader_validation_message": "Default boot entry does not select the latest installed kernel",
+  "comparison": {
+    "baseline_available": false
+  },
+  "failed_login_count": 0,
+  "final_status": "Fail",
+  "findings": [
+    {
+      "id": "ram_critical",
+      "message": "RAM usage is critical",
+      "severity": "critical"
+    },
+    {
+      "id": "sssd_inactive",
+      "message": "sssd is not active",
+      "severity": "warning"
+    },
+    {
+      "id": "time_sync_inactive",
+      "message": "Time synchronization service is not active",
+      "severity": "warning"
+    },
+    {
+      "id": "bootloader_mismatch",
+      "message": "Default boot entry does not select the latest installed kernel",
+      "severity": "warning"
+    },
+    {
+      "id": "boot_space_low",
+      "message": "Boot partition free space is low",
+      "severity": "warning"
+    },
+    {
+      "id": "kernel_install_failures",
+      "message": "Kernel installation or bootloader related failures found in logs",
+      "severity": "warning"
+    },
+    {
+      "id": "selinux_disabled",
+      "message": "SELinux is disabled or unavailable",
+      "severity": "warning"
+    }
+  ],
+  "healing_results": [],
+  "hostname": "db-02",
+  "ip_address": "10.0.4.22",
+  "kernel_install_failure_excerpt": [
+    "2026-09-24T01:02:03+0000 db-02 dracut[4410]: dracut-install: Failed to find module 'xfs'",
+    "2026-09-24T01:02:05+0000 db-02 kernel-install[4402]: /usr/lib/kernel/install.d/50-dracut.install failed with exit status 1."
+  ],
+  "kernel_install_failures": 2,
+  "last_failed_login": "No failed login attempts found",
+  "last_reboot": "system boot  2026-09-19 14:02",
+  "latest_installed_kernel": "5.14.0-427.13.1.el9_4.x86_64",
+  "latest_kernel_selected": true,
+  "latest_kernel_updated_at": "2026-09-19 13:40:31.000000000 +0000",
+  "log_errors": 0,
+  "log_excerpt": [],
+  "log_source": "journald",
+  "os": "Rocky 9.4",
+  "os_family": "RedHat",
+  "package_manager": "dnf",
+  "platform_type": "Virtual Machine",
+  "ram_status": "Critical",
+  "ram_total_mb": 7682.0,
+  "ram_used_mb": 7390.0,
+  "ram_used_pct": 96.2,
+  "reboot_detection_supported": true,
+  "reboot_reason": "No reboot required (needs-restarting)",
+  "reboot_required": false,
+  "reboot_required_packages": [],
+  "reboot_required_source": "needs-restarting",
+  "rescue_image_available": false,
+  "rescue_image_paths": [],
+  "running_kernel": "5.14.0-427.13.1.el9_4.x86_64",
+  "selinux_status": "Disabled",
+  "services_healed": [],
+  "severity": "critical",
+  "severity_counts": {
+    "critical": 1,
+    "info": 0,
+    "warning": 6
+  },
+  "uptime": "7d 0h 0m",
+  "virtualization_type": "kvm"
+}

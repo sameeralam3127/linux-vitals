@@ -1,0 +1,60 @@
+---
+# Amazon Linux 2023 exercises the dnf path outside the RHEL-compatible images.
+prerun: false
+
+dependency:
+  name: galaxy
+  options:
+    requirements-file: molecule/collections.yml
+    role-file: molecule/requirements.yml
+
+driver:
+  name: default
+  options:
+    managed: true
+    login_cmd_template: "docker exec -it {instance} /bin/sh"
+
+platforms:
+  - name: linux-vitals-amazonlinux
+    image: geerlingguy/docker-amazonlinux2023-ansible:latest
+
+provisioner:
+  name: ansible
+  env:
+    ANSIBLE_COLLECTIONS_PATH: "${MOLECULE_PROJECT_DIRECTORY}/.dev-collections:~/.ansible/collections"
+  playbooks:
+    create: ../resources/create.yml
+    destroy: ../resources/destroy.yml
+    prepare: ../resources/prepare.yml
+    converge: ../resources/converge.yml
+    verify: ../resources/verify.yml
+  inventory:
+    host_vars:
+      linux-vitals-amazonlinux:
+        ansible_python_interpreter: /usr/bin/python3
+        vitals_python_interpreter: /usr/bin/python3
+        vitals_python_package: python3
+        vitals_expected_os_family: RedHat
+        vitals_expected_package_manager: dnf
+        vitals_expected_reboot_sources:
+          - "needs-restarting"
+        vitals_expect_time_sync_active: true
+        vitals_test_time_sync_service: chronyd.service
+        vitals_test_packages:
+          - chrony
+          - dnf-utils
+        vitals_test_optional_packages: []
+
+verifier:
+  name: ansible
+
+scenario:
+  name: amazonlinux
+  test_sequence:
+    - dependency
+    - destroy
+    - create
+    - prepare
+    - converge
+    - verify
+    - destroy

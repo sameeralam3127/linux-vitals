@@ -1,0 +1,61 @@
+---
+# Debian 12 exercises the apt/reboot-required path independently of Ubuntu.
+prerun: false
+
+dependency:
+  name: galaxy
+  options:
+    requirements-file: molecule/collections.yml
+    role-file: molecule/requirements.yml
+
+driver:
+  name: default
+  options:
+    managed: true
+    login_cmd_template: "docker exec -it {instance} /bin/sh"
+
+platforms:
+  - name: linux-vitals-debian
+    image: geerlingguy/docker-debian12-ansible:latest
+
+provisioner:
+  name: ansible
+  env:
+    ANSIBLE_COLLECTIONS_PATH: "${MOLECULE_PROJECT_DIRECTORY}/.dev-collections:~/.ansible/collections"
+  playbooks:
+    create: ../resources/create.yml
+    destroy: ../resources/destroy.yml
+    prepare: ../resources/prepare.yml
+    converge: ../resources/converge.yml
+    verify: ../resources/verify.yml
+  inventory:
+    host_vars:
+      linux-vitals-debian:
+        ansible_python_interpreter: /usr/bin/python3
+        vitals_python_interpreter: /usr/bin/python3
+        vitals_python_package: python3
+        vitals_expected_os_family: Debian
+        vitals_expected_package_manager: apt
+        vitals_expected_reboot_sources:
+          - "reboot-required-file"
+          - "/run/reboot-required"
+          - "/var/run/reboot-required"
+        vitals_expect_time_sync_active: true
+        vitals_test_time_sync_service: chrony.service
+        vitals_test_packages:
+          - chrony
+        vitals_test_optional_packages: []
+
+verifier:
+  name: ansible
+
+scenario:
+  name: debian
+  test_sequence:
+    - dependency
+    - destroy
+    - create
+    - prepare
+    - converge
+    - verify
+    - destroy

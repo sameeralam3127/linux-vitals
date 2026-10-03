@@ -8,6 +8,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Golden-file tests for every scan finding**
+  ([#98](https://github.com/sameeralam3127/linux-vitals/issues/98)).
+  Fourteen fixture hosts -- Ubuntu, Rocky, Fedora and openSUSE, each healthy,
+  degraded and critical, plus two known-bug cases -- run through the real,
+  unmodified `vitals_scan` tasks, and the per-host result is compared with a
+  snapshot in `tests/golden/`. Every finding the scan can raise from collected
+  state fires in at least one fixture. The behaviour changes planned for 2.2
+  (#62, #39, #24, #30, #23) will each show up as a golden diff in their pull
+  request. The same snapshots pass on ansible-core 2.16 and the
+  newest core. No behaviour change; see
+  [docs/testing.md](docs/testing.md#golden-file-tests).
+
 - **Report and snapshot permissions are configurable**
   ([#61](https://github.com/sameeralam3127/linux-vitals/issues/61)).
   `linux_vitals_report_file_mode` and `linux_vitals_report_dir_mode` apply to

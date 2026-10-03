@@ -1,0 +1,90 @@
+# Fedora 40 physical workstation after an update: dnf needs-restarting asks for a reboot into the new kernel, and the session log has errors.
+state:
+  state_schema: 1
+  collected_at: "2026-09-26T14:02:11Z"
+  host:
+    inventory_hostname: fedora-degraded
+    hostname: ws-07
+    ip_address: 10.0.5.37
+    product_serial: PF3KX9QZ
+  platform:
+    os_family: RedHat
+    distribution: Fedora
+    distribution_version: "40"
+    kernel: 6.10.10-200.fc40.x86_64
+    service_mgr: systemd
+    uptime_seconds: 1209600
+    virtualization_type: NA
+    virtualization_role: NA
+  memory:
+    total_mb: 31845
+    available_mb: 18233
+    free_mb: 9120
+  mounts:
+    - {mount: /boot/efi, size_available: 609222656, size_total: 627900416}
+    - {mount: /boot, size_available: 587202560, size_total: 1020702720}
+  services:
+    systemd-journald.service: {state: running, status: static}
+    sssd.service: {state: running, status: enabled}
+    chronyd.service: {state: running, status: enabled}
+    sshd.service: {state: running, status: enabled}
+  probes:
+    logs:
+      ran: true
+      rc: 0
+      window: 30 minutes ago
+      stdout: |-
+        2026-09-26T13:45:00+0000 ws-07 systemd[1]: Started dnf-makecache.service - dnf makecache.
+        2026-09-26T13:50:11+0000 ws-07 gnome-shell[2210]: Failed to set CRTC gamma: No such file or directory
+        2026-09-26T13:51:03+0000 ws-07 pipewire[1988]: spa.alsa: hw:0: snd_pcm_open error: Device or resource busy
+    audit_logs:
+      ran: true
+      rc: 0
+      window: 7 days ago
+      stdout: |-
+        2026-09-25T20:12:40+0000 ws-07 kernel-install[88102]: Installing kernel 6.10.12-200.fc40.x86_64
+    failed_logins:
+      ran: true
+      rc: 0
+      stdout_lines:
+        - ""
+        - "btmp begins Tue Sep  1 00:00:09 2026"
+    last_reboot:
+      ran: true
+      rc: 0
+      stdout: "         system boot  2026-09-12 08:30"
+    installed_kernels:
+      ran: true
+      rc: 0
+      latest: 6.10.12-200.fc40.x86_64
+      updated_at: "2026-09-25 20:12:41.000000000 +0000"
+      filtered: true
+    bootloader:
+      ran: true
+      rc: 0
+      supported: true
+      source: grubenv
+      default_entry: 8f2c1d4e5a6b7c8d9e0f1a2b3c4d5e6f-6.10.12-200.fc40.x86_64
+      default_kernel: 6.10.12-200.fc40.x86_64
+      status: resolved
+    reboot_required:
+      ran: true
+      rc: 0
+      supported: true
+      detected: true
+      source: dnf-needs-restarting
+      detail: Reboot is required to fully utilize these updates.
+      packages: []
+    selinux:
+      ran: true
+      rc: 0
+      stdout: Enforcing
+    apparmor:
+      ran: true
+      rc: 2
+      unsupported_reason: aa-status not found
+    rescue_images:
+      ran: true
+      rc: 0
+      stdout_lines:
+        - /boot/initramfs-0-rescue-8f2c1d4e5a6b7c8d9e0f1a2b3c4d5e6f.img

@@ -1,0 +1,87 @@
+# Known bug (#39): lastb run without root cannot read /var/log/btmp, and the Rocky host reports no failed logins. Its fix must change this golden file.
+state:
+  state_schema: 1
+  collected_at: "2026-09-26T14:02:11Z"
+  host:
+    inventory_hostname: known-bug-lastb-unreadable
+    hostname: db-03
+    ip_address: 10.0.4.23
+    product_serial: 2e8b4f1a-9c3d-4b7e-a6f1-8d0c2b5e7a90
+  platform:
+    os_family: RedHat
+    distribution: Rocky
+    distribution_version: "9.4"
+    kernel: 5.14.0-427.13.1.el9_4.x86_64
+    service_mgr: systemd
+    uptime_seconds: 518460
+    virtualization_type: kvm
+    virtualization_role: guest
+  memory:
+    total_mb: 15732
+    available_mb: 11210
+    free_mb: 9044
+  mounts:
+    - {mount: /boot, size_available: 701546496, size_total: 1063256064}
+  services:
+    systemd-journald.service: {state: running, status: static}
+    sssd.service: {state: running, status: enabled}
+    chronyd.service: {state: running, status: enabled}
+    sshd.service: {state: running, status: enabled}
+  probes:
+    logs:
+      ran: true
+      rc: 0
+      window: 30 minutes ago
+      stdout: |-
+        2026-09-26T13:40:02+0000 db-03 systemd[1]: Started dnf-makecache.service - dnf makecache.
+    audit_logs:
+      ran: true
+      rc: 0
+      window: 7 days ago
+      stdout: ""
+    failed_logins:
+      # /var/log/btmp is 0600 root:utmp. lastb exits 1, its stderr is
+      # discarded by the probe's 2>/dev/null, and stdout is empty -- the same
+      # output as a host nobody has tried to log in to.
+      ran: true
+      rc: 1
+      stdout_lines: []
+      unsupported_reason: "lastb: cannot open /var/log/btmp: Permission denied"
+    last_reboot:
+      ran: true
+      rc: 0
+      stdout: "         system boot  2026-09-20 06:12"
+    installed_kernels:
+      ran: true
+      rc: 0
+      latest: 5.14.0-427.13.1.el9_4.x86_64
+      updated_at: "2026-09-19 22:40:31.000000000 +0000"
+      filtered: true
+    bootloader:
+      ran: true
+      rc: 0
+      supported: true
+      source: grubby
+      default_entry: /boot/vmlinuz-5.14.0-427.13.1.el9_4.x86_64
+      default_kernel: 5.14.0-427.13.1.el9_4.x86_64
+      status: resolved
+    reboot_required:
+      ran: true
+      rc: 0
+      supported: true
+      detected: false
+      source: needs-restarting
+      detail: Reboot should not be necessary.
+      packages: []
+    selinux:
+      ran: true
+      rc: 0
+      stdout: Enforcing
+    apparmor:
+      ran: true
+      rc: 2
+      unsupported_reason: aa-status not found
+    rescue_images:
+      ran: true
+      rc: 0
+      stdout_lines: []

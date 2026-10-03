@@ -1,0 +1,89 @@
+# Rocky Linux 9.4 KVM guest, healthy: SELinux enforcing, grubby default matches the running kernel, needs-restarting says no reboot.
+state:
+  state_schema: 1
+  collected_at: "2026-09-26T14:02:11Z"
+  host:
+    inventory_hostname: rocky-healthy
+    hostname: db-01
+    ip_address: 10.0.4.21
+    product_serial: 3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90
+  platform:
+    os_family: RedHat
+    distribution: Rocky
+    distribution_version: "9.4"
+    kernel: 5.14.0-427.13.1.el9_4.x86_64
+    service_mgr: systemd
+    uptime_seconds: 518460
+    virtualization_type: kvm
+    virtualization_role: guest
+  memory:
+    total_mb: 15732
+    available_mb: 11210
+    free_mb: 9044
+  mounts:
+    - {mount: /boot, size_available: 701546496, size_total: 1063256064}
+  services:
+    systemd-journald.service: {state: running, status: static}
+    sssd.service: {state: running, status: enabled}
+    chronyd.service: {state: running, status: enabled}
+    sshd.service: {state: running, status: enabled}
+  probes:
+    logs:
+      ran: true
+      rc: 0
+      window: 30 minutes ago
+      stdout: |-
+        2026-09-26T13:40:02+0000 db-01 systemd[1]: Started dnf-makecache.service - dnf makecache.
+        2026-09-26T13:55:12+0000 db-01 sshd[41230]: Accepted publickey for deploy from 10.0.1.5 port 51022 ssh2
+    audit_logs:
+      ran: true
+      rc: 0
+      window: 7 days ago
+      stdout: |-
+        2026-09-20T06:12:04+0000 db-01 kernel: Linux version 5.14.0-427.13.1.el9_4.x86_64 (mockbuild@iad1-prod-build001)
+    failed_logins:
+      ran: true
+      rc: 0
+      stdout_lines:
+        - ""
+        - "btmp begins Tue Sep  1 00:00:05 2026"
+    last_reboot:
+      ran: true
+      rc: 0
+      stdout: "         system boot  2026-09-20 06:12"
+    installed_kernels:
+      ran: true
+      rc: 0
+      latest: 5.14.0-427.13.1.el9_4.x86_64
+      updated_at: "2026-09-19 22:40:31.000000000 +0000"
+      filtered: true
+    bootloader:
+      ran: true
+      rc: 0
+      supported: true
+      source: grubby
+      default_entry: /boot/vmlinuz-5.14.0-427.13.1.el9_4.x86_64
+      default_kernel: 5.14.0-427.13.1.el9_4.x86_64
+      status: resolved
+    reboot_required:
+      ran: true
+      rc: 0
+      supported: true
+      detected: false
+      source: needs-restarting
+      detail: Reboot should not be necessary.
+      packages: []
+    selinux:
+      ran: true
+      rc: 0
+      stdout: Enforcing
+    apparmor:
+      ran: true
+      rc: 2
+      unsupported_reason: aa-status not found
+    rescue_images:
+      ran: true
+      rc: 0
+      stdout_lines:
+        - /boot/initramfs-0-rescue-3f2a9c1e5b7d4e8a9c217d4e5f6a8b90.img
+        - /boot/vmlinuz-0-rescue-3f2a9c1e5b7d4e8a9c217d4e5f6a8b90

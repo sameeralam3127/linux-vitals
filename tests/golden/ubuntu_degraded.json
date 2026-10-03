@@ -1,0 +1,93 @@
+{
+  "apparmor_status": "enabled",
+  "asset_serial": "VMware-42 1a 7c 3e",
+  "boot_free_mb": 237.5,
+  "boot_free_pct": 13.0,
+  "boot_mount": "/boot",
+  "boot_space_status": "Low",
+  "boot_total_mb": 1829.8,
+  "bootloader_default_entry": 0,
+  "bootloader_default_kernel": "6.8.0-60-generic",
+  "bootloader_default_matches_latest": true,
+  "bootloader_default_source": "grub_default",
+  "bootloader_default_status": "resolved",
+  "bootloader_supported": true,
+  "bootloader_validation_message": "Default boot entry selects the latest installed kernel",
+  "comparison": {
+    "baseline_available": false
+  },
+  "failed_login_count": 2,
+  "final_status": "Fail",
+  "findings": [
+    {
+      "id": "log_errors",
+      "message": "Recent logs contain error or failed entries",
+      "severity": "info"
+    },
+    {
+      "id": "reboot_required",
+      "message": "System reboot is required",
+      "severity": "warning"
+    },
+    {
+      "id": "kernel_not_latest",
+      "message": "Latest installed kernel is not currently running",
+      "severity": "warning"
+    },
+    {
+      "id": "boot_space_low",
+      "message": "Boot partition free space is low",
+      "severity": "warning"
+    },
+    {
+      "id": "failed_logins",
+      "message": "Recent failed login attempts detected",
+      "severity": "info"
+    }
+  ],
+  "healing_results": [],
+  "hostname": "web-01",
+  "ip_address": "10.0.3.11",
+  "kernel_install_failure_excerpt": [],
+  "kernel_install_failures": 0,
+  "last_failed_login": "root     ssh:notty    203.0.113.9      Sat Sep 26 13:01 - 13:01  (00:00)",
+  "last_reboot": "system boot  2026-08-27 13:57",
+  "latest_installed_kernel": "6.8.0-60-generic",
+  "latest_kernel_selected": false,
+  "latest_kernel_updated_at": "2026-09-25 02:14:49.000000000 +0000",
+  "log_errors": 2,
+  "log_excerpt": [
+    "2026-09-26T13:44:19+0000 web-01 payments-api[3312]: ERROR connection refused: db-01:5432",
+    "2026-09-26T13:44:19+0000 web-01 systemd[1]: payments-api.service: Failed with result 'exit-code'."
+  ],
+  "log_source": "journald",
+  "os": "Ubuntu 24.04",
+  "os_family": "Debian",
+  "package_manager": "apt",
+  "platform_type": "Virtual Machine",
+  "ram_status": "Warning",
+  "ram_total_mb": 7938.0,
+  "ram_used_mb": 6986.0,
+  "ram_used_pct": 88.0,
+  "reboot_detection_supported": true,
+  "reboot_reason": "Reboot required (/run/reboot-required): *** System restart required *** -- pending packages: libssl3, linux-image-6.8.0-60-generic",
+  "reboot_required": true,
+  "reboot_required_packages": [
+    "libssl3",
+    "linux-image-6.8.0-60-generic"
+  ],
+  "reboot_required_source": "/run/reboot-required",
+  "rescue_image_available": false,
+  "rescue_image_paths": [],
+  "running_kernel": "6.8.0-45-generic",
+  "selinux_status": "not-installed",
+  "services_healed": [],
+  "severity": "warning",
+  "severity_counts": {
+    "critical": 0,
+    "info": 2,
+    "warning": 3
+  },
+  "uptime": "30d 0h 5m",
+  "virtualization_type": "VMware"
+}

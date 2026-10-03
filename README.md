@@ -3,7 +3,7 @@
 [![CI](https://github.com/sameeralam3127/linux-vitals/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/sameeralam3127/linux-vitals/actions/workflows/ci.yml)
 [![Ansible Galaxy](https://img.shields.io/badge/galaxy-sameeralam3127.linux__vitals-660198)](https://galaxy.ansible.com/ui/repo/published/sameeralam3127/linux_vitals/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
-[![Tested on](https://img.shields.io/badge/tested%20on-Ubuntu%20%7C%20Rocky%20%7C%20Fedora%20%7C%20openSUSE-informational)](docs/testing.md)
+[![Tested on](https://img.shields.io/badge/tested%20on-Ubuntu%20%7C%20Debian%20%7C%20Rocky%20%7C%20Fedora%20%7C%20Amazon%20Linux%20%7C%20openSUSE-informational)](docs/testing.md)
 
 **Agentless health checks for a mixed Linux fleet.** Scan every host over SSH,
 get one self-contained HTML dashboard and a JSON report, and optionally let it
@@ -422,8 +422,8 @@ ansible-playbook playbooks/healthcheck.yml --syntax-check
 pytest -q
 ```
 
-CI additionally runs the per-distro Molecule scenarios (Ubuntu, Rocky, Fedora,
-openSUSE) — see [Testing](docs/testing.md) to run those locally.
+CI additionally runs the per-distro Molecule scenarios (Ubuntu, Debian, Rocky, Fedora,
+Amazon Linux 2023, openSUSE) — see [Testing](docs/testing.md) to run those locally.
 
 ---
 

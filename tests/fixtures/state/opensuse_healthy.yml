@@ -1,0 +1,85 @@
+# openSUSE Leap 15.6 KVM guest on btrfs, healthy: only /boot/efi is a separate mount, zypper needs-rebooting says no reboot.
+state:
+  state_schema: 1
+  collected_at: "2026-09-26T14:02:11Z"
+  host:
+    inventory_hostname: opensuse-healthy
+    hostname: app-03
+    ip_address: 10.0.6.13
+    product_serial: 5b2d8e1f-0a9c-4d7e-b3f2-6c1a9e8d7f40
+  platform:
+    os_family: Suse
+    distribution: openSUSE Leap
+    distribution_version: "15.6"
+    kernel: 6.4.0-150600.23.22-default
+    service_mgr: systemd
+    uptime_seconds: 950400
+    virtualization_type: kvm
+    virtualization_role: guest
+  memory:
+    total_mb: 3931
+    available_mb: 2604
+    free_mb: 1822
+  mounts:
+    - {mount: /boot/efi, size_available: 529240064, size_total: 535805952}
+  services:
+    systemd-journald.service: {state: running, status: static}
+    sssd.service: {state: running, status: enabled}
+    chronyd.service: {state: running, status: enabled}
+    sshd.service: {state: running, status: enabled}
+  probes:
+    logs:
+      ran: true
+      rc: 0
+      window: 30 minutes ago
+      stdout: |-
+        2026-09-26T13:47:30+0000 app-03 systemd[1]: Started snapper-timeline.service - Timeline of Snapper Snapshots.
+    audit_logs:
+      ran: true
+      rc: 0
+      window: 7 days ago
+      stdout: ""
+    failed_logins:
+      ran: true
+      rc: 0
+      stdout_lines:
+        - ""
+        - "btmp begins Tue Sep  1 00:00:03 2026"
+    last_reboot:
+      ran: true
+      rc: 0
+      stdout: "         system boot  2026-09-15 10:02"
+    installed_kernels:
+      ran: true
+      rc: 0
+      latest: 6.4.0-150600.23.22-default
+      updated_at: "2026-09-10 07:18:02.000000000 +0000"
+      filtered: true
+    bootloader:
+      ran: true
+      rc: 0
+      supported: true
+      source: grubenv
+      default_entry: openSUSE Leap 15.6
+      default_kernel: 6.4.0-150600.23.22-default
+      status: resolved
+    reboot_required:
+      ran: true
+      rc: 0
+      supported: true
+      detected: false
+      source: zypper-needs-rebooting
+      detail: ""
+      packages: []
+    selinux:
+      ran: true
+      rc: 2
+      stdout: ""
+      unsupported_reason: getenforce not found
+    apparmor:
+      ran: true
+      rc: 0
+    rescue_images:
+      ran: true
+      rc: 0
+      stdout_lines: []

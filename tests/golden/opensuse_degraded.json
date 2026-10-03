@@ -1,0 +1,77 @@
+{
+  "apparmor_status": "enabled",
+  "asset_serial": "5b2d8e1f-0a9c-4d7e-b3f2-6c1a9e8d7f40",
+  "boot_free_mb": 0.0,
+  "boot_free_pct": 0.0,
+  "boot_mount": "not-mounted",
+  "boot_space_status": "Not Available",
+  "boot_total_mb": 0.0,
+  "bootloader_default_entry": "openSUSE Leap 15.6",
+  "bootloader_default_kernel": "6.4.0-150600.23.25-default",
+  "bootloader_default_matches_latest": true,
+  "bootloader_default_source": "grubenv",
+  "bootloader_default_status": "resolved",
+  "bootloader_supported": true,
+  "bootloader_validation_message": "Default boot entry selects the latest installed kernel",
+  "comparison": {
+    "baseline_available": false
+  },
+  "failed_login_count": 1,
+  "final_status": "Fail",
+  "findings": [
+    {
+      "id": "reboot_required",
+      "message": "System reboot is required",
+      "severity": "warning"
+    },
+    {
+      "id": "kernel_not_latest",
+      "message": "Latest installed kernel is not currently running",
+      "severity": "warning"
+    },
+    {
+      "id": "failed_logins",
+      "message": "Recent failed login attempts detected",
+      "severity": "info"
+    }
+  ],
+  "healing_results": [],
+  "hostname": "app-03",
+  "ip_address": "10.0.6.13",
+  "kernel_install_failure_excerpt": [],
+  "kernel_install_failures": 0,
+  "last_failed_login": "deploy   ssh:notty    10.0.1.5         Sat Sep 26 09:14 - 09:14  (00:00)",
+  "last_reboot": "system boot  2026-08-13 10:02",
+  "latest_installed_kernel": "6.4.0-150600.23.25-default",
+  "latest_kernel_selected": false,
+  "latest_kernel_updated_at": "2026-09-24 07:18:02.000000000 +0000",
+  "log_errors": 0,
+  "log_excerpt": [],
+  "log_source": "journald",
+  "os": "openSUSE Leap 15.6",
+  "os_family": "Suse",
+  "package_manager": "zypper",
+  "platform_type": "Virtual Machine",
+  "ram_status": "Warning",
+  "ram_total_mb": 3931.0,
+  "ram_used_mb": 3223.0,
+  "ram_used_pct": 82.0,
+  "reboot_detection_supported": true,
+  "reboot_reason": "Reboot required (zypper-needs-rebooting): zypper reports core libraries or the kernel were updated",
+  "reboot_required": true,
+  "reboot_required_packages": [],
+  "reboot_required_source": "zypper-needs-rebooting",
+  "rescue_image_available": false,
+  "rescue_image_paths": [],
+  "running_kernel": "6.4.0-150600.23.22-default",
+  "selinux_status": "not-installed",
+  "services_healed": [],
+  "severity": "warning",
+  "severity_counts": {
+    "critical": 0,
+    "info": 1,
+    "warning": 2
+  },
+  "uptime": "44d 0h 0m",
+  "virtualization_type": "kvm"
+}
