@@ -1,4 +1,15 @@
 ---
+- name: Explain unsupported Ansible check mode
+  ansible.builtin.assert:
+    that:
+      - not ansible_check_mode
+    fail_msg: >-
+      linux_vitals.vitals_scan cannot produce a trustworthy report in Ansible
+      check mode because its read-only discovery commands are skipped. Run the
+      scan without --check; vitals_heal remains opt-in and is disabled by default.
+  tags:
+    - always
+
 - name: Collect host discovery and extended system details
   ansible.builtin.include_tasks:
     file: discovery.yml
