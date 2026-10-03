@@ -1,6 +1,7 @@
 """Contract tests for the optional final fleet health gate."""
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import yaml
@@ -83,3 +84,21 @@ def test_threshold_allows_count_at_threshold_and_fails_above_it() -> None:
 
     assert at_threshold == "False"
     assert above_threshold == "True"
+
+
+def test_threshold_must_be_a_non_negative_whole_number() -> None:
+    expr = _gate_tasks()[0]["ansible.builtin.assert"]["that"][1]
+    env = Environment()
+    # Ansible's `match` test, which plain Jinja lacks.
+    env.tests["match"] = lambda value, pattern: re.match(pattern, value) is not None
+
+    def accepts(threshold: object) -> bool:
+        rendered = env.from_string("{{ " + expr + " }}").render(
+            linux_vitals_fail_threshold_count=threshold
+        )
+        return rendered.strip() == "True"
+
+    for valid in (0, 2, "3"):
+        assert accepts(valid), valid
+    for invalid in ("two", "", 2.5, "2.5", -1, "-1"):
+        assert not accepts(invalid), invalid

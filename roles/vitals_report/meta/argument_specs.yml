@@ -77,6 +77,23 @@ argument_specs:
         default: LinuxVitals Health Check Dashboard
         description:
           - Title used for the dashboard's HTML C(<title>) and hero heading.
+      linux_vitals_fail_on_status:
+        type: str
+        default: ""
+        choices: ["", any_fail, regression]
+        description:
+          - Optional pipeline gate, evaluated after reports, archives and
+            notifications are produced. Empty keeps the report-only behavior.
+          - C(any_fail) fails the run when more failed hosts than
+            C(linux_vitals_fail_threshold_count) are found.
+          - C(regression) fails the run only when, in a C(postcheck), more
+            hosts than the threshold went from C(Pass) at baseline to C(Fail).
+      linux_vitals_fail_threshold_count:
+        type: int
+        default: 0
+        description:
+          - Number of failing (or regressed) hosts the gate tolerates. The run
+            fails only when the count is above this value.
       linux_vitals_archive_html_reports:
         type: bool
         default: true

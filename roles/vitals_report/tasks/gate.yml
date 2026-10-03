@@ -3,10 +3,11 @@
   ansible.builtin.assert:
     that:
       - linux_vitals_fail_on_status in ['', 'any_fail', 'regression']
-      - (linux_vitals_fail_threshold_count | int) >= 0
+      # Check the raw value: "two" | int is 0 and 2.5 | int is 2.
+      - linux_vitals_fail_threshold_count | string is match('^[0-9]+$')
     fail_msg: >-
       linux_vitals_fail_on_status must be empty, any_fail, or regression, and
-      linux_vitals_fail_threshold_count must be zero or greater.
+      linux_vitals_fail_threshold_count must be a whole number, zero or greater.
   delegate_to: localhost
   run_once: true
   tags:

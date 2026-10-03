@@ -47,7 +47,7 @@
     - reporting
     - notifications
 
- 
+
 # Keep this last: the gate must never suppress reports, archives, or notifications.
 - name: Apply optional fleet health pipeline gate
   ansible.builtin.include_tasks:
