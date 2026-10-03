@@ -1,0 +1,59 @@
+---
+- name: Validate fleet health gate configuration
+  ansible.builtin.assert:
+    that:
+      - linux_vitals_fail_on_status in ['', 'any_fail', 'regression']
+      # Check the raw value: "two" | int is 0 and 2.5 | int is 2.
+      - linux_vitals_fail_threshold_count | string is match('^[0-9]+$')
+    fail_msg: >-
+      linux_vitals_fail_on_status must be empty, any_fail, or regression, and
+      linux_vitals_fail_threshold_count must be a whole number, zero or greater.
+  delegate_to: localhost
+  run_once: true
+  tags:
+    - reporting
+
+- name: Compute fleet health gate failure count
+  ansible.builtin.set_fact:
+    linux_vitals_gate_failure_count: >-
+      {{
+        linux_vitals_summary.critical_error_count | int
+        if linux_vitals_fail_on_status == 'any_fail'
+        else linux_vitals_summary.regressed_count | int
+        if (
+          linux_vitals_fail_on_status == 'regression'
+          and linux_vitals_phase == 'postcheck'
+        )
+        else 0
+      }}
+  delegate_to: localhost
+  run_once: true
+  tags:
+    - reporting
+
+- name: Determine whether the fleet health gate should fail
+  ansible.builtin.set_fact:
+    linux_vitals_gate_should_fail: >-
+      {{
+        linux_vitals_fail_on_status | length > 0
+        and (linux_vitals_gate_failure_count | int)
+          > (linux_vitals_fail_threshold_count | int)
+      }}
+  delegate_to: localhost
+  run_once: true
+  tags:
+    - reporting
+
+- name: Fail the run when the configured fleet health gate is exceeded
+  ansible.builtin.fail:
+    msg: >-
+      LinuxVitals fleet gate '{{ linux_vitals_fail_on_status }}' found
+      {{ linux_vitals_gate_failure_count }} failing host(s), exceeding the
+      allowed threshold of {{ linux_vitals_fail_threshold_count }}.
+      Reports and notifications were already produced. See
+      {{ linux_vitals_json_output_path | default(linux_vitals_output_path, true) }}.
+  when: linux_vitals_gate_should_fail | bool
+  delegate_to: localhost
+  run_once: true
+  tags:
+    - reporting

@@ -76,6 +76,34 @@ Each writes to its own `reports/snapshots/<maintenance_id>/` subtree.
 - run: pytest -q
 ```
 
+
+## Gate a CI pipeline on fleet health
+
+The report role remains report-only by default. To make a scheduled CI job fail
+when more than two hosts are unhealthy:
+
+```yaml
+# group_vars/all.yml
+linux_vitals_fail_on_status: any_fail
+linux_vitals_fail_threshold_count: 2
+```
+
+For a maintenance pipeline, gate only on hosts that changed from `Pass` at
+baseline to `Fail` during the postcheck:
+
+```yaml
+linux_vitals_fail_on_status: regression
+linux_vitals_fail_threshold_count: 0
+```
+
+```bash
+ansible-playbook -i inventory.ini sameeralam3127.linux_vitals.postcheck \
+  -e linux_vitals_maintenance_id=kernel-rollout-2026-09-27
+```
+
+The HTML/JSON reports, archives, and configured notifications are written before
+the final gate task can return a non-zero status.
+
 ## Piping the JSON report into observability tooling
 
 ```bash

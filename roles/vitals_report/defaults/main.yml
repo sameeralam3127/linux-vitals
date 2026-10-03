@@ -18,6 +18,11 @@ linux_vitals_report_archive_dir: "{{ linux_vitals_output_path | dirname }}/archi
 linux_vitals_report_retention_count: 10
 linux_vitals_archive_timestamp: ""
 linux_vitals_report_title: "LinuxVitals Health Check Dashboard"
+# Optional CI/pipeline gate. Empty preserves the historical "report only"
+# behavior. "any_fail" gates on failed hosts; "regression" gates only on
+# Pass -> Fail changes in a postcheck.
+linux_vitals_fail_on_status: ""
+linux_vitals_fail_threshold_count: 0
 linux_vitals_slack_webhook_url: ""
 linux_vitals_slack_message_header: "LinuxVitals Health Check"
 linux_vitals_slack_message_footer: ""

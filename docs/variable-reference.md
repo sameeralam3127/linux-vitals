@@ -48,6 +48,8 @@ Override any of these in inventory, `group_vars`, or `-e` extra vars.
 | `linux_vitals_phase` | `"adhoc"` | One of `adhoc`, `baseline`, `postcheck`. Set by `playbooks/baseline.yml` / `postcheck.yml`; `healthcheck.yml` leaves it at `adhoc`. |
 | `linux_vitals_maintenance_id` | `""` | Required (non-empty) when phase is `baseline` or `postcheck`. Correlates a baseline snapshot with its postcheck. |
 | `linux_vitals_snapshot_dir` | `"{{ inventory_dir }}/reports/snapshots"` | Root directory for per-host, per-phase JSON snapshots. |
+| `linux_vitals_fail_on_status` | `""` | Optional final pipeline gate. Empty never fails the run; `any_fail` fails when failed hosts exceed the threshold; `regression` considers only Pass → Fail hosts during a `postcheck`. Reports and notifications are produced before the gate runs. |
+| `linux_vitals_fail_threshold_count` | `0` | Number of failed/regressed hosts tolerated before the optional fleet gate returns non-zero. |
 
 ## `vitals_report` -- output and archiving
 
