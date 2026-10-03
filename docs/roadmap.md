@@ -36,10 +36,10 @@ waits for February.
 
 | Month | Theme | Release | Issues |
 | --- | --- | --- | --- |
-| [October 2026](#october-2026-ship-what-is-done-then-the-finding-contract) | Ship what is done; the finding contract | **2.1.0** (early October) | 5 |
-| [November 2026](#november-2026-finish-trust-scale-and-safety) | Finish Trust: scale and safety | **2.2.0 -- Trust** (end of November) | 5 |
+| [October 2026](#october-2026-ship-what-is-done-then-the-finding-contract) | Ship what is done; the finding contract | **3.0.0** (end of October) | 4 |
+| [November 2026](#november-2026-finish-trust-scale-and-safety) | Finish Trust: scale and safety | **3.1.0 -- Trust** (end of November) | 2 |
 | [December 2026](#december-2026-artefacts-and-the-task-tree) | Artefacts and the task tree | -- | 4 |
-| [January 2027](#january-2027-coverage-and-adoption) | Coverage and adoption | **2.3.0 -- Coverage** (end of January) | 4 |
+| [January 2027](#january-2027-coverage-and-adoption) | Coverage and adoption | **3.2.0 -- Coverage** (end of January) | 4 |
 | [Any month](#any-month-community-issues) | `good first issue`s, for whoever picks them up | next release | 2 |
 | [Not before February 2027](#not-before-february-2027) | Integrations, exports, compliance, further breadth | -- | 5 |
 
@@ -47,33 +47,33 @@ waits for February.
 
 | Release | When | What it is |
 | --- | --- | --- |
-| **2.1.0** | early October | What is already merged: CI on the ansible-core 2.16 floor, the two 2.16 fixes it found, configurable report modes, and one shared service-status task. |
-| **2.2.0 -- Trust** | end of November | The report can be believed. Nothing new on the dashboard except filesystem capacity. |
-| **2.3.0 -- Coverage** | end of January | The report is more complete, the task tree is one a contributor can navigate, and the fleet-size claim is measured. |
+| **3.0.0** | end of October | What is merged by then: CI on the ansible-core 2.16 floor and the two 2.16 fixes it found, configurable report modes, one shared service-status task, golden-file tests for every finding, the opt-in fleet health gate, the check-mode refusal, and Debian 12 and Amazon Linux 2023 in CI. A major release: its breaking changes are listed, with upgrade steps, at the top of its CHANGELOG entry. |
+| **3.1.0 -- Trust** | end of November | The report can be believed. Nothing new on the dashboard except filesystem capacity. |
+| **3.2.0 -- Coverage** | end of January | The report is more complete, the task tree is one a contributor can navigate, and the fleet-size claim is measured. |
 
-2.1.0 ships now rather than waiting for Trust because it carries two fixes
-users on the declared floor need today -- on ansible-core 2.16 the generic
-webhook had never sent at all
-([#85](https://github.com/sameeralam3127/linux-vitals/issues/85)) -- and
-because [#61](https://github.com/sameeralam3127/linux-vitals/issues/61) added
-variables, which makes the next release a minor one by semver. Trust therefore
-moves from 2.1 to 2.2. The constraint from 2.0.0 is unchanged:
+3.0.0 replaces the 2.1.0 planned for early October, and ships at the end of
+October rather than waiting for Trust because it carries two fixes users on
+the declared floor need -- on ansible-core 2.16 the generic webhook had never
+sent at all
+([#85](https://github.com/sameeralam3127/linux-vitals/issues/85)). It is a
+major release, so Trust moves from 2.2 to 3.1 and Coverage from 2.3 to 3.2.
+The constraint from 2.0.0 carries over:
 [#62](https://github.com/sameeralam3127/linux-vitals/issues/62)'s check status
 and [#23](https://github.com/sameeralam3127/linux-vitals/issues/23)'s journal
-aggregate must change the schema *additively*, so that Trust ships as 2.2 and
-not 3.0. Both land in 2.2.0, so `schema_version` moves once.
+aggregate must change the schema *additively*, so that Trust ships as 3.1 and
+not 4.0. Both land in 3.1.0, so `schema_version` moves once.
 
 **If a month slips**, the rule is fixed in advance rather than argued at the
 time:
 
-- **Trust items never drop.** If one is late, 2.2.0 moves; it does not ship
+- **Trust items never drop.** If one is late, 3.1.0 moves; it does not ship
   without it. A release that claims the report can be believed while one of
   the known false-assurance bugs is still open would be worse than a late one.
 - **Coverage items drop from the bottom of January** into
   [Not before February 2027](#not-before-february-2027), in this order:
   [#64](https://github.com/sameeralam3127/linux-vitals/issues/64),
   [#33](https://github.com/sameeralam3127/linux-vitals/issues/33),
-  [#32](https://github.com/sameeralam3127/linux-vitals/issues/32). 2.3.0 ships
+  [#32](https://github.com/sameeralam3127/linux-vitals/issues/32). 3.2.0 ships
   at the end of January with whatever has landed.
 
 ## October 2026: Ship what is done, then the finding contract
@@ -85,12 +85,12 @@ else builds on.
 
 | Item | Issue | Priority |
 | --- | --- | --- |
-| ~~CI never tests the declared minimum ansible-core~~ | [#47](https://github.com/sameeralam3127/linux-vitals/issues/47) | done -- ships in 2.1.0 |
-| ~~Comparison RAM fields were strings on ansible-core 2.16~~ | [#81](https://github.com/sameeralam3127/linux-vitals/issues/81) | done -- ships in 2.1.0 |
-| ~~Generic webhook never sent on ansible-core 2.16~~ | [#85](https://github.com/sameeralam3127/linux-vitals/issues/85) | done -- ships in 2.1.0 |
-| ~~De-duplicate the required-service status map~~ | [#28](https://github.com/sameeralam3127/linux-vitals/issues/28) | done -- ships in 2.1.0 |
-| ~~Make report and snapshot file modes configurable~~ | [#61](https://github.com/sameeralam3127/linux-vitals/issues/61) | done -- ships in 2.1.0 |
-| Golden-file tests for every `vitals_scan` finding, before the contract change | [#98](https://github.com/sameeralam3127/linux-vitals/issues/98) | high |
+| ~~CI never tests the declared minimum ansible-core~~ | [#47](https://github.com/sameeralam3127/linux-vitals/issues/47) | done -- ships in 3.0.0 |
+| ~~Comparison RAM fields were strings on ansible-core 2.16~~ | [#81](https://github.com/sameeralam3127/linux-vitals/issues/81) | done -- ships in 3.0.0 |
+| ~~Generic webhook never sent on ansible-core 2.16~~ | [#85](https://github.com/sameeralam3127/linux-vitals/issues/85) | done -- ships in 3.0.0 |
+| ~~De-duplicate the required-service status map~~ | [#28](https://github.com/sameeralam3127/linux-vitals/issues/28) | done -- ships in 3.0.0 |
+| ~~Make report and snapshot file modes configurable~~ | [#61](https://github.com/sameeralam3127/linux-vitals/issues/61) | done -- ships in 3.0.0 |
+| ~~Golden-file tests for every `vitals_scan` finding, before the contract change~~ | [#98](https://github.com/sameeralam3127/linux-vitals/issues/98) | done -- ships in 3.0.0 |
 | Promote PASS/FAIL/UNKNOWN to a collection-wide finding contract | [#62](https://github.com/sameeralam3127/linux-vitals/issues/62) | high |
 | Failed-login check reports a clean host when `lastb` cannot run | [#39](https://github.com/sameeralam3127/linux-vitals/issues/39) | high |
 | Race between service restart and `service_facts` can report a dead service as "Fixed" | [#24](https://github.com/sameeralam3127/linux-vitals/issues/24) | high |
@@ -98,8 +98,9 @@ else builds on.
 
 Ordering notes:
 
-- **2.1.0 goes out first**, before any new work, because what is merged
-  already fixes users on the declared floor (see [Releases](#releases)).
+- **3.0.0 goes out at the end of October** with what is merged by then,
+  because that already fixes users on the declared floor (see
+  [Releases](#releases)).
 - [#47](https://github.com/sameeralam3127/linux-vitals/issues/47) is done, and
   it earned its place at the top of the old plan the first time it ran: the
   suite had never executed on ansible-core 2.16, and doing so found two more
@@ -147,16 +148,16 @@ Ordering notes:
 ## November 2026: Finish Trust, scale and safety
 
 The rest of Trust: the run must be safe to point at a real fleet, and the
-parts of it that handle credentials must be tested. **2.2.0 -- Trust** ships at
+parts of it that handle credentials must be tested. **3.1.0 -- Trust** ships at
 the end of the month.
 
 | Item | Issue | Priority |
 | --- | --- | --- |
 | Journal scans are unbounded and ship whole-window logs to the control node | [#23](https://github.com/sameeralam3127/linux-vitals/issues/23) | high |
-| Running with `--check` fails immediately on every host | [#38](https://github.com/sameeralam3127/linux-vitals/issues/38) | high |
-| Fact cache has no explicit expiry, so a run can report stale facts | [#25](https://github.com/sameeralam3127/linux-vitals/issues/25) | medium |
+| ~~Running with `--check` fails immediately on every host~~ | [#38](https://github.com/sameeralam3127/linux-vitals/issues/38) | done -- ships in 3.0.0 |
+| ~~Fact cache has no explicit expiry, so a run can report stale facts~~ | [#25](https://github.com/sameeralam3127/linux-vitals/issues/25) | done -- ships in 3.0.0 |
 | `notify.yml` send path, skip conditions, and `.env` precedence are untested | [#29](https://github.com/sameeralam3127/linux-vitals/issues/29) | medium |
-| Add an opt-in non-zero exit so an unhealthy fleet can gate a pipeline | [#41](https://github.com/sameeralam3127/linux-vitals/issues/41) | medium |
+| ~~Add an opt-in non-zero exit so an unhealthy fleet can gate a pipeline~~ | [#41](https://github.com/sameeralam3127/linux-vitals/issues/41) | done -- ships in 3.0.0 |
 
 Ordering notes:
 
@@ -232,7 +233,7 @@ Ordering notes:
 ## January 2027: Coverage and adoption
 
 The report becomes more complete, the tested platforms wider, and the
-fleet-size claim measured rather than asserted. **2.3.0 -- Coverage** ships at
+fleet-size claim measured rather than asserted. **3.2.0 -- Coverage** ships at
 the end of the month with whatever has landed.
 
 | Item | Issue | Priority |
@@ -275,7 +276,7 @@ to keep two to four open at all times rather than to schedule them.
 
 | Item | Issue | Size |
 | --- | --- | --- |
-| ~~Tell users on ansible-core 2.16 to use `community.general` 11~~ | [#86](https://github.com/sameeralam3127/linux-vitals/issues/86) | done -- ships in 2.1.0 |
+| ~~Tell users on ansible-core 2.16 to use `community.general` 11~~ | [#86](https://github.com/sameeralam3127/linux-vitals/issues/86) | done -- ships in 3.0.0 |
 | Install CI tooling with `--only-binary` (the lockfile half stays with the maintainer) | [#74](https://github.com/sameeralam3127/linux-vitals/issues/74) | small |
 
 ## Not before February 2027
