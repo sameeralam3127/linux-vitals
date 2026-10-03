@@ -1,6 +1,6 @@
 namespace: sameeralam3127
 name: linux_vitals
-version: 2.0.0
+version: 3.0.0
 readme: README.md
 authors:
   - Sameer Alam <sameeralam3127@gmail.com>

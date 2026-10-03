@@ -4,9 +4,31 @@ All notable changes to the `sameeralam3127.linux_vitals` collection are document
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [3.0.0] - Unreleased
+
+**Nothing in this release is breaking yet.** Every entry below is additive or
+a fix, which on its own would make it 2.1.0. Before tagging 3.0.0, list each
+breaking change here with the step a user takes before upgrading, as 2.0.0
+does. A `requirements.yml` pin of `<3.0.0` keeps users on 2.x until then.
 
 ### Added
+
+- **An opt-in fleet health gate can fail a pipeline**
+  ([#41](https://github.com/sameeralam3127/linux-vitals/issues/41)).
+  `linux_vitals_fail_on_status: any_fail` makes the run fail when more hosts
+  fail than `linux_vitals_fail_threshold_count` (default `0`);
+  `regression` counts only hosts that went from `Pass` at baseline to `Fail`
+  in a postcheck. The gate is the last task of `vitals_report`, so reports,
+  archives and notifications are always written first. The default, empty,
+  keeps the exit code independent of fleet health, as before. See
+  [docs/examples.md](docs/examples.md#gate-a-ci-pipeline-on-fleet-health).
+  Thanks [@Tiyatrotist](https://github.com/Tiyatrotist).
+
+- **Molecule scenarios for Debian 12 and Amazon Linux 2023**
+  ([#105](https://github.com/sameeralam3127/linux-vitals/pull/105)). CI now
+  runs six distributions; Debian exercises the `reboot-required-file` path and
+  Amazon Linux the `needs-restarting` path. Thanks
+  [@Tiyatrotist](https://github.com/Tiyatrotist).
 
 - **Golden-file tests for every scan finding**
   ([#98](https://github.com/sameeralam3127/linux-vitals/issues/98)).
@@ -39,6 +61,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   [docs/testing.md](docs/testing.md#ansible-core-versions).
 
 ### Changed
+
+- **`vitals_scan` refuses to run in check mode**
+  ([#38](https://github.com/sameeralam3127/linux-vitals/issues/38)). Under
+  `--check`, Ansible skips the discovery probes, so the scan used to fail
+  a few tasks later on an undefined fact (`object of type 'dict' has no
+  attribute 'services'`). It now stops before discovery with one message
+  explaining why and saying to run without `--check`. Check mode never
+  worked, so no working run is affected. Thanks
+  [@Tiyatrotist](https://github.com/Tiyatrotist).
 
 - Set the source checkout's fact cache timeout explicitly to one hour and
   document cache reuse, cold scans, and cleanup of retired hosts
