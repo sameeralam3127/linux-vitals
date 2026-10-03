@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [3.0.0] - Unreleased
 
+Planned for the end of October 2026; it replaces the 2.1.0 the
+[roadmap](docs/roadmap.md#releases) had planned for early October.
+
 **Nothing in this release is breaking yet.** Every entry below is additive or
 a fix, which on its own would make it 2.1.0. Before tagging 3.0.0, list each
 breaking change here with the step a user takes before upgrading, as 2.0.0
@@ -36,7 +39,7 @@ does. A `requirements.yml` pin of `<3.0.0` keeps users on 2.x until then.
   degraded and critical, plus two known-bug cases -- run through the real,
   unmodified `vitals_scan` tasks, and the per-host result is compared with a
   snapshot in `tests/golden/`. Every finding the scan can raise from collected
-  state fires in at least one fixture. The behaviour changes planned for 2.2
+  state fires in at least one fixture. The behaviour changes planned for 3.1
   (#62, #39, #24, #30, #23) will each show up as a golden diff in their pull
   request. The same snapshots pass on ansible-core 2.16 and the
   newest core. No behaviour change; see
