@@ -154,7 +154,7 @@ the end of the month.
 | --- | --- | --- |
 | Journal scans are unbounded and ship whole-window logs to the control node | [#23](https://github.com/sameeralam3127/linux-vitals/issues/23) | high |
 | Running with `--check` fails immediately on every host | [#38](https://github.com/sameeralam3127/linux-vitals/issues/38) | high |
-| Fact cache has no explicit expiry, so a run can report stale facts | [#25](https://github.com/sameeralam3127/linux-vitals/issues/25) | medium |
+| ~~Fact cache has no explicit expiry, so a run can report stale facts~~ | [#25](https://github.com/sameeralam3127/linux-vitals/issues/25) | done -- ships in 2.1.0 |
 | `notify.yml` send path, skip conditions, and `.env` precedence are untested | [#29](https://github.com/sameeralam3127/linux-vitals/issues/29) | medium |
 | Add an opt-in non-zero exit so an unhealthy fleet can gate a pipeline | [#41](https://github.com/sameeralam3127/linux-vitals/issues/41) | medium |
 
@@ -197,6 +197,7 @@ review.
 | Concurrent runs sharing an output directory can corrupt reports and snapshots | [#26](https://github.com/sameeralam3127/linux-vitals/issues/26) | low |
 | Split the 978-line `discovery.yml` into focused task files | [#27](https://github.com/sameeralam3127/linux-vitals/issues/27) | medium |
 | Static analysis raises ~40 findings; most are intentional and nothing records why | [#72](https://github.com/sameeralam3127/linux-vitals/issues/72) | medium |
+| Decide whether CI toolchain uses hashed lockfiles | [#74](https://github.com/sameeralam3127/linux-vitals/issues/74) | low |
 | Report all failed systemd units; make the required-service list configurable | [#32](https://github.com/sameeralam3127/linux-vitals/issues/32) | medium |
 
 Ordering notes:
@@ -221,8 +222,9 @@ Ordering notes:
 - [#72](https://github.com/sameeralam3127/linux-vitals/issues/72) records a
   decision for each static-analysis finding, so the next scan does not
   re-raise ones that were intentional. It pairs with
-  [#74](https://github.com/sameeralam3127/linux-vitals/issues/74), whose
-  `--only-binary` half is a `good first issue`.
+  [#74](https://github.com/sameeralam3127/linux-vitals/issues/74)
+  (hashed-lockfile decision for the CI toolchain; the `--only-binary` half
+  already shipped in 2.1.0).
 - [#32](https://github.com/sameeralam3127/linux-vitals/issues/32) builds on
   [#28](https://github.com/sameeralam3127/linux-vitals/issues/28), which
   replaced the two copies of the required-service map with one shared
@@ -276,7 +278,7 @@ to keep two to four open at all times rather than to schedule them.
 | Item | Issue | Size |
 | --- | --- | --- |
 | ~~Tell users on ansible-core 2.16 to use `community.general` 11~~ | [#86](https://github.com/sameeralam3127/linux-vitals/issues/86) | done -- ships in 2.1.0 |
-| Install CI tooling with `--only-binary` (the lockfile half stays with the maintainer) | [#74](https://github.com/sameeralam3127/linux-vitals/issues/74) | small |
+| ~~Install CI tooling with `--only-binary` (the lockfile half stays with the maintainer)~~ | [#74](https://github.com/sameeralam3127/linux-vitals/issues/74) | done -- ships in 2.1.0 |
 
 ## Not before February 2027
 
