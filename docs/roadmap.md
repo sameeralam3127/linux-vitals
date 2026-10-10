@@ -36,28 +36,30 @@ waits for February.
 
 | Month | Theme | Release | Issues |
 | --- | --- | --- | --- |
-| [October 2026](#october-2026-ship-what-is-done-then-the-finding-contract) | Ship what is done; the finding contract | **2.1.0** (early October) | 5 |
-| [November 2026](#november-2026-finish-trust-scale-and-safety) | Finish Trust: scale and safety | **2.2.0 -- Trust** (end of November) | 5 |
-| [December 2026](#december-2026-artefacts-and-the-task-tree) | Artefacts and the task tree | -- | 4 |
-| [January 2027](#january-2027-coverage-and-adoption) | Coverage and adoption | **2.3.0 -- Coverage** (end of January) | 4 |
-| [Any month](#any-month-community-issues) | `good first issue`s, for whoever picks them up | next release | 2 |
+| [October 2026](#october-2026-ship-what-is-done-then-the-finding-contract) | Ship what is done; the finding contract | **2.1.0** (released 10 October) | 4 |
+| [November 2026](#november-2026-finish-trust-scale-and-safety) | Finish Trust: scale and safety | **2.2.0 -- Trust** (end of November) | 2 |
+| [December 2026](#december-2026-artefacts-and-the-task-tree) | Artefacts and the task tree | -- | 5 |
+| [January 2027](#january-2027-coverage-and-adoption) | Coverage and adoption | **2.3.0 -- Coverage** (end of January) | 3 |
+| [Any month](#any-month-community-issues) | `good first issue`s, for whoever picks them up | next release | 0 |
 | [Not before February 2027](#not-before-february-2027) | Integrations, exports, compliance, further breadth | -- | 5 |
 
 ## Releases
 
 | Release | When | What it is |
 | --- | --- | --- |
-| **2.1.0** | early October | What is already merged: CI on the ansible-core 2.16 floor, the two 2.16 fixes it found, configurable report modes, and one shared service-status task. |
+| **2.1.0** | released 10 October | CI on the ansible-core 2.16 floor and the two 2.16 fixes it found, configurable report modes, one shared service-status task, golden-file tests for every finding, the opt-in fleet health gate, the check-mode refusal, an explicit fact cache timeout, and Debian 12 and Amazon Linux 2023 in CI. |
 | **2.2.0 -- Trust** | end of November | The report can be believed. Nothing new on the dashboard except filesystem capacity. |
 | **2.3.0 -- Coverage** | end of January | The report is more complete, the task tree is one a contributor can navigate, and the fleet-size claim is measured. |
 
-2.1.0 ships now rather than waiting for Trust because it carries two fixes
-users on the declared floor need today -- on ansible-core 2.16 the generic
+2.1.0 shipped rather than waiting for Trust because it carried two fixes
+users on the declared floor needed -- on ansible-core 2.16 the generic
 webhook had never sent at all
 ([#85](https://github.com/sameeralam3127/linux-vitals/issues/85)) -- and
-because [#61](https://github.com/sameeralam3127/linux-vitals/issues/61) added
-variables, which makes the next release a minor one by semver. Trust therefore
-moves from 2.1 to 2.2. The constraint from 2.0.0 is unchanged:
+because [#61](https://github.com/sameeralam3127/linux-vitals/issues/61) and
+[#41](https://github.com/sameeralam3127/linux-vitals/issues/41) added
+variables, which made it a minor release by semver
+([#112](https://github.com/sameeralam3127/linux-vitals/issues/112) records why
+it is not 3.0.0). Trust therefore moves from 2.1 to 2.2. The constraint from 2.0.0 is unchanged:
 [#62](https://github.com/sameeralam3127/linux-vitals/issues/62)'s check status
 and [#23](https://github.com/sameeralam3127/linux-vitals/issues/23)'s journal
 aggregate must change the schema *additively*, so that Trust ships as 2.2 and
@@ -71,7 +73,6 @@ time:
   the known false-assurance bugs is still open would be worse than a late one.
 - **Coverage items drop from the bottom of January** into
   [Not before February 2027](#not-before-february-2027), in this order:
-  [#64](https://github.com/sameeralam3127/linux-vitals/issues/64),
   [#33](https://github.com/sameeralam3127/linux-vitals/issues/33),
   [#32](https://github.com/sameeralam3127/linux-vitals/issues/32). 2.3.0 ships
   at the end of January with whatever has landed.
@@ -85,12 +86,6 @@ else builds on.
 
 | Item | Issue | Priority |
 | --- | --- | --- |
-| ~~CI never tests the declared minimum ansible-core~~ | [#47](https://github.com/sameeralam3127/linux-vitals/issues/47) | done -- ships in 2.1.0 |
-| ~~Comparison RAM fields were strings on ansible-core 2.16~~ | [#81](https://github.com/sameeralam3127/linux-vitals/issues/81) | done -- ships in 2.1.0 |
-| ~~Generic webhook never sent on ansible-core 2.16~~ | [#85](https://github.com/sameeralam3127/linux-vitals/issues/85) | done -- ships in 2.1.0 |
-| ~~De-duplicate the required-service status map~~ | [#28](https://github.com/sameeralam3127/linux-vitals/issues/28) | done -- ships in 2.1.0 |
-| ~~Make report and snapshot file modes configurable~~ | [#61](https://github.com/sameeralam3127/linux-vitals/issues/61) | done -- ships in 2.1.0 |
-| Golden-file tests for every `vitals_scan` finding, before the contract change | [#98](https://github.com/sameeralam3127/linux-vitals/issues/98) | high |
 | Promote PASS/FAIL/UNKNOWN to a collection-wide finding contract | [#62](https://github.com/sameeralam3127/linux-vitals/issues/62) | high |
 | Failed-login check reports a clean host when `lastb` cannot run | [#39](https://github.com/sameeralam3127/linux-vitals/issues/39) | high |
 | Race between service restart and `service_facts` can report a dead service as "Fixed" | [#24](https://github.com/sameeralam3127/linux-vitals/issues/24) | high |
@@ -98,8 +93,8 @@ else builds on.
 
 Ordering notes:
 
-- **2.1.0 goes out first**, before any new work, because what is merged
-  already fixes users on the declared floor (see [Releases](#releases)).
+- **2.1.0 went out first**, on 10 October, because what was merged already
+  fixed users on the declared floor (see [Releases](#releases)).
 - [#47](https://github.com/sameeralam3127/linux-vitals/issues/47) is done, and
   it earned its place at the top of the old plan the first time it ran: the
   suite had never executed on ansible-core 2.16, and doing so found two more
@@ -108,11 +103,12 @@ Ordering notes:
   dependency that does not support the floor at all
   ([#86](https://github.com/sameeralam3127/linux-vitals/issues/86)). Every
   change from here is tested on 2.16 as well as the newest core.
-- [#98](https://github.com/sameeralam3127/linux-vitals/issues/98) comes before
-  everything that changes a finding. It is tests only -- no role file changes --
-  and it records what every finding produces today for a fixed host state. Each
-  item below then updates those golden files on purpose, so the diff in its
-  pull request is the behaviour change a reviewer checks.
+- [#98](https://github.com/sameeralam3127/linux-vitals/issues/98) is done, and it
+  came before everything that changes a finding. It is tests only -- no role
+  file changes -- and it records what every finding produces today for a
+  fixed host state. Each item below then updates those golden files on
+  purpose, so the diff in its pull request is the behaviour change a reviewer
+  checks.
 - [#62](https://github.com/sameeralam3127/linux-vitals/issues/62) leads the
   product changes because the two items under it are both consumers of it. Today a
   finding exists only when something is wrong and `final_status` is `Pass` or
@@ -153,10 +149,7 @@ the end of the month.
 | Item | Issue | Priority |
 | --- | --- | --- |
 | Journal scans are unbounded and ship whole-window logs to the control node | [#23](https://github.com/sameeralam3127/linux-vitals/issues/23) | high |
-| Running with `--check` fails immediately on every host | [#38](https://github.com/sameeralam3127/linux-vitals/issues/38) | high |
-| ~~Fact cache has no explicit expiry, so a run can report stale facts~~ | [#25](https://github.com/sameeralam3127/linux-vitals/issues/25) | done -- ships in 2.1.0 |
 | `notify.yml` send path, skip conditions, and `.env` precedence are untested | [#29](https://github.com/sameeralam3127/linux-vitals/issues/29) | medium |
-| Add an opt-in non-zero exit so an unhealthy fleet can gate a pipeline | [#41](https://github.com/sameeralam3127/linux-vitals/issues/41) | medium |
 
 Ordering notes:
 
@@ -169,21 +162,9 @@ Ordering notes:
   in a crash loop should not cost different amounts to scan. It ships in the
   same release as [#62](https://github.com/sameeralam3127/linux-vitals/issues/62),
   so `schema_version` moves once.
-- [#38](https://github.com/sameeralam3127/linux-vitals/issues/38) is what
-  makes a health check safe to try: a `--check` run is the first thing a
-  cautious operator does against production, and today it fails on every
-  host.
 - [#29](https://github.com/sameeralam3127/linux-vitals/issues/29) is the only
   path in the collection that handles secrets, and it is untested. The
   redaction tests prove what it does not print; this proves what it sends.
-- [#41](https://github.com/sameeralam3127/linux-vitals/issues/41) is pulled
-  forward from the old Q3. It is small, and it is the prerequisite for anyone
-  wiring the collection into CI or AWX: without a non-zero exit, an unhealthy
-  fleet produces a green job. It comes after
-  [#62](https://github.com/sameeralam3127/linux-vitals/issues/62) so it can
-  gate on `unknown` too, and its variable needs a name that cannot be
-  confused with the existing `linux_vitals_fail_on_severity`, which decides
-  whether a *host* fails rather than whether the *play* does.
 
 ## December 2026: Artefacts and the task tree
 
@@ -224,7 +205,7 @@ Ordering notes:
   re-raise ones that were intentional. It pairs with
   [#74](https://github.com/sameeralam3127/linux-vitals/issues/74)
   (hashed-lockfile decision for the CI toolchain; the `--only-binary` half
-  already shipped in 2.1.0).
+  shipped in 2.1.0).
 - [#32](https://github.com/sameeralam3127/linux-vitals/issues/32) builds on
   [#28](https://github.com/sameeralam3127/linux-vitals/issues/28), which
   replaced the two copies of the required-service map with one shared
@@ -242,7 +223,6 @@ the end of the month with whatever has landed.
 | Report pending package updates and pending security updates, per distro | [#31](https://github.com/sameeralam3127/linux-vitals/issues/31) | high |
 | Check time-sync quality (offset, synchronised state), not just daemon liveness | [#33](https://github.com/sameeralam3127/linux-vitals/issues/33) | medium |
 | Fill in `docs/performance.md` with measured fleet-size results | [#84](https://github.com/sameeralam3127/linux-vitals/issues/84) | medium |
-| Add Molecule scenarios for Debian 12 and Amazon Linux 2023 | [#64](https://github.com/sameeralam3127/linux-vitals/issues/64) | medium |
 
 Ordering notes:
 
@@ -261,12 +241,11 @@ Ordering notes:
   collection users will actually run. It is also what allows the README to
   state a tested fleet size at all. A real-fleet data point is the kind of
   contribution a user can make without writing code.
-- [#64](https://github.com/sameeralam3127/linux-vitals/issues/64) closes the
-  month rather than opening it. It is most valuable *after*
-  [#31](https://github.com/sameeralam3127/linux-vitals/issues/31), which adds a
-  package-manager branch per distribution and is exactly the kind of change a
-  Debian 12 or Amazon Linux 2023 scenario exists to catch. It is also the first
-  item to move to February if the month runs short.
+- [#64](https://github.com/sameeralam3127/linux-vitals/issues/64) shipped early,
+  in 2.1.0, so the Debian 12 and Amazon Linux 2023 scenarios are already in
+  place when [#31](https://github.com/sameeralam3127/linux-vitals/issues/31)
+  adds a package-manager branch per distribution -- exactly the kind of change
+  they exist to catch.
 
 ## Any month: community issues
 
@@ -277,8 +256,7 @@ to keep two to four open at all times rather than to schedule them.
 
 | Item | Issue | Size |
 | --- | --- | --- |
-| ~~Tell users on ansible-core 2.16 to use `community.general` 11~~ | [#86](https://github.com/sameeralam3127/linux-vitals/issues/86) | done -- ships in 2.1.0 |
-| ~~Install CI tooling with `--only-binary` (the lockfile half stays with the maintainer)~~ | [#74](https://github.com/sameeralam3127/linux-vitals/issues/74) | done -- ships in 2.1.0 |
+| *None open; the last two shipped in 2.1.0* | -- | -- |
 
 ## Not before February 2027
 
@@ -300,8 +278,8 @@ Notes for February:
   line. OpenMetrics is the higher-value export by some distance -- it turns a
   run from "produces an HTML file" into trending and alerting in a stack the
   team already has. It pairs with
-  [#41](https://github.com/sameeralam3127/linux-vitals/issues/41), which lands
-  in November: together they make the collection usable from a pipeline rather
+  [#41](https://github.com/sameeralam3127/linux-vitals/issues/41), which shipped
+  in 2.1.0: together they make the collection usable from a pipeline rather
   than from a terminal.
 - [#34](https://github.com/sameeralam3127/linux-vitals/issues/34) is detection
   breadth, but after [#31](https://github.com/sameeralam3127/linux-vitals/issues/31)
@@ -340,6 +318,18 @@ Closed since this roadmap was first written, in release order.
 | Render the Slack summary with Block Kit instead of one plain-text blob | [#52](https://github.com/sameeralam3127/linux-vitals/issues/52) | 2.0.0 |
 | `vitals_certs` has no role README, unlike the other three roles | [#63](https://github.com/sameeralam3127/linux-vitals/issues/63) | 2.0.0 |
 | Postcheck comparison hid newly failed services and mis-diffed 1.x baselines | [#77](https://github.com/sameeralam3127/linux-vitals/issues/77) | 2.0.0 |
+| CI never tests the declared minimum ansible-core | [#47](https://github.com/sameeralam3127/linux-vitals/issues/47) | 2.1.0 |
+| Comparison RAM fields were strings on ansible-core 2.16 | [#81](https://github.com/sameeralam3127/linux-vitals/issues/81) | 2.1.0 |
+| Generic webhook never sent on ansible-core 2.16 | [#85](https://github.com/sameeralam3127/linux-vitals/issues/85) | 2.1.0 |
+| De-duplicate the required-service status map | [#28](https://github.com/sameeralam3127/linux-vitals/issues/28) | 2.1.0 |
+| Make report and snapshot file modes configurable | [#61](https://github.com/sameeralam3127/linux-vitals/issues/61) | 2.1.0 |
+| Golden-file tests for every `vitals_scan` finding | [#98](https://github.com/sameeralam3127/linux-vitals/issues/98) | 2.1.0 |
+| Fact cache has no explicit expiry, so a run can report stale facts | [#25](https://github.com/sameeralam3127/linux-vitals/issues/25) | 2.1.0 |
+| Running with `--check` fails immediately on every host | [#38](https://github.com/sameeralam3127/linux-vitals/issues/38) | 2.1.0 |
+| Add an opt-in non-zero exit so an unhealthy fleet can gate a pipeline | [#41](https://github.com/sameeralam3127/linux-vitals/issues/41) | 2.1.0 |
+| Add Molecule scenarios for Debian 12 and Amazon Linux 2023 | [#64](https://github.com/sameeralam3127/linux-vitals/issues/64) | 2.1.0 |
+| Tell users on ansible-core 2.16 to use `community.general` 11 | [#86](https://github.com/sameeralam3127/linux-vitals/issues/86) | 2.1.0 |
+| Install CI tooling with `--only-binary` (the lockfile half is in December) | [#74](https://github.com/sameeralam3127/linux-vitals/issues/74) | 2.1.0 |
 
 Both 2.16 failures ([#45](https://github.com/sameeralam3127/linux-vitals/issues/45),
 [#49](https://github.com/sameeralam3127/linux-vitals/issues/49)) are the

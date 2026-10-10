@@ -4,9 +4,32 @@ All notable changes to the `sameeralam3127.linux_vitals` collection are document
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [2.1.0] - 2026-10-10
+
+No breaking changes: every entry is additive or a fix, and each new variable
+defaults to the 2.0.0 behaviour. `schema_version` stays `2.0`. One fix changes
+a type on ansible-core 2.16 only: the comparison's RAM fields were strings
+there and are now numbers, as they already were on every newer core (see
+*Fixed*).
 
 ### Added
+
+- **An opt-in fleet health gate can fail a pipeline**
+  ([#41](https://github.com/sameeralam3127/linux-vitals/issues/41)).
+  `linux_vitals_fail_on_status: any_fail` makes the run fail when more hosts
+  fail than `linux_vitals_fail_threshold_count` (default `0`);
+  `regression` counts only hosts that went from `Pass` at baseline to `Fail`
+  in a postcheck. The gate is the last task of `vitals_report`, so reports,
+  archives and notifications are always written first. The default, empty,
+  keeps the exit code independent of fleet health, as before. See
+  [docs/examples.md](docs/examples.md#gate-a-ci-pipeline-on-fleet-health).
+  Thanks [@Tiyatrotist](https://github.com/Tiyatrotist).
+
+- **Molecule scenarios for Debian 12 and Amazon Linux 2023**
+  ([#105](https://github.com/sameeralam3127/linux-vitals/pull/105)). CI now
+  runs six distributions; Debian exercises the `reboot-required-file` path and
+  Amazon Linux the `needs-restarting` path. Thanks
+  [@Tiyatrotist](https://github.com/Tiyatrotist).
 
 - **Golden-file tests for every scan finding**
   ([#98](https://github.com/sameeralam3127/linux-vitals/issues/98)).
@@ -40,12 +63,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **`vitals_scan` refuses to run in check mode**
+  ([#38](https://github.com/sameeralam3127/linux-vitals/issues/38)). Under
+  `--check`, Ansible skips the discovery probes, so the scan used to fail
+  a few tasks later on an undefined fact (`object of type 'dict' has no
+  attribute 'services'`). It now stops before discovery with one message
+  explaining why and saying to run without `--check`. Check mode never
+  worked, so no working run is affected. Thanks
+  [@Tiyatrotist](https://github.com/Tiyatrotist).
+
 - Set the source checkout's fact cache timeout explicitly to one hour and
   document cache reuse, cold scans, and cleanup of retired hosts
   ([#25](https://github.com/sameeralam3127/linux-vitals/issues/25)).
 
 - Document the `community.general` version constraint needed when installing
-  on ansible-core 2.16 ([#86](https://github.com/sameeralam3127/linux-vitals/issues/86)).
+  on ansible-core 2.16, and what the `Collection community.general does not
+  support Ansible version 2.16.x` warning means
+  ([#86](https://github.com/sameeralam3127/linux-vitals/issues/86)). Thanks
+  [@rupayon123](https://github.com/rupayon123).
 
 - Build the required-service status map in one shared task for both initial
   scanning and post-healing refresh, preventing the two paths from drifting
@@ -84,6 +119,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
   `tests/test_core216_compat.py` now rejects a template lookup piped straight
   into `from_json`, since a runtime test passes on any newer core.
+
+### Documentation
+
+- `CONTRIBUTING.md` opens with a short first-pull-request path -- pick a
+  labelled issue, run pytest, open the PR, and let CI run Molecule and the
+  ansible-core 2.16 suite -- and its stale lint command, role count and
+  publishing steps are corrected.
+- `docs/roadmap.md` is replanned to end in January 2027, with 2.2.0 -- Trust
+  at the end of November and 2.3.0 -- Coverage at the end of January.
 
 ## [2.0.0] - 2026-09-24
 
