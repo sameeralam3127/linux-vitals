@@ -36,7 +36,7 @@ waits for February.
 
 | Month | Theme | Release | Issues |
 | --- | --- | --- | --- |
-| [October 2026](#october-2026-ship-what-is-done-then-the-finding-contract) | Ship what is done; the finding contract | **2.1.0** (released 10 October) | 4 |
+| [October 2026](#october-2026-ship-what-is-done-then-the-finding-contract) | Ship what is done; the finding contract | **2.1.0** (released 10 October) | 3 |
 | [November 2026](#november-2026-finish-trust-scale-and-safety) | Finish Trust: scale and safety | **2.2.0 -- Trust** (end of November) | 2 |
 | [December 2026](#december-2026-artefacts-and-the-task-tree) | Artefacts and the task tree | -- | 5 |
 | [January 2027](#january-2027-coverage-and-adoption) | Coverage and adoption | **2.3.0 -- Coverage** (end of January) | 3 |
@@ -86,7 +86,7 @@ else builds on.
 
 | Item | Issue | Priority |
 | --- | --- | --- |
-| Promote PASS/FAIL/UNKNOWN to a collection-wide finding contract | [#62](https://github.com/sameeralam3127/linux-vitals/issues/62) | high |
+| ~~Promote PASS/FAIL/UNKNOWN to a collection-wide finding contract~~ | [#62](https://github.com/sameeralam3127/linux-vitals/issues/62) | done -- ships in 2.2.0 |
 | Failed-login check reports a clean host when `lastb` cannot run | [#39](https://github.com/sameeralam3127/linux-vitals/issues/39) | high |
 | Race between service restart and `service_facts` can report a dead service as "Fixed" | [#24](https://github.com/sameeralam3127/linux-vitals/issues/24) | high |
 | Add filesystem capacity and inode checks for all mounts | [#30](https://github.com/sameeralam3127/linux-vitals/issues/30) | high |
@@ -109,17 +109,18 @@ Ordering notes:
   fixed host state. Each item below then updates those golden files on
   purpose, so the diff in its pull request is the behaviour change a reviewer
   checks.
-- [#62](https://github.com/sameeralam3127/linux-vitals/issues/62) leads the
-  product changes because the two items under it are both consumers of it. Today a
-  finding exists only when something is wrong and `final_status` is `Pass` or
-  `Fail`, so there is nowhere to record that a check *could not run* -- which
-  is why a missing `lastb` reads as a clean host. Fixing that per-check leaves
+- [#62](https://github.com/sameeralam3127/linux-vitals/issues/62) is done. It
+  led the product changes because the two items under it are both consumers
+  of it. A finding existed only when something was wrong and `final_status`
+  was `Pass` or `Fail`, so there was nowhere to record that a check *could not
+  run* -- which is why a missing `lastb` reads as a clean host. Fixing that per-check leaves
   the schema with the same hole and the next check free to fall into it;
   fixing it in the finding object makes "unknown" expressible once, for every
-  check, and gives contributors a rule to follow. `docs/compatibility.md` --
-  what counts as a breaking change, and the deprecation policy -- lands with
-  it, because #62 is the first schema change that has to be checked against
-  one.
+  check, and gives contributors a rule to follow. It kept `final_status` to
+  `Pass`/`Fail` and added `unknown_count` beside it, so the schema change is
+  additive (`2.1`). `docs/compatibility.md` -- what counts as a breaking
+  change, and the deprecation policy -- landed with it, because #62 was the
+  first schema change that had to be checked against one.
 - [#24](https://github.com/sameeralam3127/linux-vitals/issues/24) and
   [#39](https://github.com/sameeralam3127/linux-vitals/issues/39) are the two
   places where the report actively asserts something false -- a dead service

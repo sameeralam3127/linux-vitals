@@ -7,6 +7,7 @@
     "critical_error_count": {{ linux_vitals_summary.critical_error_count | int }},
     "hosts_by_severity": {{ linux_vitals_summary.hosts_by_severity | default({}) | to_json }},
     "findings_by_severity": {{ linux_vitals_summary.findings_by_severity | default({}) | to_json }},
+    "unknown_host_count": {{ linux_vitals_summary.unknown_host_count | default(0) | int }},
     "snippet": {{ linux_vitals_summary.snippet | to_json }}
   },
   "message": {{ linux_vitals_notification_message | to_json }},
@@ -28,6 +29,7 @@
       "failed_login_count": {{ result.failed_login_count | int }},
       "severity": {{ result.severity | default('none') | to_json }},
       "severity_counts": {{ result.severity_counts | default({}) | to_json }},
+      "unknown_count": {{ result.unknown_count | default(0) | int }},
       "findings": {{ result.findings | to_json }}
     }{% if not loop.last %},{% endif %}
     {% endfor %}

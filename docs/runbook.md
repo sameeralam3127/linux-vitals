@@ -39,6 +39,11 @@ Two numbers worth checking before you start:
 - `summary.fail_on_severity`. If someone raised it, hosts with warnings are
   reported as `Pass`. The severity column still tells the truth; the status
   column is answering a different question.
+- `summary.unknown_host_count` (the *Hosts with unknown checks* tile). A
+  finding marked `unknown` means the check could not run on that host, so
+  nothing is known about what it covers. Read its `reason`, which usually
+  names a missing tool or an unreadable file, and fix that first: until it
+  runs, the absence of a problem there is not evidence of anything.
 
 ## Critical findings
 

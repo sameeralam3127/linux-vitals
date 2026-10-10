@@ -4,6 +4,43 @@ All notable changes to the `sameeralam3127.linux_vitals` collection are document
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- **A finding can say that a check could not run**
+  ([#62](https://github.com/sameeralam3127/linux-vitals/issues/62)). Until
+  now a check that failed to run -- a command missing, a log unreadable --
+  produced no finding, so the host read as clean. Every finding now carries a
+  `status`: `fail` (the check ran and found something wrong, and what every
+  finding has meant so far) or `unknown` (it could not run), with a `reason`
+  for `unknown`. An unknown finding is classified like any other, so under
+  the default threshold it fails the host. Each host gains `unknown_count`,
+  and the summary `unknown_host_count`. The health score counts a host as
+  healthy only if it passes **and** every check on it ran, so a raised
+  `linux_vitals_fail_on_severity` cannot hide one. The dashboard marks each
+  unknown finding with its reason, adds an `N unknown` pill beside the
+  host's status, and adds a *Hosts with unknown checks* tile.
+
+  `final_status` is still `Pass` or `Fail`: a third value would be misread by
+  any consumer checking `status == "Fail"`. The report's `schema_version`
+  moves to `2.1`, additively; nothing existing changed type or meaning, and
+  a 2.x baseline's findings are read as `fail`. No check raises `unknown`
+  yet: [#39](https://github.com/sameeralam3127/linux-vitals/issues/39)
+  (`lastb`) is the first. `tests/test_finding_contract.py` now fails if a
+  new scan probe sets `failed_when: false`, so a new check is reviewed
+  against the contract before it can reintroduce a false-clean report. See
+  [docs/report-guide.md](docs/report-guide.md#status-when-a-check-could-not-run).
+
+### Documentation
+
+- [docs/compatibility.md](docs/compatibility.md) defines the public
+  interface, what counts as a breaking change, and how a variable, field or
+  finding is deprecated and removed.
+- `docs/architecture.md` and `CONTRIBUTING.md` state the rule for new checks:
+  tell "ran and found nothing" from "could not run", and raise an `unknown`
+  finding for the second.
+
 ## [2.1.0] - 2026-10-10
 
 No breaking changes: every entry is additive or a fix, and each new variable

@@ -91,6 +91,23 @@ debug a failing one, and what containers can't prove. Any change to
 `vitals_scan` discovery, `vitals_heal`, or the report pipeline should be
 validated with at least one scenario locally before pushing.
 
+## Adding or changing a check
+
+A check that could not run must never read as a clean host. When a check
+shells out, tell "ran and found nothing" from "could not run", and for the
+second raise a finding with `'status': 'unknown'` and a `reason` instead of
+nothing. `failed_when: false` and `2>/dev/null` are exactly how the two get
+conflated. `tests/test_finding_contract.py` fails if a new scan probe sets
+`failed_when: false`, and passes once you have handled the "could not run"
+path and added the probe to its list. The full rule is in
+[docs/architecture.md](../docs/architecture.md#the-finding-object-and-the-finding-contract).
+
+A new finding id also needs a severity in `linux_vitals_finding_severities`
+(`roles/vitals_scan/defaults/main.yml`), a row in
+[docs/report-guide.md](../docs/report-guide.md#findings), a section in the
+[runbook](../docs/runbook.md), and a golden fixture that fires it
+([docs/testing.md](../docs/testing.md#golden-file-tests)).
+
 ## Adding or changing a variable
 
 1. Add the default to the owning role's `defaults/main.yml` (see

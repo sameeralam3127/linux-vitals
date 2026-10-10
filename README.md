@@ -156,7 +156,9 @@ linux_vitals_finding_severity_overrides:
 ```
 
 Because `final_status` drives the fleet health score, raising the threshold
-raises the score. The full finding reference — id, severity, and trigger for
+raises the score — but a host where a check could not run never counts as
+healthy (see [Status](docs/report-guide.md#status-when-a-check-could-not-run)).
+The full finding reference — id, severity, and trigger for
 every check — is in the [Report Guide](docs/report-guide.md#findings), and what
 to *do* about each one is in the [Operator Runbook](docs/runbook.md).
 
@@ -386,6 +388,7 @@ sudoers rule is enough for everything except self-healing:
 - [Variable Reference](docs/variable-reference.md) · [Configuration Reference](docs/configuration-reference.md)
 - [Kernel & Reboot Detection](docs/kernel-reboot-detection.md) — per-distro logic and known edge cases
 - [Architecture](docs/architecture.md) · [Performance & Scale](docs/performance.md)
+- [Compatibility](docs/compatibility.md) — what counts as a breaking change, and how things are deprecated
 
 **Security**
 - [Security Policy](.github/SECURITY.md) — what to report privately, and how

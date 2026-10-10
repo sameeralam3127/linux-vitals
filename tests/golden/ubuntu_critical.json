@@ -22,37 +22,44 @@
     {
       "id": "ram_critical",
       "message": "RAM usage is critical",
-      "severity": "critical"
+      "severity": "critical",
+      "status": "fail"
     },
     {
       "id": "log_errors",
       "message": "Recent logs contain error or failed entries",
-      "severity": "info"
+      "severity": "info",
+      "status": "fail"
     },
     {
       "id": "sssd_inactive",
       "message": "sssd is not active",
-      "severity": "warning"
+      "severity": "warning",
+      "status": "fail"
     },
     {
       "id": "journald_inactive",
       "message": "systemd-journald is not active",
-      "severity": "critical"
+      "severity": "critical",
+      "status": "fail"
     },
     {
       "id": "time_sync_absent",
       "message": "chronyd or ntp is not installed",
-      "severity": "warning"
+      "severity": "warning",
+      "status": "fail"
     },
     {
       "id": "kernel_install_failures",
       "message": "Kernel installation or bootloader related failures found in logs",
-      "severity": "warning"
+      "severity": "warning",
+      "status": "fail"
     },
     {
       "id": "apparmor_disabled",
       "message": "AppArmor is disabled or unavailable",
-      "severity": "warning"
+      "severity": "warning",
+      "status": "fail"
     }
   ],
   "healing_results": [],
@@ -96,6 +103,7 @@
     "info": 1,
     "warning": 4
   },
+  "unknown_count": 0,
   "uptime": "1d 0h 0m",
   "virtualization_type": "VMware"
 }

@@ -32,7 +32,8 @@
 # matches its 2.x counterpart instead of being reported as both resolved and
 # new. A string that matches nothing keeps the message as its id -- the only
 # identity it has. Severity follows the documented precedence minus the
-# per-finding step, which a string never had.
+# per-finding step, which a string never had. A finding from before the
+# status field (#62) gets `status: fail`, which is what it meant then.
 - name: Normalise baseline findings written by an earlier release
   ansible.builtin.set_fact:
     linux_vitals_baseline_findings: >-
@@ -41,12 +42,13 @@
       {%- set out = [] -%}
       {%- for finding in linux_vitals_baseline_result.findings | default([]) -%}
       {%- if finding is mapping -%}
-      {%- set _ = out.append(finding) -%}
+      {%- set _ = out.append(finding | combine({'status': finding.status | default('fail')})) -%}
       {%- elif finding is match('.+ requires manual follow-up$') -%}
       {%- set _ = out.append({
             'id': 'service_manual_followup',
             'message': finding,
             'severity': severities['service_manual_followup'] | default('warning'),
+            'status': 'fail',
             'subject': finding | regex_replace(' requires manual follow-up$', '')
           }) -%}
       {%- else -%}
@@ -54,7 +56,8 @@
       {%- set _ = out.append({
             'id': finding_id,
             'message': finding,
-            'severity': severities[finding_id] | default('warning')
+            'severity': severities[finding_id] | default('warning'),
+            'status': 'fail'
           }) -%}
       {%- endif -%}
       {%- endfor -%}

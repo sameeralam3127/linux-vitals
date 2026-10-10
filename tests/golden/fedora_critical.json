@@ -22,22 +22,26 @@
     {
       "id": "ram_critical",
       "message": "RAM usage is critical",
-      "severity": "critical"
+      "severity": "critical",
+      "status": "fail"
     },
     {
       "id": "journald_inactive",
       "message": "systemd-journald is not active",
-      "severity": "critical"
+      "severity": "critical",
+      "status": "fail"
     },
     {
       "id": "time_sync_inactive",
       "message": "Time synchronization service is not active",
-      "severity": "warning"
+      "severity": "warning",
+      "status": "fail"
     },
     {
       "id": "selinux_disabled",
       "message": "SELinux is disabled or unavailable",
-      "severity": "warning"
+      "severity": "warning",
+      "status": "fail"
     }
   ],
   "healing_results": [],
@@ -77,6 +81,7 @@
     "info": 0,
     "warning": 2
   },
+  "unknown_count": 0,
   "uptime": "0d 2h 0m",
   "virtualization_type": "kvm"
 }

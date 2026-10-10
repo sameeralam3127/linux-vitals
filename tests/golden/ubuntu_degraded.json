@@ -22,27 +22,32 @@
     {
       "id": "log_errors",
       "message": "Recent logs contain error or failed entries",
-      "severity": "info"
+      "severity": "info",
+      "status": "fail"
     },
     {
       "id": "reboot_required",
       "message": "System reboot is required",
-      "severity": "warning"
+      "severity": "warning",
+      "status": "fail"
     },
     {
       "id": "kernel_not_latest",
       "message": "Latest installed kernel is not currently running",
-      "severity": "warning"
+      "severity": "warning",
+      "status": "fail"
     },
     {
       "id": "boot_space_low",
       "message": "Boot partition free space is low",
-      "severity": "warning"
+      "severity": "warning",
+      "status": "fail"
     },
     {
       "id": "failed_logins",
       "message": "Recent failed login attempts detected",
-      "severity": "info"
+      "severity": "info",
+      "status": "fail"
     }
   ],
   "healing_results": [],
@@ -88,6 +93,7 @@
     "info": 2,
     "warning": 3
   },
+  "unknown_count": 0,
   "uptime": "30d 0h 5m",
   "virtualization_type": "VMware"
 }

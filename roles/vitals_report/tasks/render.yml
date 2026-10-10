@@ -90,15 +90,20 @@
   run_once: true
 
 - name: Compute the fleet pass ratio for the health score
+  # A host counts towards the score only if it passes *and* every check on it
+  # could run (#62). Under a raised linux_vitals_fail_on_severity a host with
+  # an unknown check can still pass, but nobody looked at what that check
+  # covers, so it must not make the fleet look healthier.
   ansible.builtin.set_fact:
     linux_vitals_pass_ratio_pct: >-
+      {%- set healthy = [] -%}
+      {%- for result in linux_vitals_result_list -%}
+      {%- if result.final_status == 'Pass' and result.unknown_count | default(0) | int == 0 -%}
+      {%- set _ = healthy.append(result) -%}
+      {%- endif -%}
+      {%- endfor -%}
       {{
-        (
-          (
-            (linux_vitals_result_list | selectattr('final_status', 'equalto', 'Pass') | list | length)
-            / (linux_vitals_result_list | length)
-          ) * 100
-        ) | round(1)
+        (((healthy | length) / (linux_vitals_result_list | length)) * 100) | round(1)
         if linux_vitals_result_list | length > 0
         else 0
       }}
@@ -156,6 +161,16 @@
         {%- endfor -%}
         {%- endfor -%}
         {{ counts }}
+      # Hosts with at least one check that could not run (#62), whatever
+      # their final_status.
+      unknown_host_count: >-
+        {%- set hosts = [] -%}
+        {%- for result in linux_vitals_result_list -%}
+        {%- if result.unknown_count | default(0) | int > 0 -%}
+        {%- set _ = hosts.append(result) -%}
+        {%- endif -%}
+        {%- endfor -%}
+        {{ hosts | length }}
       fail_on_severity: "{{ linux_vitals_fail_on_severity | default('info') }}"
       comparison_active: "{{ linux_vitals_phase == 'postcheck' }}"
       regressed_count: >-

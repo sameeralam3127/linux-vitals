@@ -22,7 +22,8 @@
     {
       "id": "sssd_inactive",
       "message": "sssd is not active",
-      "severity": "critcal"
+      "severity": "critcal",
+      "status": "fail"
     }
   ],
   "healing_results": [],
@@ -62,6 +63,7 @@
     "info": 0,
     "warning": 0
   },
+  "unknown_count": 0,
   "uptime": "2d 3h 7m",
   "virtualization_type": "VMware"
 }

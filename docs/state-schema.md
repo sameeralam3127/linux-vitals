@@ -5,7 +5,7 @@
 > refactor ([#98](https://github.com/sameeralam3127/linux-vitals/issues/98))
 > builds against, written before the tasks that produce it, and it is what
 > `tests/fixtures/state/` encodes. The shipped report keeps its own
-> `schema_version: 2.0` — the two version independently, which is the point
+> `schema_version` (`2.1`) — the two version independently, which is the point
 > of separating them.
 
 One JSON document per host, produced by the **collect** layer. It records

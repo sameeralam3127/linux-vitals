@@ -109,15 +109,17 @@ to modify.
 
 1. `vitals_scan` sets `linux_vitals_result` (a per-host fact) with a fixed
    schema: identity, kernel/bootloader, security, boot space, memory, logs,
-   self-healing summary, `asset_serial`, `final_status`, `findings`, and a
-   default `comparison: {baseline_available: false}` placeholder.
+   self-healing summary, `asset_serial`, `final_status`, `findings`,
+   `unknown_count`, and a default `comparison: {baseline_available: false}`
+   placeholder.
 2. `vitals_heal`, if enabled, updates the self-healing-related facts that
    feed back into that same `linux_vitals_result` (rebuilt by `vitals_scan`
    in `tasks/result.yml`, which runs after `vitals_heal` in every shipped
    playbook).
 3. `vitals_certs`, if enabled, runs after that rebuild and appends its own
    findings to `linux_vitals_result.findings`, then recomputes
-   `final_status` and the host severity over the merged list by including
+   `final_status`, `unknown_count` and the host severity over the merged
+   list by including
    `vitals_scan/tasks/severity.yml`. It is last in the scanning half for a
    reason: it is the only stage that can block on the network, so anything
    that must run regardless of a slow or unreachable TLS endpoint runs
@@ -151,13 +153,14 @@ yet; it is the contract the collection/evaluation split
 against. What step 1 produces for a given state is pinned by the golden-file
 tests described in [testing.md](testing.md#golden-file-tests).
 
-## The finding object, and what it cannot yet say
+## The finding object, and the finding contract
 
 Every check that has something to report appends a finding. Since
-[#8](https://github.com/sameeralam3127/linux-vitals/issues/8) the shape is:
+[#8](https://github.com/sameeralam3127/linux-vitals/issues/8) and
+[#62](https://github.com/sameeralam3127/linux-vitals/issues/62) the shape is:
 
 ```json
-{ "id": "boot_space_low", "message": "...", "severity": "warning" }
+{ "id": "boot_space_low", "message": "...", "severity": "warning", "status": "fail" }
 ```
 
 The `id` is the stable join key -- the runbook, the severity map
@@ -167,16 +170,41 @@ it, which is why rewording a `message` is a safe change and renaming an `id`
 is not. Severity is resolved in one place, `vitals_scan/tasks/severity.yml`,
 which `vitals_certs` includes rather than reimplements.
 
-The known limitation: **a finding exists only when something is wrong, and
-`final_status` is `Pass` or `Fail` with nothing in between.** There is no way
-to record that a check could not run. A command that fails -- `lastb` missing,
-a log unreadable -- produces no finding, and the host reads as clean. That is
-tracked collection-wide in
-[#62](https://github.com/sameeralam3127/linux-vitals/issues/62), with
-[#39](https://github.com/sameeralam3127/linux-vitals/issues/39) as the known
-instance. Until it lands, a new check that shells out should be written so
-that the inability to run it is itself reportable, rather than relying on
-`failed_when: false` and an empty result.
+A check ends in one of three states, and the contract gives each exactly one
+representation:
+
+| The check... | It raises | Read as |
+| --- | --- | --- |
+| ran and found nothing wrong | no finding | clean |
+| ran and found something wrong | a finding with `status: fail` (the default) | a problem |
+| could not run -- a command missing, a file unreadable, a probe that timed out | a finding with `status: unknown` and a `reason` | nobody looked |
+
+There is deliberately no `pass` finding. A finding is a record of something
+needing attention, and every consumer -- the severity counts, the Slack
+"needs attention" list, the comparison, anything downstream counting
+`findings` -- would otherwise have to learn to skip passing ones.
+
+`severity.yml` enforces the contract: it rejects any other status, and an
+`unknown` finding without a `reason`. It then writes `status` onto every
+finding, and counts the unknowns into the host's `unknown_count`. An unknown
+finding is classified and counted against `linux_vitals_fail_on_severity`
+like any other, so under the default threshold a check that could not run
+fails the host. `final_status` stays `Pass` or `Fail`. Under a raised
+threshold a host with an unknown check can pass, so the fleet health score
+counts a host as healthy only if it passes **and** its `unknown_count` is
+zero.
+
+**The rule for new checks.** A check that shells out must tell "ran and found
+nothing" from "could not run", and raise an `unknown` finding with a reason
+for the second. `failed_when: false` on a probe, or `2>/dev/null` on its
+command, is exactly how the two get conflated: the probe's failure becomes an
+empty result, and an empty result reads as clean. That is the bug in
+[#39](https://github.com/sameeralam3127/linux-vitals/issues/39), where a
+missing `lastb` reports a host with no failed logins.
+`tests/test_finding_contract.py` lists every scan probe that sets
+`failed_when: false`, and fails when a new one appears, so the rule is
+checked in review rather than remembered. The probes on that list predate
+the contract and are audited against it one at a time, starting with #39.
 
 ## Why paths resolve from `inventory_dir`, not `playbook_dir`
 

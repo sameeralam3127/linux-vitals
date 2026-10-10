@@ -9,7 +9,7 @@ The shipped severity map is read from `roles/vitals_scan/defaults/main.yml`
 for the same reason: a test that hard-codes its own map would keep passing
 after someone retuned a severity in the role.
 
-See issue #8.
+See issue #8, and #62 for the finding status contract.
 """
 from __future__ import annotations
 
@@ -25,7 +25,8 @@ SEVERITY_TASKS = REPO_ROOT / "roles" / "vitals_scan" / "tasks" / "severity.yml"
 SCAN_DEFAULTS = REPO_ROOT / "roles" / "vitals_scan" / "defaults" / "main.yml"
 
 SEVERITY_TASK_NAMES = [
-    "Attach a severity to every finding",
+    "Check that every finding has a valid status",
+    "Attach a severity and a status to every finding",
     "Roll the findings up into one host severity",
     "Decide whether the host passes at the configured severity threshold",
 ]
@@ -43,7 +44,7 @@ def _severity_tasks() -> list[dict]:
     return [by_name[name] for name in SEVERITY_TASK_NAMES]
 
 
-def _run(tmp_path: Path, raw_findings: list[dict], **overrides) -> dict:
+def _playbook(tmp_path: Path, raw_findings: list[dict], **overrides) -> Path:
     defaults = _defaults()
     play_vars = {
         "output_dir": "{{ lookup('ansible.builtin.env', 'TEST_OUTPUT_DIR') }}",
@@ -65,6 +66,7 @@ def _run(tmp_path: Path, raw_findings: list[dict], **overrides) -> dict:
                 "'findings': linux_vitals_findings, "
                 "'severity': linux_vitals_host_severity, "
                 "'counts': linux_vitals_severity_counts, "
+                "'unknown_count': linux_vitals_unknown_count | int, "
                 "'status': linux_vitals_final_status"
                 "} | to_nice_json }}\n"
             ),
@@ -85,14 +87,30 @@ def _run(tmp_path: Path, raw_findings: list[dict], **overrides) -> dict:
     ]
     path = tmp_path / "severity_case.yml"
     path.write_text(yaml.safe_dump(playbook, sort_keys=False), encoding="utf-8")
+    return path
 
+
+def _run(tmp_path: Path, raw_findings: list[dict], **overrides) -> dict:
     subprocess.run(
-        [_ansible_playbook_bin(), str(path)],
+        [_ansible_playbook_bin(), str(_playbook(tmp_path, raw_findings, **overrides))],
         check=True,
         cwd=REPO_ROOT,
         env=_base_env(tmp_path),
     )
     return json.loads((tmp_path / "severity.json").read_text(encoding="utf-8"))
+
+
+def _run_expecting_failure(tmp_path: Path, raw_findings: list[dict]) -> str:
+    completed = subprocess.run(
+        [_ansible_playbook_bin(), str(_playbook(tmp_path, raw_findings))],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+        env=_base_env(tmp_path),
+    )
+    assert completed.returncode != 0, "the play should have failed"
+    assert not (tmp_path / "severity.json").exists()
+    return completed.stdout + completed.stderr
 
 
 # ---------------------------------------------------------------------------
@@ -363,3 +381,98 @@ def test_a_finding_without_its_own_severity_still_uses_the_map(
     )
 
     assert result["findings"][0]["severity"] == "critical"
+
+
+# ---------------------------------------------------------------------------
+# Finding status (#62)
+# ---------------------------------------------------------------------------
+
+FAILED_LOGINS_UNKNOWN = {
+    "id": "failed_logins",
+    "message": "Failed-login history could not be read",
+    "status": "unknown",
+    "reason": "lastb unavailable",
+}
+
+
+def test_a_finding_without_a_status_is_recorded_as_fail(tmp_path: Path) -> None:
+    # Every finding before #62 meant "something is wrong", so that is what an
+    # absent status means -- and it is written out, so a JSON consumer never
+    # has to know the default.
+    result = _run(tmp_path, [{"id": "reboot_required", "message": "reboot"}])
+
+    assert result["findings"][0]["status"] == "fail"
+    assert "reason" not in result["findings"][0]
+    assert result["unknown_count"] == 0
+
+
+def test_an_unknown_finding_keeps_its_status_and_reason(tmp_path: Path) -> None:
+    result = _run(tmp_path, [FAILED_LOGINS_UNKNOWN])
+
+    finding = result["findings"][0]
+    assert finding["status"] == "unknown"
+    assert finding["reason"] == "lastb unavailable"
+    assert finding["severity"] == "info"  # classified like any other finding
+    assert result["unknown_count"] == 1
+
+
+def test_only_unknown_findings_are_counted_as_unknown(tmp_path: Path) -> None:
+    result = _run(
+        tmp_path,
+        [
+            FAILED_LOGINS_UNKNOWN,
+            {"id": "reboot_required", "message": "reboot"},
+            {"id": "log_errors", "message": "logs", "status": "unknown", "reason": "journal unreadable"},
+        ],
+    )
+
+    assert result["unknown_count"] == 2
+    assert result["counts"] == {"info": 2, "warning": 1, "critical": 0}
+
+
+def test_an_unknown_finding_fails_the_host_under_the_default_threshold(
+    tmp_path: Path,
+) -> None:
+    # The bug #62 exists for: a check that could not run must not leave the
+    # host reading as clean.
+    result = _run(tmp_path, [FAILED_LOGINS_UNKNOWN])
+
+    assert result["status"] == "Fail"
+
+
+def test_a_raised_threshold_can_pass_a_host_but_still_counts_its_unknowns(
+    tmp_path: Path,
+) -> None:
+    # final_status keeps its meaning under a raised threshold; unknown_count is
+    # what keeps the host out of the fleet health score (render.yml).
+    result = _run(
+        tmp_path,
+        [FAILED_LOGINS_UNKNOWN],
+        linux_vitals_fail_on_severity="warning",
+    )
+
+    assert result["status"] == "Pass"
+    assert result["unknown_count"] == 1
+
+
+def test_a_status_outside_the_contract_is_rejected(tmp_path: Path) -> None:
+    # There is no `pass`: a check that ran and found nothing raises no finding.
+    output = _run_expecting_failure(
+        tmp_path,
+        [{"id": "reboot_required", "message": "reboot", "status": "pass"}],
+    )
+
+    assert "Invalid finding status: reboot_required (status: pass)" in output
+
+
+def test_an_unknown_finding_without_a_reason_is_rejected(tmp_path: Path) -> None:
+    output = _run_expecting_failure(
+        tmp_path,
+        [
+            {"id": "failed_logins", "message": "unread", "status": "unknown"},
+            {"id": "log_errors", "message": "unread", "status": "unknown", "reason": "  "},
+        ],
+    )
+
+    assert "failed_logins (status: unknown)" in output
+    assert "log_errors (status: unknown)" in output

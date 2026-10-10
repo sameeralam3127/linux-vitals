@@ -202,6 +202,7 @@
               'findings': linux_vitals_findings,
               'severity': linux_vitals_host_severity,
               'severity_counts': linux_vitals_severity_counts,
+              'unknown_count': linux_vitals_unknown_count,
               'final_status': linux_vitals_final_status,
               'certificates': linux_vitals_cert_summary,
             })

@@ -95,8 +95,13 @@ def test_templates_render_with_representative_health_data(tmp_path: Path) -> Non
     assert generic_webhook["summary"]["overall_status"] == "PASS"
     assert generic_webhook["hosts"][0]["hostname"] == "localhost"
     assert "Standard Maintenance Summary" in generic_webhook["message"]
-    assert json_report["schema_version"] == "2.0"
+    assert json_report["schema_version"] == "2.1"
     assert json_report["summary"]["health_score_pct"] == 100.0
+    # Additive (#62): a result built without the unknown fields renders them
+    # as zero rather than failing, so the shape never depends on who built it.
+    assert json_report["summary"]["unknown_host_count"] == 0
+    assert json_report["hosts"][0]["unknown_count"] == 0
+    assert generic_webhook["hosts"][0]["unknown_count"] == 0
     assert json_report["hosts"][0]["asset_serial"] == "TEST-SERIAL-0001"
     assert json_report["hosts"][0]["comparison"]["baseline_available"] is False
     assert json_report["generated_at"] == "20260429T120000Z"
@@ -207,6 +212,9 @@ def test_baseline_postcheck_comparison_detects_improvement_and_regression(tmp_pa
     host_a_resolved = comparisons["host-a"]["resolved_findings"]
     assert [f["id"] for f in host_a_resolved] == ["ram_critical", "reboot_required"]
     assert host_a_resolved[0]["message"] == "RAM usage is critical"
+    # A baseline from before the status field (#62) meant "something is
+    # wrong" by every finding it held.
+    assert {f["status"] for f in host_a_resolved} == {"fail"}
 
     assert comparisons["host-b"]["baseline_available"] is True
     assert comparisons["host-b"]["status_regressed"] is True
@@ -223,6 +231,7 @@ def test_baseline_postcheck_comparison_detects_improvement_and_regression(tmp_pa
     assert host_d["baseline_available"] is True
     assert [f["id"] for f in host_d["new_findings"]] == ["boot_space_low"]
     assert [f["id"] for f in host_d["resolved_findings"]] == ["log_errors"]
+    assert host_d["resolved_findings"][0]["status"] == "fail"
     # The object carried through is the current run's, so the dashboard shows
     # current wording and current severity rather than the baseline's.
     assert host_d["severity_before"] == "warning"

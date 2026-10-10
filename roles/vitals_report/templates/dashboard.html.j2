@@ -449,6 +449,11 @@
     </div>
   </section>
 
+  {#- A finding whose check could not run (#62) gets its own marker and the
+      reason, so it never reads like an ordinary failure, or like nothing. #}
+  {%- macro unknown_marker(finding) -%}
+  {%- if finding.status | default('fail') == 'unknown' %} <span class="pill pill--serious"><span class="dot"></span>unknown</span> <span class="muted">Could not check: {{ finding.reason | default('') | e }}</span>{% endif -%}
+  {%- endmacro %}
   <section class="kpi-row">
     {% set band_color = 'good' if linux_vitals_summary.health_score_band == 'Excellent' or linux_vitals_summary.health_score_band == 'Good' else 'warning' if linux_vitals_summary.health_score_band == 'Fair' else 'critical' %}
     <div class="tile tile--score">
@@ -471,6 +476,10 @@
     <div class="tile tile--critical">
       <div class="tile-value">{{ linux_vitals_summary.critical_error_count }}</div>
       <div class="tile-label">Failing</div>
+    </div>
+    <div class="tile{{ ' tile--warning' if linux_vitals_summary.unknown_host_count | default(0) | int > 0 else '' }}">
+      <div class="tile-value">{{ linux_vitals_summary.unknown_host_count | default(0) | int }}</div>
+      <div class="tile-label">Hosts with unknown checks</div>
     </div>
     <div class="tile tile--critical">
       <div class="tile-value">{{ linux_vitals_summary.hosts_by_severity.critical | default(0) }}</div>
@@ -566,6 +575,9 @@
             data-sort-comparison="{{ 0 if cmp_key == 'regressed' else 1 if cmp_key == 'new' else 2 if cmp_key == 'unchanged' else 3 }}">
           <td>
             <span class="pill pill--{{ status_class }}"><span class="dot"></span>{{ result.final_status }}</span>
+            {% if result.unknown_count | default(0) | int > 0 %}
+            <span class="pill pill--serious" title="Checks that could not run on this host"><span class="dot"></span>{{ result.unknown_count | int }} unknown</span>
+            {% endif %}
           </td>
           <td class="host-cell">
             <strong>{{ result.hostname | e }}</strong>
@@ -699,11 +711,11 @@
                 <ul class="list">
                   {% for level in ['critical', 'warning', 'info'] %}
                   {% for finding in result.findings if finding is mapping and finding.severity == level %}
-                  <li><span class="pill pill--{{ 'critical' if level == 'critical' else 'warning' if level == 'warning' else 'muted' }}"><span class="dot"></span>{{ level | e }}</span> {{ finding.message | e }}</li>
+                  <li><span class="pill pill--{{ 'critical' if level == 'critical' else 'warning' if level == 'warning' else 'muted' }}"><span class="dot"></span>{{ level | e }}</span> {{ finding.message | e }}{{ unknown_marker(finding) }}</li>
                   {% endfor %}
                   {% endfor %}
                   {% for finding in result.findings if finding is mapping and finding.severity not in ['critical', 'warning', 'info'] %}
-                  <li><span class="pill pill--muted"><span class="dot"></span>{{ finding.severity | default('unknown') | e }}</span> {{ finding.message | e }}</li>
+                  <li><span class="pill pill--muted"><span class="dot"></span>{{ finding.severity | default('unknown') | e }}</span> {{ finding.message | e }}{{ unknown_marker(finding) }}</li>
                   {% endfor %}
                   {% for finding in result.findings if finding is not mapping %}
                   <li>{{ finding | e }}</li>

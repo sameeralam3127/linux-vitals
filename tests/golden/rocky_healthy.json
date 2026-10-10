@@ -59,6 +59,7 @@
     "info": 0,
     "warning": 0
   },
+  "unknown_count": 0,
   "uptime": "6d 0h 1m",
   "virtualization_type": "kvm"
 }

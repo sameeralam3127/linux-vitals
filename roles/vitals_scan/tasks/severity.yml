@@ -8,11 +8,48 @@
 # two roles from drifting apart on what "critical" means or on what fails a
 # host -- there is one implementation, not two.
 #
-# Input:  linux_vitals_raw_findings -- a list of {id, message} (plus optional
-#         extra keys, which are preserved).
+# Input:  linux_vitals_raw_findings -- a list of {id, message}, optionally with
+#         `status` and `reason` (see below), plus any other extra keys, which
+#         are preserved.
 # Output: linux_vitals_findings, linux_vitals_host_severity,
-#         linux_vitals_severity_counts, linux_vitals_final_status.
-- name: Attach a severity to every finding
+#         linux_vitals_severity_counts, linux_vitals_unknown_count,
+#         linux_vitals_final_status.
+#
+# The finding contract (#62). A finding's `status` is `fail` -- the check ran
+# and found something wrong -- or `unknown` -- the check could not run, so
+# nothing is known either way. An absent status means `fail`, which is what
+# every finding meant before the field existed. An `unknown` finding must
+# carry a `reason`. There is no `pass`: a check that ran and found nothing
+# raises no finding, so every consumer that lists or counts findings keeps
+# working unchanged. docs/architecture.md has the rule for new checks.
+- name: Check that every finding has a valid status
+  # Findings come from this collection's own roles, never from operator
+  # input, so a violation is a bug in a check. Failing here names the check;
+  # letting it through would print a finding no consumer knows how to read.
+  ansible.builtin.assert:
+    that:
+      - linux_vitals_invalid_findings | length == 0
+    fail_msg: >-
+      Invalid finding status: {{ linux_vitals_invalid_findings | join(', ') }}.
+      A finding's status must be fail (the default) or unknown, and an
+      unknown finding must carry a non-empty reason.
+    quiet: true
+  vars:
+    linux_vitals_invalid_findings: >-
+      {%- set invalid = [] -%}
+      {%- for finding in linux_vitals_raw_findings -%}
+      {%- set status = finding.status | default('fail') -%}
+      {%- if status not in ['fail', 'unknown']
+             or (status == 'unknown' and finding.reason | default('') | trim | length == 0) -%}
+      {%- set _ = invalid.append(finding.id ~ ' (status: ' ~ status ~ ')') -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{ invalid }}
+  tags:
+    - result
+    - reporting
+
+- name: Attach a severity and a status to every finding
   # Precedence, highest first:
   #
   #   1. linux_vitals_finding_severity_overrides -- explicit operator intent
@@ -30,6 +67,11 @@
   # The shipped map is merged with the overrides rather than replaced by them,
   # so a finding added in a later release keeps its default severity instead of
   # silently vanishing from the map for everyone who has ever set an override.
+  #
+  # An unknown finding is classified exactly like a failing one, so under the
+  # default threshold a check that could not run fails the host. Writing the
+  # status onto every finding means a JSON consumer never has to know the
+  # default.
   ansible.builtin.set_fact:
     linux_vitals_findings: >-
       {%- set overrides = linux_vitals_finding_severity_overrides | default({}, true) -%}
@@ -43,7 +85,10 @@
       {%- else -%}
       {%- set level = severities.get(finding.id, 'warning') -%}
       {%- endif -%}
-      {%- set _ = out.append(finding | combine({'severity': level})) -%}
+      {%- set _ = out.append(finding | combine({
+            'severity': level,
+            'status': finding.status | default('fail'),
+          })) -%}
       {%- endfor -%}
       {{ out }}
   tags:
@@ -78,6 +123,10 @@
           }) -%}
       {%- endfor -%}
       {{ counts }}
+    # How many checks could not run. A scalar, so on ansible-core 2.16 it is
+    # stored as a string -- consumers cast it with `int`, as report.json does.
+    linux_vitals_unknown_count: >-
+      {{ linux_vitals_findings | selectattr('status', 'equalto', 'unknown') | list | length }}
   tags:
     - result
     - reporting

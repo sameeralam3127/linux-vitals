@@ -4,6 +4,9 @@
   # keyed on, what the baseline/postcheck comparison diffs on, and what a
   # future CIS/STIG mapping (#43) or CSV export (#35) can join against. The
   # message is free to be reworded without any of those breaking.
+  #
+  # A check that could not run adds `'status': 'unknown'` and a `reason`
+  # instead of raising nothing -- see the finding contract in severity.yml.
   ansible.builtin.set_fact:
     linux_vitals_raw_findings: >-
       {%- set findings = [] -%}
@@ -131,6 +134,7 @@
       final_status: "{{ linux_vitals_final_status }}"
       severity: "{{ linux_vitals_host_severity }}"
       severity_counts: "{{ linux_vitals_severity_counts }}"
+      unknown_count: "{{ linux_vitals_unknown_count }}"
       findings: "{{ linux_vitals_findings }}"
       comparison:
         baseline_available: false

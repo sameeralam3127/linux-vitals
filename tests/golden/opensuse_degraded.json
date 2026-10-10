@@ -22,17 +22,20 @@
     {
       "id": "reboot_required",
       "message": "System reboot is required",
-      "severity": "warning"
+      "severity": "warning",
+      "status": "fail"
     },
     {
       "id": "kernel_not_latest",
       "message": "Latest installed kernel is not currently running",
-      "severity": "warning"
+      "severity": "warning",
+      "status": "fail"
     },
     {
       "id": "failed_logins",
       "message": "Recent failed login attempts detected",
-      "severity": "info"
+      "severity": "info",
+      "status": "fail"
     }
   ],
   "healing_results": [],
@@ -72,6 +75,7 @@
     "info": 1,
     "warning": 2
   },
+  "unknown_count": 0,
   "uptime": "44d 0h 0m",
   "virtualization_type": "kvm"
 }
