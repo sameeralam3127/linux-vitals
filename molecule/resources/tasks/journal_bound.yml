@@ -1,0 +1,108 @@
+---
+# Bounded journal scans (#23): a host with a huge journal must still produce a
+# bounded scan result. Included at the end of verify.yml, after every other
+# assertion has read the converge report, so the flood it writes cannot
+# disturb them. It needs two vars from the include: vitals_flood_lines, the
+# number of journal entries to write, and vitals_flood_cap, the
+# linux_vitals_log_max_lines to scan them with.
+
+- name: Assert the converge scan read both journals
+  # The converge ran with root's journal access, so neither journal finding
+  # may be unknown. In particular a kernel-failure grep that matched nothing
+  # (grep exits 1) is a clean read, not a failed one.
+  ansible.builtin.assert:
+    that:
+      - >-
+        host_report.findings
+        | selectattr('id', 'in', ['log_errors', 'kernel_install_failures'])
+        | selectattr('status', 'equalto', 'unknown')
+        | list | length == 0
+    fail_msg: "Journal findings after converge: {{ host_report.findings }}"
+
+- name: Flood the system journal with entries both journal scans count
+  # err priority, so the error scan counts every line, and text the
+  # kernel-failure pattern matches, so the audit scan does too. systemd-cat
+  # ships with systemd on every supported image, unlike logger (absent on
+  # openSUSE) or su (absent on Fedora).
+  ansible.builtin.command:
+    argv:
+      - systemd-cat
+      - --identifier=linux-vitals-flood
+      - --priority=err
+    stdin: "{% for n in range(vitals_flood_lines | int) %}linux-vitals journal flood {{ n }}: kernel module install error\n{% endfor %}"
+    stdin_add_newline: false
+  changed_when: true
+
+- name: Write the flood out to the journal files
+  ansible.builtin.command:
+    argv:
+      - journalctl
+      - --sync
+  changed_when: false
+
+- name: Confirm the system journal holds the whole flood
+  # If journald dropped part of the flood (rate limiting, say), the bound
+  # asserted below could hold trivially. Prove the journal really is larger
+  # than the cap first.
+  ansible.builtin.command:
+    argv:
+      - journalctl
+      - --system
+      - --identifier=linux-vitals-flood
+      - --output=cat
+      - --no-pager
+  environment:
+    LC_ALL: C
+  register: vitals_flood_stored
+  changed_when: false
+  failed_when: >-
+    vitals_flood_stored.rc != 0
+    or vitals_flood_stored.stdout_lines
+    | select('search', 'linux-vitals journal flood') | list | length
+    < vitals_flood_lines | int
+
+- name: Scan the flooded journal with a small line cap
+  ansible.builtin.include_role:
+    name: sameeralam3127.linux_vitals.vitals_scan
+  vars:
+    linux_vitals_log_max_lines: "{{ vitals_flood_cap }}"
+
+- name: Assert the flooded journal produced a bounded result
+  ansible.builtin.assert:
+    that:
+      # Each probe returned at most the cap, however large the journal is.
+      # (journalctl's "-- ... --" markers and the indented continuation
+      # lines of a multi-line message are not entries of their own.)
+      - >-
+        linux_vitals_journalctl.stdout_lines
+        | reject('match', '(-- | )') | list | length
+        <= vitals_flood_cap | int
+      - linux_vitals_audit_journalctl.stdout_lines | length <= vitals_flood_cap | int
+      # The flood is larger than the cap, so both counts stop exactly at it,
+      - linux_vitals_log_errors | int == vitals_flood_cap | int
+      - linux_vitals_kernel_install_failures | int == vitals_flood_cap | int
+      # the newest entries are the ones kept, and the excerpts keep their
+      # usual five lines.
+      - linux_vitals_log_excerpt | select('search', 'linux-vitals journal flood') | list | length == 5
+      - >-
+        linux_vitals_kernel_install_failure_excerpt
+        | select('search', 'linux-vitals journal flood') | list | length == 5
+      # The count and the excerpt are all that is kept, not every match.
+      - linux_vitals_log_matches is not defined
+      - linux_vitals_kernel_failure_matches is not defined
+      # A filtered read that matched is a finding, not an unknown.
+      - flood_findings | map(attribute='status') | list == ['fail', 'fail']
+    fail_msg: >-
+      Scan of a {{ vitals_flood_lines }}-entry flood with a cap of
+      {{ vitals_flood_cap }}: log_errors={{ linux_vitals_log_errors }},
+      kernel_install_failures={{ linux_vitals_kernel_install_failures }},
+      error scan returned {{ linux_vitals_journalctl.stdout_lines | length }} lines,
+      audit scan {{ linux_vitals_audit_journalctl.stdout_lines | length }},
+      findings {{ flood_findings }}
+  vars:
+    flood_findings: >-
+      {{
+        linux_vitals_result.findings
+        | selectattr('id', 'in', ['log_errors', 'kernel_install_failures'])
+        | list
+      }}

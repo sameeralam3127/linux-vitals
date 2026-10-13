@@ -259,7 +259,7 @@ at its highest level, so the numbers partition the fleet) and
 | `kernel_install_failures` | warning | Kernel/bootloader failures in the audit log window |
 | `selinux_disabled` | warning | SELinux disabled/unavailable on a RedHat-family host |
 | `apparmor_disabled` | warning | AppArmor disabled/unavailable on a Debian-family host |
-| `log_errors` | info | `journalctl` matched `error`/`failed` in the log window |
+| `log_errors` | info | The journal has entries at priority `linux_vitals_log_priority` (default `err`) or worse in the log window |
 | `failed_logins` | info | Recent failed login attempts were detected |
 
 Certificate findings, from the opt-in `vitals_certs` role. These are the one
@@ -286,6 +286,12 @@ nothing".
 `log_errors` and `failed_logins` are `info` because both occur on healthy
 hosts as a matter of course; they are counts worth seeing, not events worth
 paging on.
+
+The counts behind `log_errors` and `kernel_install_failures`
+(`logs.error_count` and `kernel.install_failures` in the JSON) stop at
+`linux_vitals_log_max_lines` (default `2000`): each journal scan returns at
+most that many lines, the newest ones, so a count equal to the cap means at
+least that many. Each excerpt is the first five of those lines, oldest first.
 
 ### Retuning severity, and what makes a host fail
 

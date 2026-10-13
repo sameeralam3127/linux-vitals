@@ -17,8 +17,8 @@ resolution, and their known edge cases are documented in
 ## Role Variables
 
 See [docs/variable-reference.md](https://github.com/sameeralam3127/linux-vitals/blob/main/docs/variable-reference.md#vitals_scan----thresholds-and-windows)
-in the parent collection for the full list (RAM/boot thresholds, log
-windows).
+in the parent collection for the full list (RAM/boot thresholds, journal
+windows, priority and line cap).
 
 ## Example
 

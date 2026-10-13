@@ -9,8 +9,10 @@ Override any of these in inventory, `group_vars`, or `-e` extra vars.
 
 | Variable | Default | Description |
 |---|---|---|
-| `linux_vitals_log_window` | `"30 minutes ago"` | How far back `journalctl` is scanned for `error`/`failed` lines that feed `log_errors`. |
-| `linux_vitals_audit_log_window` | `"7 days ago"` | How far back `journalctl` is scanned for kernel/grub/dracut/initramfs failure lines. |
+| `linux_vitals_log_window` | `"30 minutes ago"` | How far back `journalctl` is scanned for entries at `linux_vitals_log_priority` or worse, which feed `log_errors`. Until [#23](https://github.com/sameeralam3127/linux-vitals/issues/23) it matched lines containing `error` or `failed` instead. |
+| `linux_vitals_audit_log_window` | `"7 days ago"` | How far back `journalctl` is scanned for kernel/grub/dracut/initramfs failure lines. They are matched on the managed host, so the whole window is read there but only matching lines reach the control node. |
+| `linux_vitals_log_priority` | `err` | The journal priority `log_errors` counts, passed to `journalctl --priority`. One level means that level or worse, so `err` counts `err`, `crit`, `alert` and `emerg`. A range (`warning..emerg`) or a number (`0`-`7`) also works. Set `warning` to count warnings too. Errors a service writes to stdout/stderr without a priority prefix are stored at `info`, which only `info` (every entry) would count. |
+| `linux_vitals_log_max_lines` | `2000` | The most journal lines either scan returns per host: the newest entries for `log_errors`, the newest matching lines for `kernel_install_failures`. Bounds what each host sends to the control node however large its journal is. A count equal to it means at least that many. Below `1`, both journal findings are `unknown`. |
 | `linux_vitals_ram_warning_threshold` | `80` | RAM used % at or above which `ram_status` becomes `Warning`. |
 | `linux_vitals_ram_critical_threshold` | `95` | RAM used % at or above which `ram_status` becomes `Critical` (and the host fails). |
 | `linux_vitals_boot_warning_threshold` | `20` | Boot partition free % below which `boot_space_status` becomes `Low` (and the host fails). |

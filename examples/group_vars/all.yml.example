@@ -11,6 +11,8 @@
 # linux_vitals_output_path: "{{ inventory_dir }}/reports/linux_vitals_report.html"
 # linux_vitals_log_window: "30 minutes ago"
 # linux_vitals_audit_log_window: "7 days ago"
+# linux_vitals_log_priority: err
+# linux_vitals_log_max_lines: 2000
 # linux_vitals_ram_warning_threshold: 80
 # linux_vitals_ram_critical_threshold: 95
 # linux_vitals_boot_warning_threshold: 20

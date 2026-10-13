@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **`log_errors` now counts journal entries at priority `err` or worse,
+  instead of lines containing `error` or `failed`**
+  ([#23](https://github.com/sameeralam3127/linux-vitals/issues/23)). The
+  keyword match counted benign lines (`failed=0`, `0 errors`, paths such as
+  `error_log`, Ansible's own module invocations) and failed hosts on them
+  under the default `linux_vitals_fail_on_severity: info`. Anyone who reads
+  `log_errors` or the JSON report's `logs.error_count` will see different,
+  usually lower, numbers, and `log_excerpt` now shows those entries. Two
+  things no longer count: warning-level messages (systemd's
+  `Failed with result '...'` lines among them), and errors a service writes
+  to stdout or stderr without a syslog priority prefix, which journald stores
+  at `info`. Set `linux_vitals_log_priority: warning` to count warnings
+  again. The finding id, its severity and the report shape are unchanged.
+
 ### Fixed
 
 - **Self-healing no longer reports a service `Fixed` before the restart has
@@ -55,6 +71,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `kernel_install_failures` as `unknown`, with a reason, instead of reporting
   a clean log ([#118](https://github.com/sameeralam3127/linux-vitals/issues/118)).
   Reads explicitly select the system journal; partial user-only reads are not clean.
+- **Journal scans are bounded and filtered on the managed host**
+  ([#23](https://github.com/sameeralam3127/linux-vitals/issues/23)). Both
+  scans used to ship their whole time window (by default 30 minutes and
+  7 days of journal) to the control node, so a chatty host could exhaust the
+  control node's memory, and the run got slower the less healthy the fleet
+  was. Now the
+  error scan asks `journalctl` for entries at `linux_vitals_log_priority`
+  (new, default `err`) or worse, the kernel-failure scan is matched by `grep`
+  on the host with the same pattern as before, and each returns at most
+  `linux_vitals_log_max_lines` (new, default `2000`) lines, the newest ones.
+  A count that reaches the cap means at least that many. Only each count and
+  its five-line excerpt are kept; the internal facts
+  `linux_vitals_log_matches` and `linux_vitals_kernel_failure_matches`, which
+  held every matching line, are gone. `kernel_install_failures` matches what
+  it always did. The kernel-failure scan runs under `bash` for `pipefail`;
+  every supported distribution ships it, and a host without it reports the
+  finding as `unknown` rather than clean. A `linux_vitals_log_max_lines`
+  below `1` also makes both journal findings `unknown`.
 
 ### Added
 

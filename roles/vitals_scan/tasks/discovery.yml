@@ -51,12 +51,23 @@
     - discovery
 
 - name: Collect recent systemd log errors
+  # Filtered and capped by journalctl on the host (#23): only entries at
+  # linux_vitals_log_priority or worse, and at most the newest
+  # linux_vitals_log_max_lines of them, cross to the control node. --lines
+  # takes an optional argument, so its value has to be attached with `=`.
+  # --reverse is what makes the cap keep the newest entries on every
+  # systemd: before v254, --lines with --since kept the oldest ones instead.
+  # The output is newest first; the summary below puts it back in order.
   ansible.builtin.command:
     argv:
       - journalctl
       - --system
       - --since
       - "{{ linux_vitals_log_window }}"
+      - --priority
+      - "{{ linux_vitals_log_priority }}"
+      - --reverse
+      - "--lines={{ linux_vitals_log_max_lines | int }}"
       - --no-pager
       - --output=short-iso
   environment:
@@ -642,14 +653,31 @@
     - boot
 
 - name: Collect kernel install failures from logs
+  # Filtered on the host (#23), so only matching lines cross to the control
+  # node, and capped at the newest linux_vitals_log_max_lines of them. The
+  # pattern is the one this check has always matched, unchanged. It runs over
+  # the whole formatted line, identifier included, which is why this is grep
+  # and not `journalctl --grep`: that matches MESSAGE alone, and needs a
+  # journalctl built with PCRE2.
+  #
+  # bash, for pipefail. Without it the pipeline's status is tail's, and a
+  # journalctl that could not read the journal would look like a clean read.
+  # grep exits 1 when nothing matches, which is a clean read, so only a
+  # status above 1 is passed on. Every templated value is a positional
+  # parameter, never part of the script text.
   ansible.builtin.command:
     argv:
-      - journalctl
-      - --system
-      - --since
+      - bash
+      - -c
+      - |
+        set -o pipefail
+        journalctl --system --since "$1" --no-pager --output=short-iso \
+          | { grep -a -E -i -e "$2"; status=$?; [ "$status" -le 1 ] || exit "$status"; } \
+          | tail -n "$3"
+      - linux-vitals-audit-scan
       - "{{ linux_vitals_audit_log_window }}"
-      - --no-pager
-      - --output=short-iso
+      - (kernel|grub|dracut|initramfs).*(fail|error)
+      - "{{ linux_vitals_log_max_lines | int }}"
   environment:
     LC_ALL: C
   register: linux_vitals_audit_journalctl
@@ -668,6 +696,8 @@
     reason: >-
       {% if ansible_facts['service_mgr'] != 'systemd' %}
       no systemd journal (service manager: {{ ansible_facts['service_mgr'] }})
+      {% elif linux_vitals_log_max_lines | int < 1 %}
+      linux_vitals_log_max_lines is {{ linux_vitals_log_max_lines }}, so no journal lines were read; set it to 1 or more
       {% elif item.probe.rc | default(1) | int != 0 %}
       journalctl exited {{ item.probe.rc | default('unknown') }}:
       {{ item.probe.stderr | default(item.probe.msg | default('journal unavailable'), true) | trim }}
@@ -685,7 +715,35 @@
     - discovery
     - kernel
 
-- name: Evaluate base memory and log health
+- name: Summarise journal scans as counts and excerpts
+  # Only a count and up to five lines are kept per scan (#23). The matched
+  # lines live in task vars, which end with this task, so they are never kept
+  # as host facts. Both probes are capped on the host, so each count stops at
+  # linux_vitals_log_max_lines.
+  ansible.builtin.set_fact:
+    linux_vitals_log_errors: "{{ log_entries | length }}"
+    linux_vitals_log_excerpt: "{{ log_entries[:5] }}"
+    linux_vitals_kernel_install_failures: "{{ kernel_failures | length }}"
+    linux_vitals_kernel_install_failure_excerpt: "{{ kernel_failures[:5] }}"
+  vars:
+    # Every line journalctl printed is already at the configured priority.
+    # Count each entry once: skip blank lines, the space-indented continuation
+    # lines of a multi-line message, and journalctl's own "-- No entries --"
+    # and "-- Boot ... --" markers. No backslash in the pattern, so it reads
+    # the same however a core escapes Jinja string literals. The probe ran
+    # with --reverse, so reverse again to get the entries oldest first.
+    log_entries: >-
+      {{ linux_vitals_journalctl.stdout | default('') | regex_findall('(?m)^(?! |-- ).+$') | reverse | list }}
+    # The host-side grep printed matching lines only.
+    kernel_failures: >-
+      {{ linux_vitals_audit_journalctl.stdout_lines | default([]) | reject('equalto', '') | list }}
+  tags:
+    - discovery
+    - kernel
+    - security
+    - boot
+
+- name: Evaluate base memory health
   ansible.builtin.set_fact:
     linux_vitals_memory_total_mb: "{{ ansible_facts.memtotal_mb | float }}"
     linux_vitals_memory_available_mb: >-
@@ -706,22 +764,6 @@
           ) * 100
         ) | round(1)
       }}
-    linux_vitals_log_matches: >-
-      {{
-        (
-          linux_vitals_journalctl.stdout
-          | default('')
-          | regex_findall('(?im)^.*(?:error|failed).*$')
-        )
-      }}
-    linux_vitals_kernel_failure_matches: >-
-      {{
-        (
-          linux_vitals_audit_journalctl.stdout
-          | default('')
-          | regex_findall('(?im)^.*(?:kernel|grub|dracut|initramfs).*(?:fail|error).*$')
-        )
-      }}
   tags:
     - discovery
     - kernel
@@ -730,8 +772,6 @@
 
 - name: Finalize extended discovery facts
   ansible.builtin.set_fact:
-    linux_vitals_log_errors: "{{ linux_vitals_log_matches | length }}"
-    linux_vitals_log_excerpt: "{{ linux_vitals_log_matches[:5] }}"
     linux_vitals_ram_status: >-
       {{
         'Critical'
@@ -888,8 +928,6 @@
         | regex_replace('^\\s*system boot\\s+', '')
         | trim
       }}
-    linux_vitals_kernel_install_failures: "{{ linux_vitals_kernel_failure_matches | length }}"
-    linux_vitals_kernel_install_failure_excerpt: "{{ linux_vitals_kernel_failure_matches[:5] }}"
     linux_vitals_rescue_image_available: >-
       {{
         linux_vitals_rescue_image_cmd.stdout | default('') | trim | length > 0

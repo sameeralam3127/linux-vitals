@@ -127,3 +127,36 @@ An empty successful system-journal read is clean. Without `become` or journal
 group access, expect unknown findings rather than zero errors. Inspect the
 reason before changing journal permissions or the requested time window.
 See [the finding contract](report-guide.md#status-when-a-check-could-not-run).
+
+## Tuning the journal scans for chatty hosts
+
+Both journal scans are filtered on the managed host and return at most
+`linux_vitals_log_max_lines` lines each (default `2000`), so a noisy journal
+no longer grows what reaches the control node. What may still need tuning:
+
+- **`log_errors` equals the cap.** The host logged at least that many entries
+  at `linux_vitals_log_priority` or worse inside `linux_vitals_log_window`, and
+  the count stopped there. The real number is on the host:
+
+  ```bash
+  journalctl --system --since "30 minutes ago" --priority err --no-pager | wc -l
+  ```
+
+  Raise the cap if you need the exact count, accepting up to that many lines
+  per host on the control node, or shorten `linux_vitals_log_window` so the
+  count covers less time.
+- **A steady stream of errors you have accepted.** Set a shorter
+  `linux_vitals_log_window`, or a stricter `linux_vitals_log_priority` such
+  as `crit`, in that host group's `group_vars` rather than fleet-wide.
+- **Errors you expected are not counted.** `log_errors` counts by journal
+  priority, not by wording; `journalctl -u <unit> -o verbose` shows each
+  entry's `PRIORITY`. Set `linux_vitals_log_priority: warning` to count
+  warnings too. A service that writes errors to stdout or stderr without a
+  syslog priority prefix is stored at `info`, and only `info` -- every entry --
+  would count it, so check such a service directly, or have it prefix its
+  error lines with `<3>`, which journald reads as `err` by default.
+- **The kernel-failure scan is slow.** It reads the whole
+  `linux_vitals_audit_log_window` (default 7 days) on the host and sends only
+  the matching lines, so on a large journal it can be the slowest probe.
+  Narrow the window (`24 hours ago` suits a daily scan). See
+  [performance.md](performance.md#how-to-measure) for measuring per-task time.

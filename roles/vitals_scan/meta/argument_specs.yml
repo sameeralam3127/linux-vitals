@@ -22,8 +22,9 @@ argument_specs:
         type: str
         default: "30 minutes ago"
         description:
-          - How far back C(journalctl) is scanned for C(error)/C(failed) lines
-            that feed the C(log_errors) count.
+          - How far back C(journalctl) is scanned for entries at
+            C(linux_vitals_log_priority) or worse, which feed the
+            C(log_errors) count.
           - Passed to C(journalctl --since) as a single argument, so any value
             that option accepts works.
       linux_vitals_audit_log_window:
@@ -34,6 +35,33 @@ argument_specs:
             initramfs failure lines.
           - Longer than C(linux_vitals_log_window) because a failed kernel
             install is worth catching well after the fact.
+          - The lines are matched on the managed host, so the whole window is
+            read there, but only matching lines reach the control node.
+      linux_vitals_log_priority:
+        type: str
+        default: err
+        description:
+          - The journal priority that C(log_errors) counts, passed to
+            C(journalctl --priority) on the managed host.
+          - A single level means that level or worse, so the default C(err)
+            counts C(err), C(crit), C(alert) and C(emerg) entries. A range
+            such as C(warning..emerg), or a number from C(0) to C(7), also
+            works.
+          - A value C(journalctl) rejects makes C(log_errors) C(unknown), with
+            journalctl's error as the reason.
+      linux_vitals_log_max_lines:
+        type: int
+        default: 2000
+        description:
+          - The most journal lines either scan returns per host. The error scan
+            keeps the newest entries in C(linux_vitals_log_window), and the
+            kernel-failure scan keeps the newest matching lines in
+            C(linux_vitals_audit_log_window).
+          - Bounds what each host sends to the control node, however large its
+            journal is. A count that reaches the cap means at least that many.
+          - Must be at least C(1). A smaller value makes both journal findings
+            C(unknown) rather than reporting a scan that looked at nothing as
+            clean.
       linux_vitals_ram_warning_threshold:
         type: int
         default: 80

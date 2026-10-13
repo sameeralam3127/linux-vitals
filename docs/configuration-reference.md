@@ -15,13 +15,18 @@ linux_vitals_ram_critical_threshold: 95
 linux_vitals_boot_warning_threshold: 20
 linux_vitals_log_window: "30 minutes ago"
 linux_vitals_audit_log_window: "7 days ago"
+linux_vitals_log_priority: err
+linux_vitals_log_max_lines: 2000
 ```
 
 `linux_vitals_log_window` / `linux_vitals_audit_log_window` accept anything
-`journalctl --since` understands. A host fails (`final_status: Fail`) if
-RAM usage reaches the critical threshold, boot space drops below the
-warning threshold, or any other finding fires (see
-[report-guide.md](report-guide.md#findings) for the full list).
+`journalctl --since` understands. `log_errors` counts entries at
+`linux_vitals_log_priority` or worse, and each journal scan returns at most
+`linux_vitals_log_max_lines` lines per host (see
+[tuning the journal scans](troubleshooting.md#tuning-the-journal-scans-for-chatty-hosts)).
+A host fails (`final_status: Fail`) if RAM usage reaches the critical
+threshold, boot space drops below the warning threshold, or any other finding
+fires (see [report-guide.md](report-guide.md#findings) for the full list).
 
 ## Self-healing
 

@@ -102,11 +102,15 @@ treat LinuxVitals as read-only.
 `execve` without a shell parsing them.
 
 Five probes do run `sh -c` with an inline script -- kernel enumeration,
-bootloader inspection, and the three per-family reboot checks. **None of those
-scripts interpolate a Jinja variable.** They are static text; the only
-templated value anywhere near a command is `linux_vitals_log_window`, which is
-a separate `argv` element passed to `journalctl --since` and never reaches a
-shell.
+bootloader inspection, and the three per-family reboot checks -- and the
+kernel-install-failure scan runs `bash -c`, for `pipefail`, to filter the
+journal with `grep` on the host. **None of those scripts interpolate a Jinja
+variable.** They are static text. The templated values near a command --
+`linux_vitals_log_window`, `linux_vitals_audit_log_window`,
+`linux_vitals_log_priority` and `linux_vitals_log_max_lines` -- are each a
+separate `argv` element: passed straight to `journalctl`, or handed to the
+`bash` script as a positional parameter that it only ever expands quoted
+(`"$1"`), so none of them is parsed as shell code.
 
 That is the property to preserve, and the one most likely to be broken by a
 well-meaning change. **If you add a probe, put host data in its own `argv`

@@ -1,6 +1,15 @@
 ---
 linux_vitals_log_window: "30 minutes ago"
 linux_vitals_audit_log_window: "7 days ago"
+# Journal scans are filtered and capped on the managed host, so a chatty
+# journal cannot grow what crosses to the control node (#23). `log_errors`
+# counts entries at this journalctl priority or worse: `err` covers
+# err, crit, alert and emerg.
+linux_vitals_log_priority: err
+# The most journal lines either scan returns per host: the newest entries for
+# `log_errors`, the newest matching lines for `kernel_install_failures`. A
+# count that reaches it means "at least this many".
+linux_vitals_log_max_lines: 2000
 linux_vitals_ram_warning_threshold: 80
 linux_vitals_ram_critical_threshold: 95
 linux_vitals_boot_warning_threshold: 20
