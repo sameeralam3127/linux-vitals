@@ -94,9 +94,9 @@ matching entry in `self_healing.healing_results` says why in `reason` and
 
 | `reason` | What happened |
 | --- | --- |
-| `failed` | It failed again, at once or within the stability window after coming up |
+| `failed` | It failed again: its start job failed (`detail` then quotes the restart's error), or it came up and failed within the stability window |
 | `restarted_during_check` | It came up, crashed, and systemd's `Restart=` brought it back -- it is flapping |
-| `restart_error` | `systemctl start` itself failed; `detail` has the error |
+| `restart_error` | `systemctl start` failed without leaving a failed unit -- the unit is missing, or its state could not be read; `detail` has the error |
 | `inactive` | It is not running, but did not fail either -- often a unit whose process exited cleanly |
 | `not_settled` | Still starting or stopping when the polling budget ran out (finding `status: unknown`) |
 | `check_failed` | Its state could not be read after the restart (finding `status: unknown`) |

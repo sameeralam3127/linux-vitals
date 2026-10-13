@@ -34,11 +34,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   restarted: `linux_vitals_heal_settle_retries` (`10`) and
   `linux_vitals_heal_settle_delay` (`3`) bound the polling at 30 s per
   unsettled unit, and `linux_vitals_heal_stability_seconds` (`5`) is waited
-  out once per host. A restart whose command failed is now recorded as
-  `Manual Intervention Required` (`restart_error`), as the role always
-  intended; `failed_when: false` on the restart had hidden every such error.
-  Molecule gains a unit that dies 3 s after starting and a `Type=notify` unit
-  that takes 5 s to become ready.
+  out once per host. Molecule gains a unit that dies 3 s after starting and a
+  `Type=notify` unit that takes 5 s to become ready.
+
+  Restart errors are now visible: `failed_when: false` on the restart had
+  hidden every one. A unit whose start job failed (a `Type=notify` or forking
+  service that cannot start, such as sssd with a broken config) is still
+  `Failed to Fix`, now with a `detail` saying the restart reported an error.
+  Only a restart that errored without leaving a failed unit -- the unit not
+  found, its state unreadable -- is `Manual Intervention Required` with
+  reason `restart_error`.
+
+  One outcome changes because the state now comes from systemd's
+  `ActiveState` rather than `service_facts`, which reports only
+  `SubState=running` as running: a oneshot `RemainAfterExit=yes` unit that
+  restarts cleanly (`active (exited)`) is now `Fixed`, where it used to be
+  `Manual Intervention Required`.
 
 - Unreadable, failed or unavailable system journals now raise `log_errors` and
   `kernel_install_failures` as `unknown`, with a reason, instead of reporting

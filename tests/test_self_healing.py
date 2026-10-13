@@ -276,9 +276,11 @@ def _show(
     restarts: int = 0,
     rc: int = 0,
     stderr: str = "",
+    load: str = "loaded",
 ) -> dict:
     """A registered loop item from `systemctl show --property=...`."""
     lines = [] if rc else [
+        f"LoadState={load}",
         f"ActiveState={active}",
         f"SubState={sub}",
         f"Result={result}",
@@ -417,19 +419,45 @@ def test_service_still_failed_after_restart_is_failed_to_fix(tmp_path: Path) -> 
     assert outcome["detail"] == "it failed again after the restart (result: exit-code)"
 
 
-def test_restart_command_failure_is_manual_intervention_required(tmp_path: Path) -> None:
+START_JOB_FAILED = (
+    "Unable to start service sssd: Job for sssd.service failed because the "
+    "control process exited with error code.\n"
+    "See 'systemctl status sssd.service' for details.\n"
+)
+
+
+def test_errored_restart_that_leaves_the_unit_failed_is_failed_to_fix(tmp_path: Path) -> None:
+    # The common real case: a Type=notify or forking unit whose start job
+    # fails outright (sssd with a broken config). `systemctl start` exits
+    # non-zero, and the unit is failed. That has always been Failed to Fix;
+    # it must not turn into Manual Intervention Required because the restart
+    # command reported the failure.
     result = _run_summarize_outcomes(
         tmp_path,
-        [
-            _attempt(
-                "unrestartable.service",
-                failed=True,
-                msg=(
-                    "Unable to start service unrestartable: Job for unrestartable.service "
-                    "failed because the control process exited with error code.\n"
-                    "See 'systemctl status unrestartable.service' for details.\n"
-                ),
-            )
+        [_attempt("sssd.service", failed=True, msg=START_JOB_FAILED)],
+        settle_checks=[_show("sssd.service", "failed", sub="failed", result="exit-code")],
+    )
+
+    outcome = _only(result)
+    assert (outcome["result"], outcome["outcome"], outcome["reason"]) == (
+        "Failed to Fix", "still_failed", "failed",
+    )
+    # Says the restart reported an error, and carries the first line of it.
+    assert outcome["detail"] == (
+        "the restart reported an error and it failed again (result: exit-code): "
+        "Unable to start service sssd: Job for sssd.service failed because the "
+        "control process exited with error code."
+    )
+    assert result["auto_fixed_count"] == 0
+
+
+def test_restart_command_failure_is_manual_intervention_required(tmp_path: Path) -> None:
+    # The restart errored and the unit's state could not be read at all.
+    result = _run_summarize_outcomes(
+        tmp_path,
+        [_attempt("unrestartable.service", failed=True, msg=START_JOB_FAILED)],
+        settle_checks=[
+            _show("unrestartable.service", "", rc=1, stderr="Failed to connect to bus: Permission denied")
         ],
     )
 
@@ -439,9 +467,51 @@ def test_restart_command_failure_is_manual_intervention_required(tmp_path: Path)
     )
     # First line of the module's message only.
     assert outcome["detail"] == (
-        "the restart command failed: Unable to start service unrestartable: Job for "
-        "unrestartable.service failed because the control process exited with error code."
+        "the restart command failed: Unable to start service sssd: Job for "
+        "sssd.service failed because the control process exited with error code."
     )
+
+
+def test_errored_restart_with_no_state_check_is_restart_error(tmp_path: Path) -> None:
+    result = _run_summarize_outcomes(
+        tmp_path, [_attempt("unrestartable.service", failed=True, msg=START_JOB_FAILED)]
+    )
+
+    assert _only(result)["reason"] == "restart_error"
+
+
+def test_errored_restart_of_a_missing_unit_is_restart_error(tmp_path: Path) -> None:
+    # The unit was removed between selection and restart. Even a stale
+    # `failed` ActiveState does not make that a failed start job.
+    for active in ("inactive", "failed"):
+        result = _run_summarize_outcomes(
+            tmp_path,
+            [_attempt("gone.service", failed=True, msg="Could not find the requested service gone: host")],
+            settle_checks=[_show("gone.service", active, sub="dead", load="not-found")],
+        )
+
+        outcome = _only(result)
+        assert (outcome["result"], outcome["outcome"], outcome["reason"]) == (
+            "Manual Intervention Required", "still_failed", "restart_error",
+        ), active
+        assert outcome["detail"] == (
+            "the restart command failed: Could not find the requested service gone: host"
+        )
+
+
+def test_errored_restart_is_never_fixed_even_if_the_unit_is_active(tmp_path: Path) -> None:
+    # e.g. the systemctl client timed out while systemd carried on. The
+    # remediation step reported failure, so the answer stays pessimistic.
+    result = _run_summarize_outcomes(
+        tmp_path,
+        [_attempt("late.service", failed=True, msg="Unable to start service late: Connection timed out")],
+        settle_checks=[_show("late.service", "active")],
+        stability_checks=[_show("late.service", "active")],
+    )
+
+    outcome = _only(result)
+    assert (outcome["result"], outcome["reason"]) == ("Manual Intervention Required", "restart_error")
+    assert result["services_healed"] == []
 
 
 def test_unit_still_activating_when_the_budget_runs_out_is_unknown(tmp_path: Path) -> None:
@@ -565,6 +635,7 @@ step = steps[min(calls[unit], len(steps)) - 1]
 if step.get("rc", 0):
     sys.stderr.write(step.get("stderr", "") + "\\n")
     sys.exit(step["rc"])
+print(f"LoadState={{step.get('LoadState', 'loaded')}}")
 for key in ("ActiveState", "SubState", "Result", "InvocationID", "NRestarts"):
     print(f"{{key}}={{step.get(key, '')}}")
 """
@@ -638,11 +709,25 @@ E2E_UNITS = {
         [{"rc": 1, "stderr": "Failed to connect to bus: No such file or directory"}],
         {"state": "stopped", "status": "failed"},
     ),
-    # The restart command errored; there is nothing to verify.
+    # The restart command errored because the start job failed, leaving a
+    # failed unit -- a Type=notify unit that cannot start.
     "errored.service": (
         True,
         [_state("failed", sub="failed", result="exit-code", invocation="i")],
         {"state": "stopped", "status": "failed"},
+    ),
+    # The restart command errored and the unit is gone.
+    "missing.service": (
+        True,
+        [dict(_state("inactive", sub="dead", invocation=""), LoadState="not-found")],
+        {"state": "stopped", "status": "not-found"},
+    ),
+    # The restart command errored but the unit is up anyway; it must not be
+    # sent through the stability window or reported Fixed.
+    "errored-up.service": (
+        True,
+        [_state("active", invocation="j")],
+        {"state": "running", "status": "active"},
     ),
 }
 
@@ -740,7 +825,10 @@ def test_verification_tasks_judge_each_unit_by_its_settled_state(tmp_path: Path)
         "healthy.service": ("Fixed", "fixed", "stayed_active"),
         "dying.service": ("Failed to Fix", "still_failed", "failed"),
         "unreadable.service": ("Manual Intervention Required", "unknown", "check_failed"),
-        "errored.service": ("Manual Intervention Required", "still_failed", "restart_error"),
+        # The start job failed: Failed to Fix, exactly as before #24.
+        "errored.service": ("Failed to Fix", "still_failed", "failed"),
+        "missing.service": ("Manual Intervention Required", "still_failed", "restart_error"),
+        "errored-up.service": ("Manual Intervention Required", "still_failed", "restart_error"),
     }
     assert result["services_healed"] == ["slow.service", "healthy.service"]
     assert result["auto_fixed_count"] == 2
@@ -763,8 +851,11 @@ def test_verification_polls_only_as_long_as_it_needs_to(tmp_path: Path) -> None:
     # Never settles: the first attempt plus every retry, and then it stops
     # without failing the play.
     assert calls["stuck.service"] == SETTLE_RETRIES + 1
-    # A restart that errored is not polled at all.
-    assert "errored.service" not in calls
+    # A restart that errored gets the first look only -- even one whose unit
+    # is up never goes through the stability window.
+    assert calls["errored.service"] == 1
+    assert calls["missing.service"] == 1
+    assert calls["errored-up.service"] == 1
 
 
 # ---------------------------------------------------------------------------

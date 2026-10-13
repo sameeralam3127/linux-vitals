@@ -166,9 +166,9 @@ came up must still be active, on the same run, after
 | `result` | `outcome` | `reason` | Means |
 | --- | --- | --- | --- |
 | `Fixed` | `fixed` | `stayed_active` | Active after the restart and still on the same run after the stability window |
-| `Failed to Fix` | `still_failed` | `failed` | Failed again, either at once or within the stability window |
+| `Failed to Fix` | `still_failed` | `failed` | Failed again: at once, within the stability window, or because its start job failed and the restart command reported it (`detail` then says so) |
 | `Failed to Fix` | `still_failed` | `restarted_during_check` | Active at both looks, but systemd restarted it in between: it crashed and its `Restart=` policy brought it back |
-| `Manual Intervention Required` | `still_failed` | `restart_error` | The restart command itself failed; `detail` carries its error |
+| `Manual Intervention Required` | `still_failed` | `restart_error` | The restart command failed without leaving a failed unit behind -- the unit was not found, or its state could not be read. `detail` carries the error |
 | `Manual Intervention Required` | `still_failed` | `inactive` | It is not running after the restart, but did not fail either |
 | `Manual Intervention Required` | `unknown` | `not_settled` | Still activating, deactivating or reloading when the settle budget ran out |
 | `Manual Intervention Required` | `unknown` | `check_failed` | Its state could not be read after the restart |

@@ -64,8 +64,11 @@
     - name: Attempt one restart for enabled failed services
       # A restart that errors is recorded, not fatal. `ignore_errors` rather
       # than `failed_when: false`, because failed_when overwrites each item's
-      # `failed` flag: every errored restart then looked like a successful
-      # one, and the "restart command errored" outcome below could never fire.
+      # `failed` flag, so an errored restart looked like a successful one. The
+      # unit's state is still checked below: a start job that failed leaves a
+      # failed unit (Failed to Fix, as before), and only a restart that errored
+      # without that -- the unit missing, its state unreadable -- is
+      # restart_error.
       #
       # For a failed unit, `state: restarted` runs `systemctl start`, which
       # waits for the start job. A Type=notify unit such as sssd is therefore
@@ -93,6 +96,10 @@
     #      systemd restarted it in between, which is a crash that recovered,
     #      not a fix that held.
     #
+    # A unit whose restart command errored gets the first look only -- it is
+    # never Fixed, so there is nothing for the window to confirm -- which is
+    # what tells a start job that failed from a restart that never ran.
+    #
     # Both polls stop on their own when the budget is spent instead of letting
     # `retries` run out, because running out marks the task failed and a unit
     # that never settled is a result to record (unknown), not an error. A
@@ -103,13 +110,12 @@
         argv:
           - systemctl
           - show
-          - --property=ActiveState,SubState,Result,InvocationID,NRestarts
+          - --property=LoadState,ActiveState,SubState,Result,InvocationID,NRestarts
           - --
           - "{{ item }}"
       loop: >-
         {{
           linux_vitals_restart_attempts.results | default([])
-          | rejectattr('failed', 'equalto', true)
           | map(attribute='item')
           | list
         }}
@@ -127,6 +133,8 @@
            > linux_vitals_heal_settle_retries | int
 
     - name: Note which restarted units came up
+      # Units whose restart command errored are left out: they are never
+      # Fixed, so they do not go through the stability window.
       ansible.builtin.set_fact:
         linux_vitals_heal_came_up: >-
           {{
@@ -134,6 +142,9 @@
             | selectattr('stdout_lines', 'defined')
             | selectattr('stdout_lines', 'contains', 'ActiveState=active')
             | map(attribute='item')
+            | reject('in', linux_vitals_restart_attempts.results | default([])
+                           | selectattr('failed', 'equalto', true)
+                           | map(attribute='item') | list)
             | list
           }}
 
@@ -148,7 +159,7 @@
         argv:
           - systemctl
           - show
-          - --property=ActiveState,SubState,Result,InvocationID,NRestarts
+          - --property=LoadState,ActiveState,SubState,Result,InvocationID,NRestarts
           - --
           - "{{ item }}"
       loop: "{{ linux_vitals_heal_came_up }}"
@@ -184,6 +195,12 @@
       #   Manual Intervention Required  still_failed  restart_error, inactive
       #   Manual Intervention Required  unknown       not_settled, check_failed
       #
+      # `failed` includes a restart whose command errored because the start
+      # job failed (a Type=notify or forking unit that cannot start): the unit
+      # is failed, so it is Failed to Fix, as it always was. `restart_error` is
+      # only a restart that errored without leaving a failed unit behind -- the
+      # unit not found, permission denied, its state unreadable.
+      #
       # `unknown` is the answer when the check itself could not complete: the
       # unit was still changing state when the budget ran out, or
       # `systemctl show` could not be read. It never reads as Fixed, and
@@ -216,18 +233,29 @@
           {%- set outcomes = [] -%}
           {%- for attempt in linux_vitals_restart_attempts.results | default([]) -%}
           {%- set key = attempt.item -%}
+          {%- set errored = attempt.failed | default(false) -%}
+          {%- set error_line = (attempt.msg | default('', true) | trim).splitlines() | first | default('no error message', true) -%}
           {%- set first = observed.first.get(key, {}) -%}
-          {%- set came_up = first.rc | default(1) == 0 and first.ActiveState | default('') == 'active' -%}
+          {%- set came_up = not errored and first.rc | default(1) == 0 and first.ActiveState | default('') == 'active' -%}
           {#- A unit that came up is judged on the second look only. If that
               look is missing, the answer is unknown -- never the first look's
               optimistic "active". -#}
           {%- set final = observed.final.get(key, {}) if came_up else first -%}
           {%- set state = final.ActiveState | default('') -%}
           {%- set why = (final.Result | default('', true)) -%}
-          {%- if attempt.failed | default(false) -%}
+          {#- A restart that errored is never Fixed. If it left the unit
+              failed, the start job ran and failed: Failed to Fix, as it has
+              always been reported. Otherwise -- the unit missing, its state
+              unreadable, or anything but failed -- the restart itself is
+              what went wrong. -#}
+          {%- if errored and final.rc | default(1) == 0 and state == 'failed'
+                and final.LoadState | default('') != 'not-found' -%}
+          {%- set entry = ('Failed to Fix', 'still_failed', 'failed',
+                'the restart reported an error and it failed again'
+                ~ (' (result: ' ~ why ~ ')' if why else '') ~ ': ' ~ error_line) -%}
+          {%- elif errored -%}
           {%- set entry = ('Manual Intervention Required', 'still_failed', 'restart_error',
-                'the restart command failed: '
-                ~ ((attempt.msg | default('', true) | trim).splitlines() | first | default('no error message', true))) -%}
+                'the restart command failed: ' ~ error_line) -%}
           {%- elif final.rc | default(1) != 0 or state == '' -%}
           {%- set entry = ('Manual Intervention Required', 'unknown', 'check_failed',
                 'its state could not be read after the restart: '

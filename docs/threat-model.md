@@ -123,8 +123,9 @@ contract, from [roles/vitals_heal/tasks/main.yml](../roles/vitals_heal/tasks/mai
 **It can:** issue exactly one `service: state=restarted` per unit that is both
 (a) reported by `service_facts` as `failed`, and (b) answers `enabled` to
 `systemctl is-enabled`. Afterwards it only reads: `systemctl show` on each
-unit it restarted, polled until the unit settles and once more after the
-stability window, with the unit name as its own `argv` element.
+unit it tried to restart, polled until the unit settles and, for a unit that
+came up, once more after the stability window, with the unit name as its own
+`argv` element.
 
 **It cannot:**
 
