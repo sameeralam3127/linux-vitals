@@ -1,16 +1,17 @@
 ---
 # Machine-readable counterpart to docs/variable-reference.md. This documents
-# the role's one input; it does not change what the role does.
+# the role's inputs; it does not change what the role does.
 #
 # Nothing here is `required`: the role must stay runnable with no configuration,
-# and its default is the safe one.
+# and its defaults are the safe ones.
 argument_specs:
   main:
     short_description: Opt-in one-shot self-healing for failed enabled services
     description:
       - Attempts exactly one restart per systemd-enabled service found in a
-        failed state, then re-checks the required-service status and rebuilds
-        C(linux_vitals_result) so the report reflects the post-restart state.
+        failed state, waits for each restarted unit to settle and stay up,
+        then re-checks the required-service status and rebuilds
+        C(linux_vitals_result) so the report reflects the verified outcome.
       - Entirely gated by C(linux_vitals_heal_enabled). When that is false the
         role's tasks are skipped and nothing on the managed host changes.
     author:
@@ -27,3 +28,36 @@ argument_specs:
           - When C(true) the role attempts one restart per service that is both
             enabled at boot and in a failed state. It never enables, installs,
             or masks a unit, and never retries.
+      linux_vitals_heal_settle_retries:
+        type: int
+        default: 10
+        description:
+          - How many more times a restarted unit is polled with
+            C(systemctl show) while it is still in a transitional state
+            (activating, deactivating, reloading), before the role stops
+            waiting.
+          - A unit that has not settled by then is reported as
+            C(Manual Intervention Required) with outcome C(unknown) and
+            reason C(not_settled), never as C(Fixed).
+          - Together with C(linux_vitals_heal_settle_delay) this is the most
+            the role waits per unit, and only for a unit that has not settled.
+            The default allows 30 seconds.
+      linux_vitals_heal_settle_delay:
+        type: int
+        default: 3
+        description:
+          - Seconds between the polls described under
+            C(linux_vitals_heal_settle_retries).
+      linux_vitals_heal_stability_seconds:
+        type: int
+        default: 5
+        description:
+          - Seconds a restarted unit that came up must stay active, on the same
+            run, before it is reported as C(Fixed).
+          - A unit that fails, or that systemd restarts, inside this window is
+            reported as C(Failed to Fix). Reaching C(active) is not the same as
+            staying active, so this is what catches a service that starts and
+            then dies a few seconds later.
+          - Waited out once per host, and only on a host where at least one
+            restarted unit came up. A unit that dies later than this is still
+            reported C(Fixed); raise it for services known to fail slowly.

@@ -24,6 +24,9 @@ Override any of these in inventory, `group_vars`, or `-e` extra vars.
 | Variable | Default | Description |
 |---|---|---|
 | `linux_vitals_heal_enabled` | `false` | Opt-in switch. When `false`, `vitals_heal`'s tasks are skipped entirely -- no service restarts are attempted. |
+| `linux_vitals_heal_settle_retries` | `10` | After the restarts, how many more times a unit still activating, deactivating or reloading is polled with `systemctl show` before the role stops waiting. A unit that has not settled by then is reported `Manual Intervention Required` with outcome `unknown`, never `Fixed`. |
+| `linux_vitals_heal_settle_delay` | `3` | Seconds between those polls. With the retries above, a unit that has not settled is waited on for up to 30 s. A unit that has already settled costs one poll. |
+| `linux_vitals_heal_stability_seconds` | `5` | How long a restarted unit that came up must stay active, on the same run, to be reported `Fixed`. A unit that fails or is restarted by systemd inside the window is `Failed to Fix`. Waited out once per host, and only on hosts where a restarted unit came up. A unit that dies later than this is still reported `Fixed`. |
 
 ## `vitals_certs` -- TLS certificate checks (opt-in)
 

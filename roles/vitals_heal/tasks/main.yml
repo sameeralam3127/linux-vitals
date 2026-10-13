@@ -62,37 +62,202 @@
           }}
 
     - name: Attempt one restart for enabled failed services
+      # A restart that errors is recorded, not fatal. `ignore_errors` rather
+      # than `failed_when: false`, because failed_when overwrites each item's
+      # `failed` flag: every errored restart then looked like a successful
+      # one, and the "restart command errored" outcome below could never fire.
+      #
+      # For a failed unit, `state: restarted` runs `systemctl start`, which
+      # waits for the start job. A Type=notify unit such as sssd is therefore
+      # already ready, or already failed, when this returns. A Type=simple unit
+      # counts as started as soon as it has forked, so it can still die a
+      # moment later -- which is why the outcome is verified below rather than
+      # read off this result.
       ansible.builtin.service:
         name: "{{ item | regex_replace('\\.service$', '') }}"
         state: restarted
       loop: "{{ linux_vitals_failed_enabled_services }}"
       register: linux_vitals_restart_attempts
-      failed_when: false
+      ignore_errors: true
       when: linux_vitals_failed_enabled_services | length > 0
 
+    # Verifying the restarts (#24). Reaching `active` is not the same as
+    # staying active, so a unit is judged in two looks with a window between
+    # them:
+    #
+    #   1. Poll until the unit settles -- active, failed or inactive -- or the
+    #      settle budget runs out.
+    #   2. If it came up, wait linux_vitals_heal_stability_seconds, then look
+    #      again. It is Fixed only if it is still active on the same run: the
+    #      same InvocationID and the same NRestarts. Either changing means
+    #      systemd restarted it in between, which is a crash that recovered,
+    #      not a fix that held.
+    #
+    # Both polls stop on their own when the budget is spent instead of letting
+    # `retries` run out, because running out marks the task failed and a unit
+    # that never settled is a result to record (unknown), not an error. A
+    # `systemctl show` that cannot run ends the poll at once for the same
+    # reason. The outcome is derived in "Summarize self-healing outcomes".
+    - name: Wait for each restarted unit to settle
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - show
+          - --property=ActiveState,SubState,Result,InvocationID,NRestarts
+          - --
+          - "{{ item }}"
+      loop: >-
+        {{
+          linux_vitals_restart_attempts.results | default([])
+          | rejectattr('failed', 'equalto', true)
+          | map(attribute='item')
+          | list
+        }}
+      register: linux_vitals_heal_settle_checks
+      changed_when: false
+      failed_when: false
+      retries: "{{ linux_vitals_heal_settle_retries | int }}"
+      delay: "{{ linux_vitals_heal_settle_delay | int }}"
+      until: >-
+        linux_vitals_heal_settle_checks.rc | default(1) != 0
+        or linux_vitals_heal_settle_checks.stdout_lines | default([])
+           | intersect(['ActiveState=active', 'ActiveState=failed', 'ActiveState=inactive'])
+           | length > 0
+        or linux_vitals_heal_settle_checks.attempts | default(0) | int
+           > linux_vitals_heal_settle_retries | int
+
+    - name: Note which restarted units came up
+      ansible.builtin.set_fact:
+        linux_vitals_heal_came_up: >-
+          {{
+            linux_vitals_heal_settle_checks.results | default([])
+            | selectattr('stdout_lines', 'defined')
+            | selectattr('stdout_lines', 'contains', 'ActiveState=active')
+            | map(attribute='item')
+            | list
+          }}
+
+    - name: Give the units that came up time to prove they stay up
+      # Once per host, not once per unit. Skipped when nothing came up.
+      ansible.builtin.wait_for:
+        timeout: "{{ [linux_vitals_heal_stability_seconds | int, 0] | max }}"
+      when: linux_vitals_heal_came_up | length > 0
+
+    - name: Check the units that came up are still up on the same run
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - show
+          - --property=ActiveState,SubState,Result,InvocationID,NRestarts
+          - --
+          - "{{ item }}"
+      loop: "{{ linux_vitals_heal_came_up }}"
+      register: linux_vitals_heal_stability_checks
+      changed_when: false
+      failed_when: false
+      retries: "{{ linux_vitals_heal_settle_retries | int }}"
+      delay: "{{ linux_vitals_heal_settle_delay | int }}"
+      until: >-
+        linux_vitals_heal_stability_checks.rc | default(1) != 0
+        or linux_vitals_heal_stability_checks.stdout_lines | default([])
+           | intersect(['ActiveState=active', 'ActiveState=failed', 'ActiveState=inactive'])
+           | length > 0
+        or linux_vitals_heal_stability_checks.attempts | default(0) | int
+           > linux_vitals_heal_settle_retries | int
+
     - name: Refresh service facts after self-healing attempts
+      # Read after verification, so the required-service status refreshed
+      # below sees the settled state rather than a unit mid-transition.
       ansible.builtin.service_facts:
       when: linux_vitals_failed_enabled_services | length > 0
 
     - name: Summarize self-healing outcomes
+      # Each attempt ends in one of three outcomes -- fixed, still_failed or
+      # unknown -- with a stable `reason` code saying why and a `detail`
+      # sentence for a human. `result` keeps its three values and their
+      # meaning, so a consumer that only knows `result` reads every outcome
+      # correctly: only a verified fix is Fixed.
+      #
+      #   result                        outcome       reason
+      #   Fixed                         fixed         stayed_active
+      #   Failed to Fix                 still_failed  failed, restarted_during_check
+      #   Manual Intervention Required  still_failed  restart_error, inactive
+      #   Manual Intervention Required  unknown       not_settled, check_failed
+      #
+      # `unknown` is the answer when the check itself could not complete: the
+      # unit was still changing state when the budget ran out, or
+      # `systemctl show` could not be read. It never reads as Fixed, and
+      # vitals_scan turns it into an `unknown` finding with the detail as its
+      # reason (#62).
       ansible.builtin.set_fact:
         linux_vitals_healing_results: >-
+          {%- set observed = {'first': {}, 'final': {}} -%}
+          {%- set registers = {
+                'first': linux_vitals_heal_settle_checks | default({}),
+                'final': linux_vitals_heal_stability_checks | default({}),
+              } -%}
+          {%- for phase in ['first', 'final'] -%}
+          {%- for check in registers[phase].results | default([]) if check.item is defined -%}
+          {%- set props = {
+                'rc': check.rc | default(1) | int,
+                'error': (check.stderr | default('', true) or check.msg | default('', true)) | trim,
+              } -%}
+          {%- for line in check.stdout_lines | default([]) -%}
+          {%- set pair = line.split('=', 1) -%}
+          {%- if pair | length == 2 -%}
+          {%- set _ = props.update({pair[0]: pair[1]}) -%}
+          {%- endif -%}
+          {%- endfor -%}
+          {%- set _ = observed[phase].update({check.item: props}) -%}
+          {%- endfor -%}
+          {%- endfor -%}
+          {%- set window = linux_vitals_heal_stability_seconds | int -%}
+          {%- set budget = (linux_vitals_heal_settle_retries | int) * (linux_vitals_heal_settle_delay | int) -%}
           {%- set outcomes = [] -%}
           {%- for attempt in linux_vitals_restart_attempts.results | default([]) -%}
           {%- set key = attempt.item -%}
-          {%- set current = ansible_facts.services.get(key, ansible_facts.services.get(key | regex_replace('\.service$', ''), {})) -%}
-          {%- set result = 'Manual Intervention Required' -%}
+          {%- set first = observed.first.get(key, {}) -%}
+          {%- set came_up = first.rc | default(1) == 0 and first.ActiveState | default('') == 'active' -%}
+          {#- A unit that came up is judged on the second look only. If that
+              look is missing, the answer is unknown -- never the first look's
+              optimistic "active". -#}
+          {%- set final = observed.final.get(key, {}) if came_up else first -%}
+          {%- set state = final.ActiveState | default('') -%}
+          {%- set why = (final.Result | default('', true)) -%}
           {%- if attempt.failed | default(false) -%}
-          {%- set result = 'Manual Intervention Required' -%}
-          {%- elif current.state | default('unknown') in ['running', 'active'] -%}
-          {%- set result = 'Fixed' -%}
-          {%- elif current.state | default('unknown') == 'failed'
-                or current.status | default('unknown') == 'failed' -%}
-          {%- set result = 'Failed to Fix' -%}
+          {%- set entry = ('Manual Intervention Required', 'still_failed', 'restart_error',
+                'the restart command failed: '
+                ~ ((attempt.msg | default('', true) | trim).splitlines() | first | default('no error message', true))) -%}
+          {%- elif final.rc | default(1) != 0 or state == '' -%}
+          {%- set entry = ('Manual Intervention Required', 'unknown', 'check_failed',
+                'its state could not be read after the restart: '
+                ~ (final.error | default('', true) or 'systemctl show returned nothing')) -%}
+          {%- elif state == 'failed' -%}
+          {%- set entry = ('Failed to Fix', 'still_failed', 'failed',
+                ('it came up, then failed within ' ~ window ~ ' s' if came_up else 'it failed again after the restart')
+                ~ (' (result: ' ~ why ~ ')' if why else '')) -%}
+          {%- elif state == 'inactive' -%}
+          {%- set entry = ('Manual Intervention Required', 'still_failed', 'inactive',
+                'it is inactive after the restart' ~ (' (result: ' ~ why ~ ')' if why else '')) -%}
+          {%- elif came_up and (final.InvocationID | default('') != first.InvocationID | default('')
+                or final.NRestarts | default('') != first.NRestarts | default('')) -%}
+          {%- set entry = ('Failed to Fix', 'still_failed', 'restarted_during_check',
+                'systemd restarted it during the ' ~ window ~ ' s stability window, so the restart did not hold') -%}
+          {%- elif state == 'active' and came_up -%}
+          {%- set entry = ('Fixed', 'fixed', 'stayed_active',
+                'it stayed active for ' ~ window ~ ' s after the restart') -%}
           {%- else -%}
-          {%- set result = 'Manual Intervention Required' -%}
+          {%- set entry = ('Manual Intervention Required', 'unknown', 'not_settled',
+                'it was still ' ~ state ~ ' (' ~ final.SubState | default('') ~ ') when the '
+                ~ budget ~ ' s settle budget ran out') -%}
           {%- endif -%}
-          {%- set _ = outcomes.append({'service': key, 'result': result}) -%}
+          {%- set _ = outcomes.append({
+                'service': key,
+                'result': entry[0],
+                'outcome': entry[1],
+                'reason': entry[2],
+                'detail': entry[3],
+              }) -%}
           {%- endfor -%}
           {{ outcomes }}
 

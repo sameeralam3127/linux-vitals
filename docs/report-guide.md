@@ -47,7 +47,8 @@ Pass/Fail status.
   recent attempt)
 - Boot partition free space and rescue image availability
 - Recent log errors and kernel/bootloader-related failures (with excerpts)
-- Self-healing actions taken this run
+- Self-healing actions taken this run, with why any restart was not fixed.
+  One that could not be verified is marked `unknown`
 - Findings -- the specific reasons a host failed, if any. A check that could
   not run is marked `unknown`, followed by why
 - On `postcheck` runs with a baseline available: status/RAM/kernel/reboot
@@ -108,7 +109,7 @@ by log shippers, SIEMs, or your own dashboards.
       "boot_space": { "mount": "/boot", "free_pct": 65.3, "status": "Healthy", "rescue_image_available": true, "rescue_image_paths": ["..."] },
       "memory": { "status": "OK", "used_pct": 42.5, "used_mb": 3480.0, "total_mb": 8192.0 },
       "logs": { "error_count": 0, "excerpt": [] },
-      "self_healing": { "services_healed": ["chronyd.service"], "healing_results": [{ "service": "chronyd.service", "result": "Fixed" }] },
+      "self_healing": { "services_healed": ["chronyd.service"], "healing_results": [{ "service": "chronyd.service", "result": "Fixed", "outcome": "fixed", "reason": "stayed_active", "detail": "it stayed active for 5 s after the restart" }] },
       "asset_serial": "VMware-56 4d 2a",
       "comparison": {
         "baseline_available": true,
@@ -135,14 +136,51 @@ by log shippers, SIEMs, or your own dashboards.
 ```
 
 Schema `2.1` is additive over `2.0`: every finding gains `status` (and
-`reason` when the status is `unknown`), each host gains `unknown_count`, and
-the summary gains `unknown_host_count`. Nothing was removed or renamed, and
-no existing field changed type or meaning.
+`reason` when the status is `unknown`), each host gains `unknown_count`, the
+summary gains `unknown_host_count`, and each `healing_results` entry gains
+`outcome`, `reason` and `detail`. Nothing was removed or renamed, and no
+existing field changed type or meaning.
 
 `comparison` is always present with at least `baseline_available`; on
 `adhoc`/`baseline` runs, or for a host with no matching baseline snapshot,
 it's `{"baseline_available": false}` and the rest of the comparison fields
 are absent.
+
+## Self-healing outcomes
+
+When `vitals_heal` is enabled, each restart it attempts is one entry in
+`self_healing.healing_results`. A restart is not judged from one look:
+each unit is polled until it is active, failed or inactive, and a unit that
+came up must still be active, on the same run, after
+`linux_vitals_heal_stability_seconds` (see
+[configuration-reference.md](configuration-reference.md#self-healing)).
+
+```json
+{"service": "app.service", "result": "Failed to Fix", "outcome": "still_failed", "reason": "failed", "detail": "it came up, then failed within 5 s (result: exit-code)"}
+```
+
+`result` has the same three values it always had, so code that reads only
+`result` still reads every entry correctly: only a verified fix is `Fixed`.
+`outcome` says which of three states the attempt ended in, and `reason` why:
+
+| `result` | `outcome` | `reason` | Means |
+| --- | --- | --- | --- |
+| `Fixed` | `fixed` | `stayed_active` | Active after the restart and still on the same run after the stability window |
+| `Failed to Fix` | `still_failed` | `failed` | Failed again, either at once or within the stability window |
+| `Failed to Fix` | `still_failed` | `restarted_during_check` | Active at both looks, but systemd restarted it in between: it crashed and its `Restart=` policy brought it back |
+| `Manual Intervention Required` | `still_failed` | `restart_error` | The restart command itself failed; `detail` carries its error |
+| `Manual Intervention Required` | `still_failed` | `inactive` | It is not running after the restart, but did not fail either |
+| `Manual Intervention Required` | `unknown` | `not_settled` | Still activating, deactivating or reloading when the settle budget ran out |
+| `Manual Intervention Required` | `unknown` | `check_failed` | Its state could not be read after the restart |
+
+`unknown` means the check could not complete, so nobody knows whether the
+restart worked. It is never reported as `Fixed`, and its
+`service_manual_followup` finding has `status: unknown` with `detail` as its
+`reason`. `detail` is a sentence for a human and may be reworded in any
+release; join on `reason`. An entry written before 2.2.0 has only `service`
+and `result`.
+
+`auto_fixed_count` and `services_healed` count `Fixed` entries only.
 
 ## Findings
 
@@ -210,7 +248,7 @@ at its highest level, so the numbers partition the fleet) and
 | --- | --- | --- |
 | `ram_critical` | critical | RAM usage at or above `linux_vitals_ram_critical_threshold` |
 | `journald_inactive` | critical | `systemd-journald` is not running -- the host's own logging is down |
-| `service_manual_followup` | critical | A self-healing attempt did not end in `Fixed` |
+| `service_manual_followup` | critical | A self-healing attempt did not end in `Fixed`. `unknown` when the restart could not be verified -- see [Self-healing outcomes](#self-healing-outcomes) |
 | `sssd_inactive` | warning | `sssd` is not running |
 | `time_sync_absent` | warning | No `chronyd`/`ntp` service is installed |
 | `time_sync_inactive` | warning | The resolved time-sync service is not running |

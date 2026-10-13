@@ -200,6 +200,10 @@
       changed_when: false
       failed_when: broken_state.stdout | trim != 'failed'
 
+    - name: Check self-healing verification (#24)
+      ansible.builtin.include_tasks:
+        file: tasks/heal_settle_verify.yml
+
     # ------------------------------------------------------------------
     # Reporting
     # ------------------------------------------------------------------

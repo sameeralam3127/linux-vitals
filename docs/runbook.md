@@ -88,7 +88,18 @@ on this host as unproven until logging is back.**
 ### `service_manual_followup` -- a service requires manual follow-up
 
 **Means:** `vitals_heal` restarted an enabled service that was in a failed
-state, and it did not come back. The `subject` field names the unit.
+state, and the restart did not hold. The `subject` field names the unit; the
+matching entry in `self_healing.healing_results` says why in `reason` and
+`detail` (see [Self-healing outcomes](report-guide.md#self-healing-outcomes)):
+
+| `reason` | What happened |
+| --- | --- |
+| `failed` | It failed again, at once or within the stability window after coming up |
+| `restarted_during_check` | It came up, crashed, and systemd's `Restart=` brought it back -- it is flapping |
+| `restart_error` | `systemctl start` itself failed; `detail` has the error |
+| `inactive` | It is not running, but did not fail either -- often a unit whose process exited cleanly |
+| `not_settled` | Still starting or stopping when the polling budget ran out (finding `status: unknown`) |
+| `check_failed` | Its state could not be read after the restart (finding `status: unknown`) |
 
 **Confirm:**
 ```bash
@@ -100,12 +111,9 @@ systemctl list-dependencies --failed <unit>
 **Do:** a unit that fails a clean restart has a real cause -- a config it
 cannot parse, a port already bound, a dependency that is itself down, a
 filesystem it cannot write. Read the journal from the restart attempt forward.
-
-**Note the known race** ([#24](https://github.com/sameeralam3127/linux-vitals/issues/24)):
-`service_facts` can be read before a restarted unit has settled, so a service
-that died again immediately may be reported `Fixed` rather than appearing here.
-If a service is misbehaving but the report says it was fixed, trust
-`systemctl`, not the report.
+For `not_settled`, check whether the unit came up after the run: if it did,
+it is slow to start, and `linux_vitals_heal_settle_retries` /
+`linux_vitals_heal_settle_delay` can give it longer.
 
 ### `cert_expired` -- a certificate has already expired
 
@@ -366,9 +374,10 @@ It sometimes is, and knowing where saves you chasing a phantom:
   `summary.servers_checked` against your inventory count.
 - **`failed_logins` absent does not mean no failed logins** if `lastb` could
   not run ([#39](https://github.com/sameeralam3127/linux-vitals/issues/39)).
-- **A service reported `Fixed` may have died again immediately**
-  ([#24](https://github.com/sameeralam3127/linux-vitals/issues/24)). Trust
-  `systemctl`.
+- **A service reported `Fixed` stayed up for
+  `linux_vitals_heal_stability_seconds` (5 s by default), not forever.** One
+  that fails later than that is still reported `Fixed`. Trust `systemctl`
+  for anything that has had time to fail since the run.
 - **Reboot detection degrades to a kernel comparison** where the distro tool
   is missing, which is noisier. `reboot.source` tells you which path answered;
   see [kernel-reboot-detection.md](kernel-reboot-detection.md#known-edge-cases).

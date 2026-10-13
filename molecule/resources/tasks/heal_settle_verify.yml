@@ -1,0 +1,108 @@
+---
+# Assertions for self-healing verification (#24), included by verify.yml after
+# it has set `report`, `host_report`, `dashboard` and `finding_ids`. The units
+# are planted by tasks/heal_settle_prepare.yml.
+- name: Index this host's healing outcomes by unit
+  ansible.builtin.set_fact:
+    heal_settle_records: >-
+      {{
+        dict(
+          host_report.self_healing.healing_results | map(attribute='service')
+          | zip(host_report.self_healing.healing_results)
+        )
+      }}
+
+- name: Assert a unit that dies a few seconds after its restart is not reported as fixed
+  # The race in #24: the unit is active when the restart returns, so a single
+  # look reports it Fixed. The stability window has to catch it dying.
+  ansible.builtin.assert:
+    that:
+      - unstable.result == 'Failed to Fix'
+      - unstable.outcome == 'still_failed'
+      - unstable.reason == 'failed'
+      - "'molecule-unstable.service' not in host_report.self_healing.services_healed"
+      - >-
+        host_report.findings
+        | selectattr('id', 'equalto', 'service_manual_followup')
+        | selectattr('subject', 'equalto', 'molecule-unstable.service')
+        | selectattr('status', 'equalto', 'fail')
+        | list | length == 1
+    fail_msg: "Self-healing outcomes: {{ host_report.self_healing }}"
+  vars:
+    unstable: "{{ heal_settle_records['molecule-unstable.service'] }}"
+
+- name: Assert a unit that takes seconds to become ready is reported as fixed
+  ansible.builtin.assert:
+    that:
+      - slow.result == 'Fixed'
+      - slow.outcome == 'fixed'
+      - slow.reason == 'stayed_active'
+      - "'molecule-slow-start.service' in host_report.self_healing.services_healed"
+      - >-
+        host_report.findings
+        | selectattr('id', 'equalto', 'service_manual_followup')
+        | selectattr('subject', 'equalto', 'molecule-slow-start.service')
+        | list | length == 0
+    fail_msg: "Self-healing outcomes: {{ host_report.self_healing }}"
+  vars:
+    slow: "{{ heal_settle_records['molecule-slow-start.service'] }}"
+
+- name: Assert the fast cases keep their outcomes and say why
+  # molecule-flaky and molecule-broken settle at once; verification must not
+  # change what they are reported as.
+  ansible.builtin.assert:
+    that:
+      - heal_settle_records['molecule-flaky.service'].result == 'Fixed'
+      - heal_settle_records['molecule-flaky.service'].outcome == 'fixed'
+      - heal_settle_records['molecule-broken.service'].result == 'Failed to Fix'
+      - heal_settle_records['molecule-broken.service'].outcome == 'still_failed'
+      - heal_settle_records['molecule-broken.service'].reason == 'failed'
+    fail_msg: "Self-healing outcomes: {{ host_report.self_healing }}"
+
+- name: Assert every healing outcome records how it was judged
+  ansible.builtin.assert:
+    that:
+      - >-
+        host_report.self_healing.healing_results
+        | rejectattr('outcome', 'in', ['fixed', 'still_failed', 'unknown'])
+        | list | length == 0
+      - >-
+        host_report.self_healing.healing_results
+        | selectattr('detail', 'equalto', '')
+        | list | length == 0
+      # `result` and `outcome` agree: only a verified fix is Fixed.
+      - >-
+        host_report.self_healing.healing_results
+        | selectattr('result', 'equalto', 'Fixed')
+        | map(attribute='outcome') | unique | list in [[], ['fixed']]
+      - >-
+        host_report.self_healing.healing_results
+        | selectattr('outcome', 'equalto', 'fixed')
+        | map(attribute='result') | unique | list in [[], ['Fixed']]
+    fail_msg: "Self-healing outcomes: {{ host_report.self_healing }}"
+
+- name: Assert the dashboard explains the unit that was not fixed
+  ansible.builtin.assert:
+    that:
+      - "'molecule-unstable.service: Failed to Fix' in dashboard"
+      - "'molecule-slow-start.service: Fixed' in dashboard"
+
+- name: Assert the slow-start unit is actually running on the host
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - is-active
+      - molecule-slow-start.service
+  register: heal_settle_slow_state
+  changed_when: false
+  failed_when: heal_settle_slow_state.stdout | trim != 'active'
+
+- name: Assert the unstable unit is failed on the host
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - is-failed
+      - molecule-unstable.service
+  register: heal_settle_unstable_state
+  changed_when: false
+  failed_when: heal_settle_unstable_state.stdout | trim != 'failed'

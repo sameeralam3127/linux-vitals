@@ -236,6 +236,111 @@ def test_prepare_playbook_plants_both_a_healable_and_an_unfixable_unit() -> None
     assert broken["exec_start"] == "/bin/false"
 
 
+# Self-healing verification (#24): two more units, planted and checked by
+# their own task files so the shared playbooks only gain one include each.
+HEAL_SETTLE_PREPARE = RESOURCES_DIR / "tasks" / "heal_settle_prepare.yml"
+HEAL_SETTLE_VERIFY = RESOURCES_DIR / "tasks" / "heal_settle_verify.yml"
+
+
+def _named_task(tasks: list, name: str) -> dict:
+    return next(task for task in tasks if task.get("name") == name)
+
+
+def _settle_units() -> dict:
+    tasks = _load_yaml(HEAL_SETTLE_PREPARE)
+    scripts = {
+        item["name"]: item["content"]
+        for item in _named_task(tasks, "Install the settle-verification test service scripts")["loop"]
+    }
+    units = _named_task(tasks, "Install the settle-verification test units")["loop"]
+    return {
+        unit["name"]: dict(unit, script=scripts[unit["exec_start"].rsplit("/", 1)[-1]])
+        for unit in units
+    }
+
+
+def test_prepare_and_verify_include_the_settle_verification_tasks() -> None:
+    prepare = _load_yaml(RESOURCES_DIR / "prepare.yml")[0]["tasks"]
+    verify = _load_yaml(RESOURCES_DIR / "verify.yml")[0]["tasks"]
+
+    plant = _named_task(prepare, "Plant the units that test self-healing verification (#24)")
+    check = _named_task(verify, "Check self-healing verification (#24)")
+
+    assert plant["ansible.builtin.include_tasks"]["file"] == "tasks/heal_settle_prepare.yml"
+    assert plant["vars"]["heal_settle_slow_marker"].startswith("/run/")
+    assert check["ansible.builtin.include_tasks"]["file"] == "tasks/heal_settle_verify.yml"
+    # Planted after the original two units are in place, checked after the
+    # report has been read and the original assertions have run.
+    prepare_names = [task.get("name") for task in prepare]
+    assert prepare_names.index(plant["name"]) > prepare_names.index("Disarm the flaky service so a restart can succeed")
+    verify_names = [task.get("name") for task in verify]
+    assert verify_names.index(check["name"]) > verify_names.index("Select this host's entry from the report")
+
+
+def test_the_unstable_unit_comes_up_then_dies_inside_the_stability_window() -> None:
+    # Acceptance criterion (a) of #24: running for about 3 s, then a non-zero
+    # exit. It only proves anything if it is still alive when the restart
+    # returns and dead by the end of the default stability window.
+    unit = _settle_units()["molecule-unstable.service"]
+    lifetime = int(re.search(r"^sleep (\d+)$", unit["script"], re.MULTILINE).group(1))
+    window = _load_yaml(REPO_ROOT / "roles" / "vitals_heal" / "defaults" / "main.yml")[
+        "linux_vitals_heal_stability_seconds"
+    ]
+
+    assert unit["type"] == "simple"
+    assert re.search(r"^exit [1-9]\d*$", unit["script"], re.MULTILINE)
+    assert 2 <= lifetime < window
+
+
+def test_the_slow_start_unit_is_a_notify_unit_that_takes_seconds_to_be_ready() -> None:
+    # Acceptance criterion (b) of #24.
+    unit = _settle_units()["molecule-slow-start.service"]
+
+    assert unit["type"] == "notify"
+    assert re.search(r"^sleep [3-9]$", unit["script"], re.MULTILINE)
+    assert "systemd-notify --ready" in unit["script"]
+    assert "NotifyAccess=all" in _named_task(
+        _load_yaml(HEAL_SETTLE_PREPARE), "Install the settle-verification test units"
+    )["ansible.builtin.copy"]["content"]
+
+
+def test_the_unstable_unit_is_restarted_after_every_other_test_unit() -> None:
+    # vitals_heal restarts failed units in name order. If the unstable unit
+    # sorted before the slow-start one, that unit's 5 s restart would run
+    # between its restart and the post-restart look, and the scenario would
+    # pass even with the race in #24 still there.
+    prepare = _load_yaml(RESOURCES_DIR / "prepare.yml")[0]["tasks"]
+    original = {item["name"] for item in _named_task(prepare, "Install the test units")["loop"]}
+    planted = original | set(_settle_units())
+
+    assert sorted(planted)[-1] == "molecule-unstable.service"
+
+
+def test_the_settle_verification_tasks_use_only_tools_every_image_has() -> None:
+    # Lessons from #130: Fedora's image has no `su`, openSUSE's no `logger`.
+    commands = [
+        task["ansible.builtin.command"]["argv"][0]
+        for path in (HEAL_SETTLE_PREPARE, HEAL_SETTLE_VERIFY)
+        for task in _load_yaml(path)
+        if "ansible.builtin.command" in task
+    ]
+    scripts = "\n".join(unit["script"] for unit in _settle_units().values())
+
+    assert set(commands) == {"systemctl"}
+    assert not re.search(r"\b(su|sudo|logger)\b", scripts)
+
+
+def test_verify_asserts_both_new_units_and_the_fast_cases() -> None:
+    text = HEAL_SETTLE_VERIFY.read_text(encoding="utf-8")
+
+    assert "molecule-unstable.service" in text
+    assert "molecule-slow-start.service" in text
+    assert "unstable.result == 'Failed to Fix'" in text
+    assert "slow.result == 'Fixed'" in text
+    assert "heal_settle_records['molecule-flaky.service'].result == 'Fixed'" in text
+    assert "heal_settle_records['molecule-broken.service'].result == 'Failed to Fix'" in text
+
+
 def test_galaxy_version_matches_changelog_latest_entry() -> None:
     galaxy = _load_yaml(REPO_ROOT / "galaxy.yml")
     changelog = (REPO_ROOT / "CHANGELOG.md").read_text(encoding="utf-8")

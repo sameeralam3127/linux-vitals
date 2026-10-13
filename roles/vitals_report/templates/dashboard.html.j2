@@ -454,6 +454,15 @@
   {%- macro unknown_marker(finding) -%}
   {%- if finding.status | default('fail') == 'unknown' %} <span class="pill pill--serious"><span class="dot"></span>unknown</span> <span class="muted">Could not check: {{ finding.reason | default('') | e }}</span>{% endif -%}
   {%- endmacro %}
+  {#- Why a self-healing attempt ended where it did (#24). A restart that could
+      not be verified is marked like an unknown finding; any other attempt
+      that was not fixed shows its detail. A result from before 2.2.0 has no
+      outcome or detail and renders as it always did. #}
+  {%- macro healing_detail(attempt) -%}
+  {%- if attempt.outcome | default('') == 'unknown' %} <span class="pill pill--serious"><span class="dot"></span>unknown</span> <span class="muted">Could not verify: {{ attempt.detail | default('') | e }}</span>
+  {%- elif attempt.result | default('') != 'Fixed' and attempt.detail | default('') %} <span class="muted">&mdash; {{ attempt.detail | e }}</span>
+  {%- endif -%}
+  {%- endmacro %}
   <section class="kpi-row">
     {% set band_color = 'good' if linux_vitals_summary.health_score_band == 'Excellent' or linux_vitals_summary.health_score_band == 'Good' else 'warning' if linux_vitals_summary.health_score_band == 'Fair' else 'critical' %}
     <div class="tile tile--score">
@@ -694,7 +703,7 @@
               <div class="detail-item">
                 <strong>Self-healing</strong>
                 {% if result.healing_results %}
-                <ul class="list">{% for service in result.healing_results %}<li>{{ service.service | e }}: {{ service.result | e }}</li>{% endfor %}</ul>
+                <ul class="list">{% for service in result.healing_results %}<li>{{ service.service | e }}: {{ service.result | e }}{{ healing_detail(service) }}</li>{% endfor %}</ul>
                 {% else %}
                 <span class="muted">No healing actions taken this run.</span>
                 {% endif %}

@@ -36,6 +36,24 @@ When enabled, exactly one restart is attempted per systemd-enabled failed
 service, once per run. A service that's still failed afterward is reported
 as `"Failed to Fix"` and adds a finding; it is not retried.
 
+A restart is only reported `"Fixed"` once it has held. Each restarted unit is
+polled until it is active, failed or inactive, and a unit that came up must
+still be active on the same run after a stability window. One that dies or is
+restarted by systemd in that window is `"Failed to Fix"`. One still starting
+when the polling budget runs out is `"Manual Intervention Required"` with an
+`unknown` finding, because nobody could tell. The budget is configurable:
+
+```yaml
+linux_vitals_heal_settle_retries: 10      # extra polls while a unit is still changing state
+linux_vitals_heal_settle_delay: 3         # seconds between polls (30 s in total by default)
+linux_vitals_heal_stability_seconds: 5    # how long a unit must stay up to count as fixed
+```
+
+Hosts where nothing was restarted pay none of this. Raise
+`linux_vitals_heal_stability_seconds` for services known to fail some time
+after starting; raise the settle budget for units that take longer than 30 s
+to leave `activating` after a restart.
+
 ## Maintenance workflow
 
 Owned by `vitals_report`, set via `-e` rather than `group_vars` (a

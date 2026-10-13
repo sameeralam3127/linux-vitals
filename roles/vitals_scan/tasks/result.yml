@@ -59,8 +59,16 @@
       {%- if ansible_facts['os_family'] == 'Debian' and linux_vitals_apparmor_status != 'enabled' -%}
       {%- set _ = findings.append({'id': 'apparmor_disabled', 'message': 'AppArmor is disabled or unavailable'}) -%}
       {%- endif -%}
+      {#- A restart vitals_heal could not verify (#24: outcome `unknown`) is
+          an unknown finding with the reason it could not, not a plain failure
+          and never a pass. -#}
       {%- for item in linux_vitals_healing_results | default([]) -%}
-      {%- if item.result != 'Fixed' -%}
+      {%- if item.result != 'Fixed' and item.outcome | default('') == 'unknown' -%}
+      {%- set _ = findings.append({
+        'id': 'service_manual_followup', 'message': item.service ~ ' requires manual follow-up',
+        'subject': item.service, 'status': 'unknown',
+        'reason': item.detail | default('', true) or 'the restart could not be verified'}) -%}
+      {%- elif item.result != 'Fixed' -%}
       {%- set _ = findings.append({'id': 'service_manual_followup', 'message': item.service ~ ' requires manual follow-up', 'subject': item.service}) -%}
       {%- endif -%}
       {%- endfor -%}

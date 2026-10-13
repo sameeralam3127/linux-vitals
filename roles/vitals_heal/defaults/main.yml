@@ -4,3 +4,18 @@
 # failed state. Leave it false to run linux_vitals as a read-only health
 # check with no write actions against managed hosts.
 linux_vitals_heal_enabled: false
+
+# How a restart is verified before it is reported as Fixed (#24). After the
+# restarts, each unit is polled with `systemctl show` until it is active,
+# failed or inactive -- up to linux_vitals_heal_settle_retries more times,
+# linux_vitals_heal_settle_delay seconds apart (30 s by default). A unit that
+# came up must then still be active, on the same run, after
+# linux_vitals_heal_stability_seconds; one that died or was restarted by
+# systemd in that window is not Fixed. A unit still starting or stopping when
+# the budget runs out is recorded as unknown, never as Fixed.
+#
+# None of this runs on a host where nothing was restarted. Where something
+# was, the stability window is waited out once per host, not once per unit.
+linux_vitals_heal_settle_retries: 10
+linux_vitals_heal_settle_delay: 3
+linux_vitals_heal_stability_seconds: 5

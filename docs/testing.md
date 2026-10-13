@@ -177,12 +177,21 @@ scenario's ephemeral directory (`molecule converge` prints the path; it is
    to the repo, so `converge.yml`'s FQCN roles resolve from a fresh clone.
 2. **prepare** -- bootstraps a Python interpreter Ansible can use, installs the
    packages the checks look for (chrony, and `yum-utils` on Rocky so
-   `needs-restarting` exists), then plants two systemd units:
+   `needs-restarting` exists), then plants four systemd units:
    - `molecule-flaky.service`, which fails on first start and succeeds on
      restart -- a service `vitals_heal` can genuinely fix;
    - `molecule-broken.service` (`ExecStart=/bin/false`), which can never be
-     fixed.
-   Both are enabled and left in a failed state.
+     fixed;
+   - `molecule-slow-start.service` (`Type=notify`), which takes about 5 s to
+     report ready after its restart -- slow, but fixed
+     ([#24](https://github.com/sameeralam3127/linux-vitals/issues/24));
+   - `molecule-unstable.service`, which is running when its restart returns
+     and exits non-zero about 3 s later -- the case a single post-restart look
+     reports as `Fixed` (#24). It is named to sort last, because units are
+     restarted in name order and nothing slow may run between its restart and
+     the check.
+   All four are enabled and left in a failed state. The last two are planted
+   by `molecule/resources/tasks/heal_settle_prepare.yml`.
 3. **converge** -- runs `vitals_scan` -> `vitals_heal` -> `vitals_report` with
    `linux_vitals_heal_enabled: true`, writing reports into the scenario's
    ephemeral directory instead of `inventory_dir`.
@@ -199,7 +208,10 @@ scenario's ephemeral directory (`molecule converge` prints the path; it is
    - **self-healing**: `molecule-flaky.service` is reported `Fixed`, is counted
      in `auto_fixed_count`, and is genuinely `active` on the host;
      `molecule-broken.service` is *not* fixed and raises a
-     "requires manual follow-up" finding;
+     "requires manual follow-up" finding; `molecule-slow-start.service` is
+     `Fixed` and `molecule-unstable.service` is `Failed to Fix`, and every
+     outcome carries an `outcome`, `reason` and `detail`
+     (`molecule/resources/tasks/heal_settle_verify.yml`);
    - **reporting**: the JSON summary, the rendered dashboard, and the
      timestamped archive copy.
 

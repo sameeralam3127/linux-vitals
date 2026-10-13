@@ -1,0 +1,125 @@
+---
+# Units for self-healing verification (#24), included by prepare.yml. Kept
+# apart from the flaky/broken units so the scenario they test stays readable
+# on its own:
+#
+# - molecule-unstable.service starts, runs for about 3 s, then exits non-zero.
+#   It is active when `systemctl start` returns, so a heal that reads the
+#   state once reports it Fixed. It must be reported as not fixed.
+# - molecule-slow-start.service is Type=notify and takes about 5 s to report
+#   ready, the way sssd can. It must be reported as Fixed.
+#
+# The names matter. vitals_heal restarts failed units in name order, so the
+# unstable unit is restarted last and nothing slow runs between its restart
+# and the post-restart check. Renaming it to sort earlier would let the slow
+# unit's 5 s restart cover for the bug this scenario exists to catch.
+#
+# Only coreutils and systemd's own tools are used: sh, sleep and
+# systemd-notify exist on every scenario's image.
+- name: Install the settle-verification test service scripts
+  ansible.builtin.copy:
+    dest: "/usr/local/bin/{{ item.name }}"
+    mode: "0755"
+    content: "{{ item.content }}"
+  loop:
+    - name: molecule-unstable
+      content: |
+        #!/bin/sh
+        # Comes up, then dies: active for about 3 s, then exits non-zero.
+        sleep 3
+        exit 1
+    - name: molecule-slow-start
+      content: |
+        #!/bin/sh
+        # Fails at once while the marker exists, so prepare can leave it in a
+        # failed state. Otherwise it takes about 5 s to report ready.
+        if [ -f {{ heal_settle_slow_marker }} ]; then
+          exit 1
+        fi
+        sleep 5
+        systemd-notify --ready
+        exec sleep infinity
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Install the settle-verification test units
+  ansible.builtin.copy:
+    dest: "/etc/systemd/system/{{ item.name }}"
+    mode: "0644"
+    content: |
+      [Unit]
+      Description={{ item.description }}
+
+      [Service]
+      Type={{ item.type }}
+      {% if item.type == 'notify' %}
+      NotifyAccess=all
+      {% endif %}
+      ExecStart={{ item.exec_start }}
+      Restart=no
+
+      [Install]
+      WantedBy=multi-user.target
+  loop:
+    - name: molecule-unstable.service
+      description: LinuxVitals test service that dies a few seconds after starting
+      type: simple
+      exec_start: /usr/local/bin/molecule-unstable
+    - name: molecule-slow-start.service
+      description: LinuxVitals test service that takes seconds to become ready
+      type: notify
+      exec_start: /usr/local/bin/molecule-slow-start
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Enable the settle-verification test units without starting them
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+    daemon_reload: true
+  loop:
+    - molecule-unstable.service
+    - molecule-slow-start.service
+
+- name: Arm the slow-start service so its first start fails
+  ansible.builtin.file:
+    path: "{{ heal_settle_slow_marker }}"
+    state: touch
+    mode: "0644"
+
+- name: Start the settle-verification test units
+  # The slow-start unit fails its start job here, so systemctl exits non-zero;
+  # that is the point, and the next task checks the outcome.
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - start
+      - "{{ item }}"
+  loop:
+    - molecule-unstable.service
+    - molecule-slow-start.service
+  changed_when: true
+  failed_when: false
+
+- name: Wait for both settle-verification test units to be failed
+  # The unstable unit is running when `systemctl start` returns and only
+  # fails about 3 s later.
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - is-failed
+      - "{{ item }}"
+  register: heal_settle_unit_state
+  changed_when: false
+  failed_when: heal_settle_unit_state.stdout | trim != 'failed'
+  until: heal_settle_unit_state.stdout | trim == 'failed'
+  retries: 15
+  delay: 1
+  loop:
+    - molecule-unstable.service
+    - molecule-slow-start.service
+
+- name: Disarm the slow-start service so a restart can succeed
+  ansible.builtin.file:
+    path: "{{ heal_settle_slow_marker }}"
+    state: absent

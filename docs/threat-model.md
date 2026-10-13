@@ -122,7 +122,9 @@ contract, from [roles/vitals_heal/tasks/main.yml](../roles/vitals_heal/tasks/mai
 
 **It can:** issue exactly one `service: state=restarted` per unit that is both
 (a) reported by `service_facts` as `failed`, and (b) answers `enabled` to
-`systemctl is-enabled`.
+`systemctl is-enabled`. Afterwards it only reads: `systemctl show` on each
+unit it restarted, polled until the unit settles and once more after the
+stability window, with the unit name as its own `argv` element.
 
 **It cannot:**
 
@@ -150,11 +152,13 @@ consequences worth accepting deliberately:
   required-service list configurable is tracked as
   [#32](https://github.com/sameeralam3127/linux-vitals/issues/32).)
 
-Also note the known race in [#24](https://github.com/sameeralam3127/linux-vitals/issues/24):
-`service_facts` can be read before a restarted unit has settled, so a service
-that died again immediately may be reported `Fixed`. That is a correctness bug
-with a trust consequence -- the report can assert a remediation that did not
-hold.
+A remediation claim is stronger than a detection claim, so `Fixed` is only
+reported once a restart has held: the unit came up and was still active, on
+the same run, after `linux_vitals_heal_stability_seconds`
+([#24](https://github.com/sameeralam3127/linux-vitals/issues/24)). When that
+check cannot complete, the attempt is reported as `unknown`, not `Fixed`. The
+limit is the window itself: a unit that fails after it is still reported
+`Fixed`.
 
 ## `vitals_certs`: the only role that opens a connection
 

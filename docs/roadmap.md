@@ -88,7 +88,7 @@ else builds on.
 | --- | --- | --- |
 | ~~Promote PASS/FAIL/UNKNOWN to a collection-wide finding contract~~ | [#62](https://github.com/sameeralam3127/linux-vitals/issues/62) | done -- ships in 2.2.0 |
 | Failed-login check reports a clean host when `lastb` cannot run | [#39](https://github.com/sameeralam3127/linux-vitals/issues/39) | high |
-| Race between service restart and `service_facts` can report a dead service as "Fixed" | [#24](https://github.com/sameeralam3127/linux-vitals/issues/24) | high |
+| ~~Race between service restart and `service_facts` can report a dead service as "Fixed"~~ | [#24](https://github.com/sameeralam3127/linux-vitals/issues/24) | done -- ships in 2.2.0 |
 | Add filesystem capacity and inode checks for all mounts | [#30](https://github.com/sameeralam3127/linux-vitals/issues/30) | high |
 
 Ordering notes:

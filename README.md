@@ -217,7 +217,10 @@ linux_vitals_heal_enabled: true
 Off by default — nothing on a managed host changes until you set this. With it
 on, LinuxVitals attempts **exactly one restart** per service that is both
 **enabled at boot** and **in a failed state**, then re-checks the required
-services so the dashboard reflects the post-restart result.
+services so the dashboard reflects the post-restart result. A restart is only
+reported `Fixed` once the unit has settled and stayed up through a short
+stability window; one that could not be verified is reported as `unknown`,
+not as fixed.
 
 There is no allowlist: it restarts whatever is enabled and failed. Enable it
 per group rather than globally, and see

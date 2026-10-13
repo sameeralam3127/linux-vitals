@@ -146,6 +146,12 @@
         path: "{{ flaky_marker }}"
         state: absent
 
+    - name: Plant the units that test self-healing verification (#24)
+      ansible.builtin.include_tasks:
+        file: tasks/heal_settle_prepare.yml
+      vars:
+        heal_settle_slow_marker: /run/molecule-slow-start-fail
+
     - name: Start the system bus for unprivileged service discovery
       ansible.builtin.systemd_service:
         name: "{{ vitals_test_system_bus_service }}"
