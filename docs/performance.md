@@ -29,29 +29,38 @@ number without one is not a measurement.
 
 ## What dominates the cost
 
-Three things, in this order. Two of them are fixable and tracked.
+Three things, in this order.
 
-### 1. Journal transfer -- the scaling ceiling
+### 1. Journal scans -- capped per host since #23
 
-`vitals_scan` runs `journalctl --since "{{ linux_vitals_log_window }}"` and
-registers the **entire output** as `stdout`, which is transferred to the
-control node and filtered there in Jinja
-([discovery.yml:53](../roles/vitals_scan/tasks/discovery.yml#L53) and the
-match at line 681). A second pass does the same over
-`linux_vitals_audit_log_window`, which defaults to **7 days**.
+`vitals_scan` reads the journal twice: entries at `linux_vitals_log_priority`
+(default `err`) or worse over `linux_vitals_log_window` for `log_errors`, and
+kernel/bootloader failure lines over `linux_vitals_audit_log_window`, which
+defaults to **7 days**, for `kernel_install_failures`.
 
-The consequence is that per-host cost scales with *log volume*, not with host
-count -- and log volume is the variable you control least. A busy host can
-return tens of megabytes for a week of journal, all of it crossing the network
-and then sitting in control-node memory as a registered variable across every
-host in the play, simultaneously.
+Until [#23](https://github.com/sameeralam3127/linux-vitals/issues/23) both
+reads registered the **entire window** as `stdout`, transferred it to the
+control node and filtered it there in Jinja, so per-host cost scaled with log
+volume rather than host count, and a busy host could hand the control node
+tens of megabytes. Now both are filtered on the managed host -- `journalctl
+--priority` for the first, `grep` for the second -- and each returns at most
+`linux_vitals_log_max_lines` lines (default `2000`), the newest ones. Only a
+count and a five-line excerpt per scan are kept as facts.
 
-**This is the single biggest lever on both runtime and control-node memory.**
-It is tracked as
-[#23](https://github.com/sameeralam3127/linux-vitals/issues/23), planned for
-November 2026 and the 2.2.0 Trust release on the [roadmap](roadmap.md); the fix is to filter on the managed host and
-return counts plus a bounded excerpt, rather than shipping the window. Until
-then, the mitigation is to narrow the windows -- see Tuning below.
+What that leaves:
+
+- **On the control node, journal data is bounded per host.** A host's
+  registered results hold at most `linux_vitals_log_max_lines` lines per scan
+  (twice over, as `stdout` and `stdout_lines`), however much it logs. Most
+  hosts send far fewer: only error-priority entries and kernel-failure
+  matches leave the host. Control-node memory now grows with host count, not
+  with how unhealthy the fleet is.
+- **On the managed host, the kernel-failure scan still reads its whole
+  window.** `grep` has to see every line of the 7 days to find the matches, so
+  that probe's run time grows with the host's journal volume. Narrow
+  `linux_vitals_audit_log_window` if it dominates (see Tuning below). The
+  error scan does not: journalctl looks entries up by priority and stops at
+  the cap.
 
 ### 2. Fork count
 
@@ -90,6 +99,9 @@ ssh_args = -o ControlMaster=auto -o ControlPersist=300s -o PreferredAuthenticati
 # group_vars/all.yml -- narrow the journal windows
 linux_vitals_log_window: "15 minutes ago"
 linux_vitals_audit_log_window: "24 hours ago"
+# Lines each journal scan may return per host; lower it to bound the
+# control node's worst case more tightly.
+linux_vitals_log_max_lines: 2000
 ```
 
 Rules of thumb, none of which substitute for measuring your own fleet:
@@ -100,12 +112,13 @@ Rules of thumb, none of which substitute for measuring your own fleet:
 - **`pipelining = True` is the second-biggest win** and costs nothing, as long
   as `requiretty` is not set in sudoers on your targets.
 - **Narrow `linux_vitals_audit_log_window` first.** The 7-day default is the
-  most expensive setting in the collection, and the kernel-install-failure
-  check it feeds is the least time-sensitive one.
+  most expensive setting in the collection -- every host reads that much
+  journal to answer it -- and the kernel-install-failure check it feeds is the
+  least time-sensitive one.
 - **Split very large fleets by group** rather than raising `forks` without
-  limit. Control-node memory holds every host's registered journal output at
-  once; that is what falls over first, and it fails at whatever size your
-  fleet's log volume dictates rather than at a fixed host count.
+  limit. Control-node memory holds every host's registered results at once.
+  Journal output in them is capped by `linux_vitals_log_max_lines`, so the
+  worst case is predictable, but it still grows with every host you add.
 - **Reporting is `run_once`.** Rendering happens once on the control node
   regardless of fleet size, so it is a fixed cost, but the template iterates
   every host -- expect the HTML file itself to grow roughly linearly.
@@ -155,8 +168,10 @@ Record alongside any timing:
 - control node: cores, RAM, and whether it is a VM or a container
 - network topology: same VLAN, across a WAN, through a bastion
 - **average journal volume per host** for your configured windows --
-  `journalctl --since "30 minutes ago" | wc -c` on a representative host.
-  Without this, two timings from different fleets are not comparable.
+  `journalctl --since "7 days ago" | wc -c` on a representative host. Since
+  #23 it drives the host-side time of the kernel-failure scan rather than
+  control-node memory, but two timings from fleets with very different
+  journals are still not comparable.
 - whether the fact cache was warm
 
 A report of "100 hosts, 50 forks, 4m10s, 2.1 GB peak RSS, ~8 MB journal per
@@ -164,8 +179,11 @@ host" is useful to everyone. "100 hosts, 4 minutes" is not.
 
 ## Known limits
 
-- **Control-node memory is the binding constraint, not CPU**, for the reason
-  in §1. If a run is killed, it is almost always the journal data.
+- **Control-node memory is the likeliest constraint, not CPU.** Before #23 a
+  killed run was almost always journal data. Journal output is now capped per
+  host (§1), so memory scales with host count and `linux_vitals_log_max_lines`
+  rather than with log volume; nobody has yet measured where that limit falls
+  on a real fleet.
 - **Concurrent runs sharing an output directory can corrupt reports and
   snapshots** ([#26](https://github.com/sameeralam3127/linux-vitals/issues/26)).
   Sharding a large fleet across parallel runs needs a distinct

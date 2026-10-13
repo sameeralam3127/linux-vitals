@@ -201,7 +201,16 @@ scenario's ephemeral directory (`molecule converge` prints the path; it is
      `molecule-broken.service` is *not* fixed and raises a
      "requires manual follow-up" finding;
    - **reporting**: the JSON summary, the rendered dashboard, and the
-     timestamped archive copy.
+     timestamped archive copy;
+   - **bounded journal scans**
+     ([#23](https://github.com/sameeralam3127/linux-vitals/issues/23)): last,
+     because it floods the journal. It writes 5,000 `err` entries with
+     `systemd-cat`, confirms the journal kept them all, scans again with
+     `linux_vitals_log_max_lines: 200`, and asserts that both probes returned
+     at most 200 lines, both counts stopped at exactly 200, both excerpts come
+     from the flood (so the newest entries were the ones kept), and no full
+     match list was kept
+     (`molecule/resources/tasks/journal_bound.yml`).
 
 Each distribution reaches reboot detection by a different route, which is the
 point of running all four:

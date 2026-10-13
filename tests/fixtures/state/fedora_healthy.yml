@@ -34,8 +34,7 @@ state:
       ran: true
       rc: 0
       window: 30 minutes ago
-      stdout: |-
-        2026-09-26T13:45:00+0000 ws-07 systemd[1]: Started dnf-makecache.service - dnf makecache.
+      stdout: ""
     audit_logs:
       ran: true
       rc: 0

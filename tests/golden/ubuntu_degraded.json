@@ -60,10 +60,9 @@
   "latest_installed_kernel": "6.8.0-60-generic",
   "latest_kernel_selected": false,
   "latest_kernel_updated_at": "2026-09-25 02:14:49.000000000 +0000",
-  "log_errors": 2,
+  "log_errors": 1,
   "log_excerpt": [
-    "2026-09-26T13:44:19+0000 web-01 payments-api[3312]: ERROR connection refused: db-01:5432",
-    "2026-09-26T13:44:19+0000 web-01 systemd[1]: payments-api.service: Failed with result 'exit-code'."
+    "2026-09-26T13:44:19+0000 web-01 payments-api[3312]: ERROR connection refused: db-01:5432"
   ],
   "log_source": "journald",
   "os": "Ubuntu 24.04",

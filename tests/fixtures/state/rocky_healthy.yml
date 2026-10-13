@@ -32,15 +32,12 @@ state:
       ran: true
       rc: 0
       window: 30 minutes ago
-      stdout: |-
-        2026-09-26T13:40:02+0000 db-01 systemd[1]: Started dnf-makecache.service - dnf makecache.
-        2026-09-26T13:55:12+0000 db-01 sshd[41230]: Accepted publickey for deploy from 10.0.1.5 port 51022 ssh2
+      stdout: ""
     audit_logs:
       ran: true
       rc: 0
       window: 7 days ago
-      stdout: |-
-        2026-09-20T06:12:04+0000 db-01 kernel: Linux version 5.14.0-427.13.1.el9_4.x86_64 (mockbuild@iad1-prod-build001)
+      stdout: ""
     failed_logins:
       ran: true
       rc: 0

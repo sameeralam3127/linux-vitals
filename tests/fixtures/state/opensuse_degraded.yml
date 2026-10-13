@@ -34,8 +34,7 @@ state:
       ran: true
       rc: 0
       window: 30 minutes ago
-      stdout: |-
-        2026-09-26T13:47:30+0000 app-03 systemd[1]: Started snapper-timeline.service - Timeline of Snapper Snapshots.
+      stdout: ""
     audit_logs:
       ran: true
       rc: 0

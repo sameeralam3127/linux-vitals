@@ -196,6 +196,14 @@ Two deliberate choices:
 `reboot_required.packages` is a list here; the probe prints it
 comma-separated and `reboot_facts.yml:41` splits it. Same reasoning as above.
 
+`logs.stdout` and `audit_logs.stdout` are what those probes print, and since
+[#23](https://github.com/sameeralam3127/linux-vitals/issues/23) both filter
+on the host: `logs` holds only entries at `linux_vitals_log_priority` or
+worse, newest first (`journalctl --reverse`), and `audit_logs` only lines
+matching the kernel-failure pattern, oldest first. Each holds at most
+`linux_vitals_log_max_lines` lines, the newest ones. A fixture holds the
+same, so it never carries a line the probe would not have returned.
+
 ### `healing`, `certificates`
 
 Both `null` unless their opt-in role ran.

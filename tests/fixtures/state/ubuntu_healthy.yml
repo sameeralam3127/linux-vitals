@@ -33,16 +33,12 @@ state:
       ran: true
       rc: 0
       window: 30 minutes ago
-      stdout: |-
-        2026-09-26T13:41:07+0000 web-01 systemd[1]: Started session-12.scope - Session 12 of User ubuntu.
-        2026-09-26T13:52:30+0000 web-01 CRON[20412]: pam_unix(cron:session): session opened for user root(uid=0)
-        2026-09-26T13:58:02+0000 web-01 systemd[1]: Starting apt-daily.service - Daily apt download activities...
+      stdout: ""
     audit_logs:
       ran: true
       rc: 0
       window: 7 days ago
-      stdout: |-
-        2026-09-21T03:10:44+0000 web-01 kernel: Linux version 6.8.0-45-generic (buildd@lcy02-amd64-075)
+      stdout: ""
     failed_logins:
       ran: true
       rc: 0

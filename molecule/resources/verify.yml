@@ -259,3 +259,12 @@
             journal_findings: >-
               {{ linux_vitals_result.findings
                  | selectattr('id', 'in', ['log_errors', 'kernel_install_failures']) | list }}
+
+    # ------------------------------------------------------------------
+    # Bounded journal scans (#23). Last, because it floods the journal.
+    # ------------------------------------------------------------------
+    - name: Check that a flooded journal still yields a bounded scan result
+      ansible.builtin.include_tasks: tasks/journal_bound.yml
+      vars:
+        vitals_flood_lines: 5000
+        vitals_flood_cap: 200

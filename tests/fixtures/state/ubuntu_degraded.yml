@@ -33,19 +33,18 @@ state:
     payments-api.service: {state: stopped, status: enabled}
   probes:
     logs:
+      # Entries at priority err or worse. systemd logs a unit's "Failed with
+      # result" line at warning, so it is not among them.
       ran: true
       rc: 0
       window: 30 minutes ago
       stdout: |-
-        2026-09-26T13:41:07+0000 web-01 systemd[1]: Started session-12.scope - Session 12 of User ubuntu.
         2026-09-26T13:44:19+0000 web-01 payments-api[3312]: ERROR connection refused: db-01:5432
-        2026-09-26T13:44:19+0000 web-01 systemd[1]: payments-api.service: Failed with result 'exit-code'.
     audit_logs:
       ran: true
       rc: 0
       window: 7 days ago
-      stdout: |-
-        2026-09-25T02:14:51+0000 web-01 kernel: Linux version 6.8.0-45-generic (buildd@lcy02-amd64-075)
+      stdout: ""
     failed_logins:
       ran: true
       rc: 0

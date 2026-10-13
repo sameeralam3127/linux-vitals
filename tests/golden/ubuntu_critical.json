@@ -76,7 +76,7 @@
   "latest_kernel_updated_at": "2026-09-01 04:11:07.000000000 +0000",
   "log_errors": 1,
   "log_excerpt": [
-    "2026-09-26T13:31:41+0000 web-02 systemd[1]: app.service: Failed with result 'oom-kill'."
+    "2026-09-26T13:31:40+0000 web-02 kernel: Out of memory: Killed process 20931 (java) total-vm:6123412kB"
   ],
   "log_source": "journald",
   "os": "Ubuntu 24.04",

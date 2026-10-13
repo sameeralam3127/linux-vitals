@@ -214,9 +214,10 @@ A permanent warning that everyone ignores is worse than no warning.
 log window (default 7 days). Often paired with `boot_space_low` -- a failed
 kernel install is usually a full `/boot`.
 
-**Confirm:**
+**Confirm:** this is the filter the scan runs on the host:
 ```bash
-journalctl --since "7 days ago" | grep -iE "dracut|initramfs|grub|kernel"
+journalctl --system --since "7 days ago" --output=short-iso \
+  | grep -aEi '(kernel|grub|dracut|initramfs).*(fail|error)'
 ```
 
 **Do:** re-run the failed transaction after fixing the cause, and **verify the
@@ -227,18 +228,28 @@ GRUB but has no initramfs will not boot.
 
 ### `log_errors` -- recent logs contain error entries
 
-**Means:** `journalctl` matched `error`/`failed` in the log window. Healthy
-hosts do this routinely, which is why it is `info`.
+**Means:** the journal holds entries at priority `err` or worse
+(`linux_vitals_log_priority`) in the log window. Healthy hosts log some of
+these routinely, which is why it is `info`.
+
+**Confirm:**
+```bash
+journalctl --system --since "30 minutes ago" --priority err --no-pager
+```
 
 **Do:** read the excerpt in the dashboard before acting. Escalate only if the
 count is anomalous for the host, or if the excerpt names a service you care
 about. A sudden fleet-wide jump is worth investigating; a steady background
-count is not.
+count is not. A count equal to `linux_vitals_log_max_lines` (default `2000`)
+means at least that many -- see
+[tuning the journal scans](troubleshooting.md#tuning-the-journal-scans-for-chatty-hosts).
 
-**Watch for a false positive:** Ansible logs its own module invocations to the
-journal, and lines like `argv=['systemctl', 'is-failed', ...]` match the error
-filter. If this finding appears on hosts you have just run automation against,
-set `no_target_syslog = True` in your `ansible.cfg`.
+**Watch for a false negative:** the finding counts by priority, not wording.
+A service that writes its errors to stdout or stderr without a syslog
+priority prefix is logged at `info` and is not counted; check that unit
+directly with `journalctl -u <unit>`. Warnings are not counted either,
+including systemd's `Failed with result '...'` line for a failed unit; set
+`linux_vitals_log_priority: warning` to include them.
 
 ### `failed_logins` -- recent failed login attempts
 

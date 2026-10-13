@@ -30,19 +30,18 @@ state:
     sshd.service: {state: running, status: enabled}
   probes:
     logs:
+      # Entries at priority err or worse, newest first (journalctl --reverse).
       ran: true
       rc: 0
       window: 30 minutes ago
       stdout: |-
-        2026-09-26T13:45:00+0000 ws-07 systemd[1]: Started dnf-makecache.service - dnf makecache.
-        2026-09-26T13:50:11+0000 ws-07 gnome-shell[2210]: Failed to set CRTC gamma: No such file or directory
         2026-09-26T13:51:03+0000 ws-07 pipewire[1988]: spa.alsa: hw:0: snd_pcm_open error: Device or resource busy
+        2026-09-26T13:50:11+0000 ws-07 gnome-shell[2210]: Failed to set CRTC gamma: No such file or directory
     audit_logs:
       ran: true
       rc: 0
       window: 7 days ago
-      stdout: |-
-        2026-09-25T20:12:40+0000 ws-07 kernel-install[88102]: Installing kernel 6.10.12-200.fc40.x86_64
+      stdout: ""
     failed_logins:
       ran: true
       rc: 0

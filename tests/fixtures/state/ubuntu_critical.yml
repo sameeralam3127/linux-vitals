@@ -30,20 +30,21 @@ state:
     ssh.service: {state: running, status: enabled}
   probes:
     logs:
+      # Entries at priority err or worse: the kernel logs the OOM kill at err,
+      # and systemd's "Failed with result" line is a warning, so it is absent.
       ran: true
       rc: 0
       window: 30 minutes ago
       stdout: |-
         2026-09-26T13:31:40+0000 web-02 kernel: Out of memory: Killed process 20931 (java) total-vm:6123412kB
-        2026-09-26T13:31:41+0000 web-02 systemd[1]: app.service: Failed with result 'oom-kill'.
     audit_logs:
-      # Two initramfs lines; only the first says it failed.
+      # The host-side grep keeps the initramfs line that says it failed and
+      # drops run-parts' "exited with return code 1", which does not.
       ran: true
       rc: 0
       window: 7 days ago
       stdout: |-
         2026-09-25T02:14:51+0000 web-02 update-initramfs[88210]: update-initramfs: failed for /boot/initrd.img-6.8.0-45-generic with 1.
-        2026-09-25T02:14:52+0000 web-02 run-parts[88213]: /etc/kernel/postinst.d/initramfs-tools exited with return code 1
     failed_logins:
       ran: true
       rc: 0
