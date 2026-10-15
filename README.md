@@ -323,23 +323,23 @@ flowchart TB
     subgraph FLEET["Managed hosts · SSH only, nothing installed"]
         direction LR
         DEB["<b>Debian family</b><br/>Ubuntu · Debian"]
-        RH["<b>Red Hat family</b><br/>RHEL · Rocky · Alma<br/>Fedora · Amazon Linux"]
+        RH["<b>Red Hat family</b><br/>RHEL · Rocky<br/>Alma · Fedora<br/>Amazon Linux"]
         SUSE["<b>SUSE family</b><br/>openSUSE · SLES"]
         DEB ~~~ RH ~~~ SUSE
     end
 
     subgraph ROLES["Ansible control node · roles run in order"]
         direction LR
-        SCAN["<b>vitals_scan</b><br/>read-only checks"]
+        SCAN["<b>vitals_scan</b><br/>read-only<br/>checks"]
         HEAL["<b>vitals_heal</b><br/>restarts failed units"]
         CERTS["<b>vitals_certs</b><br/>TLS certificates"]
-        REPORT["<b>vitals_report</b><br/>compare · render<br/>notify · gate"]
+        REPORT["<b>vitals_report</b><br/>render · notify<br/>compare · gate"]
         SCAN --> HEAL --> CERTS --> REPORT
     end
 
     subgraph OUT["What you get"]
         direction LR
-        HTML["<b>HTML dashboard</b><br/>one file, no CDN"]
+        HTML["<b>Dashboard</b><br/>one HTML file"]
         JSON["<b>JSON report</b><br/>schema 2.1"]
         SNAP["<b>Snapshots</b><br/>before → after"]
         MSG["<b>Notifications</b><br/>Slack · email<br/>webhook"]
