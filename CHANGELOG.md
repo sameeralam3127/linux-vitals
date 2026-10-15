@@ -93,6 +93,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   whitespace-only, or missing output, and strips the `system boot` prefix
   from normal timestamps
   ([#122](https://github.com/sameeralam3127/linux-vitals/issues/122)).
+- **A delivered email no longer fails the run**
+  ([#29](https://github.com/sameeralam3127/linux-vitals/issues/29)). Since
+  1.2.1, `notify.yml` treated the mail module's `changed` flag as proof of
+  delivery, but `community.general.mail` never sets it. Every email that
+  arrived was reported as `Email notification failed while talking to
+  <host>:<port>`, the run exited non-zero, and with email enabled the generic
+  webhook, which is sent after it, never went out. The check now looks for
+  the module's success message instead. Any other result, including a server
+  that refused some recipients, is still reported as a failure.
 
 ### Added
 
@@ -119,6 +128,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   new scan probe sets `failed_when: false`, so a new check is reviewed
   against the contract before it can reintroduce a false-clean report. See
   [docs/report-guide.md](docs/report-guide.md#status-when-a-check-could-not-run).
+
+- **Tests for notification delivery, skip conditions and `.env` precedence**
+  ([#29](https://github.com/sameeralam3127/linux-vitals/issues/29)).
+  `tests/test_notification_delivery.py` runs the real `config.yml` and
+  `notify.yml` against an HTTP listener and an SMTP sink on 127.0.0.1. It
+  asserts that an inventory or extra-vars value wins over `.env`, that `.env`
+  is used when inventory is unset (the 1.0.2 regression), that a channel set
+  in neither is skipped, and that each skip condition skips its send with
+  nothing arriving. It also checks that each Slack post, webhook post and
+  email carries what the role's templates render. The run uses a copy of the
+  collection seeded with decoy `.env` files, so a developer's real `.env` is
+  never read. No behaviour change apart from the email fix above; see
+  [docs/testing.md](docs/testing.md#notification-delivery-tests).
 
 ### Documentation
 

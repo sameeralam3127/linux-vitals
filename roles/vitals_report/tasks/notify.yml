@@ -101,7 +101,11 @@
     - notifications
 
 - name: Fail when the email notification did not send
-  # The mail module reports success by changing; on any failure it does not.
+  # community.general.mail never reports `changed`, not even after a successful
+  # send, and the failed_when: false above overwrites `failed`. Its success
+  # message is the one signal left (unchanged from 9.0.0 to 12.x). Anything
+  # else -- a failure, a crash, or a server that refused a recipient -- means
+  # the mail did not go out as asked (#29).
   ansible.builtin.fail:
     msg: >-
       Email notification failed while talking to
@@ -110,7 +114,7 @@
   when:
     - linux_vitals_email_delivery is defined
     - not (linux_vitals_email_delivery.skipped | default(false))
-    - not (linux_vitals_email_delivery.changed | default(false))
+    - linux_vitals_email_delivery.msg | default('') != 'Mail sent successfully'
   delegate_to: localhost
   run_once: true
   tags:
