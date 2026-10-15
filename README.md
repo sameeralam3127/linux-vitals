@@ -116,7 +116,7 @@ That is the whole loop. Everything below is optional.
 | **System** | CPU and platform discovery, virtualization type, uptime, last reboot, asset serial |
 | **Memory** | Usage against warning and critical thresholds |
 | **Services** | `sssd`, `systemd-journald`, and the resolved time-sync unit |
-| **Logs** | Journal errors in a configurable window, plus kernel/bootloader failures |
+| **Logs** | Journal entries at priority `err` or worse (configurable) in a bounded window, plus kernel/bootloader install failures |
 | **Kernel & boot** | Running vs. latest installed kernel, bootloader default entry, reboot-required (per distro), `/boot` free space, rescue image |
 | **Security** | SELinux, AppArmor, recent failed logins |
 | **TLS** *(opt-in)* | Certificate expiry, weak signatures, obsolete TLS versions, served-vs-on-disk mismatches |
@@ -177,7 +177,7 @@ linux_vitals_certs_enabled: false         # opt in to TLS checks
 
 Set them in `group_vars`, inventory, or with `-e`.
 
-**[Variable Reference](docs/variable-reference.md)** documents all 50 variables
+**[Variable Reference](docs/variable-reference.md)** documents every variable
 with defaults and descriptions —
 [examples/group_vars/all.yml.example](examples/group_vars/all.yml.example) is a
 copy-paste starting point with every one of them commented out.
@@ -283,6 +283,11 @@ before/after panel. Hosts with no matching baseline are marked **New** rather
 than failing the run. Step-by-step:
 [Running a maintenance window](docs/runbook.md#procedure-a-maintenance-window).
 
+Splitting a large fleet across several runs? Every shard keeps the window's
+maintenance id and sets its own `linux_vitals_snapshot_shard`, so a shard id
+reused for a different set of hosts is refused rather than silently merged
+into the comparison: [Sharding a large fleet](docs/performance.md#sharding-a-large-fleet).
+
 ---
 
 ## Running part of a check
@@ -339,7 +344,7 @@ flowchart TB
     CERTS ==>|"findings merged"| REPORT
 
     REPORT --> HTML["HTML dashboard<br/>self-contained, no CDN"]
-    REPORT --> JSON["JSON report<br/>schema 2.0"]
+    REPORT --> JSON["JSON report<br/>schema 2.1"]
     REPORT --> NOTIFY["Slack · email · webhook<br/>summary only"]
 
     classDef stage fill:#0b7285,stroke:#095c6b,color:#ffffff
@@ -355,9 +360,10 @@ Why the roles share one variable namespace, and why paths resolve from
 
 ### Consuming the JSON
 
-`reports/linux_vitals_report.json` is **schema 2.0**. Findings are objects
-(`{id, message, severity}`), not strings, and each carries a stable `id` you can
-join on — `message` wording may change between releases, ids will not.
+`reports/linux_vitals_report.json` is **schema 2.1**. Findings are objects
+(`{id, message, severity, status}`, plus a `reason` when `status` is
+`unknown`), not strings, and each carries a stable `id` you can join on —
+`message` wording may change between releases, ids will not.
 
 ---
 
