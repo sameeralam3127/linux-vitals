@@ -1,0 +1,24 @@
+---
+# Probes: SELinux mode and AppArmor status. extended_facts.yml parses them.
+- name: Collect SELinux mode
+  ansible.builtin.command:
+    argv:
+      - getenforce
+  register: linux_vitals_selinux_cmd
+  changed_when: false
+  failed_when: false
+  tags:
+    - discovery
+    - security
+
+- name: Collect AppArmor status
+  ansible.builtin.command:
+    argv:
+      - aa-status
+      - --enabled
+  register: linux_vitals_apparmor_cmd
+  changed_when: false
+  failed_when: false
+  tags:
+    - discovery
+    - security

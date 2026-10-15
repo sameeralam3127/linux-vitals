@@ -17,9 +17,10 @@ Plus `ansible-lint roles/ playbooks/ molecule/ demo/` and
 concludes about a host ([#98](https://github.com/sameeralam3127/linux-vitals/issues/98)).
 Each file in `tests/fixtures/state/` is one host's collected state, in the
 shape [state-schema.md](state-schema.md) specifies. The test runs every
-fixture through the real `vitals_scan` tasks -- `discovery.yml`,
-`reboot_facts.yml`, `services.yml`, `result.yml` and `severity.yml`, unmodified
--- and compares the per-host result object with `tests/golden/<fixture>.json`.
+fixture through the real `vitals_scan` tasks -- `discovery.yml` and the files
+it imports, `reboot_facts.yml`, `services.yml`, `result.yml` and
+`severity.yml`, unmodified -- and compares the per-host result object with
+`tests/golden/<fixture>.json`.
 All fixtures run as hosts of one `ansible-playbook` invocation, so the suite
 takes seconds.
 
@@ -70,6 +71,25 @@ one-sentence comment saying what the host represents, and give every probe
 before committing: the golden file records whatever the scan does, so a
 fixture that does not trigger what its comment claims would freeze the wrong
 thing.
+
+**Tagged runs.** The golden run flattens the tasks into one untagged play, so
+it exercises neither tags nor the role's include and import structure.
+`tests/test_tagged_scan.py` runs the same fixtures through the role itself --
+`main.yml`'s includes with `apply: tags`, `discovery.yml`'s imports -- with
+collection swapped out the same way but every task keeping its tags. A run
+that executes every scan task (untagged, or `--tags discovery,kernel,reporting`)
+must reproduce the golden files exactly, and each focused selection
+(`--tags kernel,reporting` and so on) must still build a result. Three focused
+selections do not today; each is a strict xfail that accepts only the
+undefined fact it is known to stop on, as described under *Tags* in
+[architecture.md](architecture.md).
+
+**Finding a task.** Tests that read a task's production text look it up by
+name with `tests/scan_tasks.py` (`scan_task()`, `discovery_tasks()`) rather
+than by file, so moving a task between the role's task files does not break
+them. `tests/test_scan_task_size.py` keeps each of those files at 250 lines
+or fewer, except `bootloader.yml`, a single task, which is pinned at its
+current length and may only shrink.
 
 ## Notification delivery tests
 

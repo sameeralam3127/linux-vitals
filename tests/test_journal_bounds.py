@@ -12,9 +12,9 @@ the filtering happens on the managed host and both probes are capped at
   the cap. The pipeline must still tell "nothing matched" (grep exits 1) from
   "journalctl could not read the journal", or #118's unknown path breaks.
 
-The pipeline tests run the real script from `discovery.yml` under bash, with a
-stub `journalctl` on PATH, so they need no systemd. What a real journalctl
-does with these arguments is proved by the Molecule scenarios
+The pipeline tests run the real script from `kernel_install_failures.yml` under
+bash, with a stub `journalctl` on PATH, so they need no systemd. What a real
+journalctl does with these arguments is proved by the Molecule scenarios
 (`molecule/resources/tasks/journal_bound.yml`).
 """
 from __future__ import annotations
@@ -29,10 +29,10 @@ from shutil import which
 import pytest
 import yaml
 
+from scan_tasks import scan_task, scan_tasks
 from test_discovery_facts import _run_playbook
 from test_templates import REPO_ROOT
 
-DISCOVERY_TASKS = REPO_ROOT / "roles" / "vitals_scan" / "tasks" / "discovery.yml"
 STATE_DIR = REPO_ROOT / "tests" / "fixtures" / "state"
 MOLECULE_RESOURCES = REPO_ROOT / "molecule" / "resources"
 
@@ -49,14 +49,11 @@ JOURNAL_REGISTERS = ("linux_vitals_journalctl", "linux_vitals_audit_journalctl")
 
 
 def _tasks() -> list[dict]:
-    return yaml.safe_load(DISCOVERY_TASKS.read_text(encoding="utf-8"))
+    return scan_tasks()
 
 
 def _task(name: str) -> dict:
-    for task in _tasks():
-        if task.get("name") == name:
-            return task
-    raise AssertionError(f"task {name!r} not found in {DISCOVERY_TASKS}")
+    return scan_task(name)
 
 
 # ---------------------------------------------------------------------------

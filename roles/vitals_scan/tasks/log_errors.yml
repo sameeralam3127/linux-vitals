@@ -1,0 +1,31 @@
+---
+# Probe: recent journal entries at linux_vitals_log_priority or worse, for the
+# log_errors finding. journal_facts.yml evaluates what it registers.
+- name: Collect recent systemd log errors
+  # Filtered and capped by journalctl on the host (#23): only entries at
+  # linux_vitals_log_priority or worse, and at most the newest
+  # linux_vitals_log_max_lines of them, cross to the control node. --lines
+  # takes an optional argument, so its value has to be attached with `=`.
+  # --reverse is what makes the cap keep the newest entries on every
+  # systemd: before v254, --lines with --since kept the oldest ones instead.
+  # The output is newest first; the summary below puts it back in order.
+  ansible.builtin.command:
+    argv:
+      - journalctl
+      - --system
+      - --since
+      - "{{ linux_vitals_log_window }}"
+      - --priority
+      - "{{ linux_vitals_log_priority }}"
+      - --reverse
+      - "--lines={{ linux_vitals_log_max_lines | int }}"
+      - --no-pager
+      - --output=short-iso
+  environment:
+    LC_ALL: C
+  register: linux_vitals_journalctl
+  changed_when: false
+  failed_when: false
+  when: ansible_facts['service_mgr'] == "systemd"
+  tags:
+    - discovery

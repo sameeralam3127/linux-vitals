@@ -67,7 +67,7 @@ def test_templates_coerce_before_rounding(path: Path) -> None:
 
 def test_the_two_memory_facts_are_coerced() -> None:
     # The specific regression: both are built by a set_fact template in
-    # discovery.yml and then rounded in result.yml.
+    # memory.yml (imported by discovery.yml) and then rounded in result.yml.
     result = (REPO_ROOT / "roles" / "vitals_scan" / "tasks" / "result.yml").read_text(
         encoding="utf-8"
     )

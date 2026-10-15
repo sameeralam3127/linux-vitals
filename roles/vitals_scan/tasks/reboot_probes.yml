@@ -1,0 +1,166 @@
+---
+# Probes: each distro family's own "is a reboot needed?" check. Exactly one
+# runs, chosen by os_family. extended_facts.yml picks its output and
+# reboot_facts.yml parses it.
+- name: Check if reboot is required on Debian family
+  ansible.builtin.command:
+    argv:
+      - sh
+      - -c
+      - |
+          # /run is the modern location; /var/run is a compat symlink on
+          # systemd hosts but can still be a real directory elsewhere, so both
+          # are checked. update-notifier-common (Ubuntu) and unattended-upgrades
+          # also drop a .pkgs file naming the packages that asked for a reboot.
+          marker=""
+          for candidate in /run/reboot-required /var/run/reboot-required; do
+            if [ -f "$candidate" ]; then
+              marker="$candidate"
+              break
+            fi
+          done
+
+          packages=""
+          for candidate in /run/reboot-required.pkgs /var/run/reboot-required.pkgs; do
+            if [ -f "$candidate" ] && [ -r "$candidate" ]; then
+              packages="$(
+                sort -u "$candidate" 2>/dev/null |
+                  tr -d '\r' |
+                  sed '/^[[:space:]]*$/d' |
+                  tr '\n' ',' |
+                  sed 's/,$//'
+              )"
+              break
+            fi
+          done
+
+          detail=""
+          if [ -n "$marker" ] && [ -r "$marker" ]; then
+            detail="$(head -n 1 "$marker" 2>/dev/null | tr -d '\r')"
+          fi
+
+          printf 'supported=true\n'
+          printf 'detected=%s\n' "$([ -n "$marker" ] && printf 'true' || printf 'false')"
+          printf 'source=%s\n' "$([ -n "$marker" ] && printf '%s' "$marker" || printf 'reboot-required-file')"
+          printf 'detail=%s\n' "$detail"
+          printf 'packages=%s\n' "$packages"
+  register: linux_vitals_debian_reboot_cmd
+  changed_when: false
+  failed_when: false
+  when: ansible_facts['os_family'] == 'Debian'
+  tags:
+    - discovery
+    - kernel
+
+- name: Check if reboot is recommended on RedHat family
+  ansible.builtin.command:
+    argv:
+      - sh
+      - -c
+      - |
+          # `needs-restarting -r` exits 0 (no reboot needed) or 1 (reboot
+          # needed); anything else means the check itself failed and must not
+          # be read as "no reboot needed". The standalone binary ships in
+          # dnf-utils/yum-utils; on dnf5 hosts (Fedora 41+) the same check is
+          # only reachable as a dnf subcommand.
+          probe_output=""
+          probe_rc=0
+          probe_source=""
+
+          if command -v needs-restarting >/dev/null 2>&1; then
+            probe_output="$(needs-restarting -r 2>&1)"
+            probe_rc=$?
+            probe_source="needs-restarting"
+          elif command -v dnf >/dev/null 2>&1 &&
+               dnf needs-restarting --help >/dev/null 2>&1; then
+            # The --help gate matters: dnf4 without the plugin exits 1 for an
+            # unknown command, which is exactly the "reboot needed" code.
+            probe_output="$(dnf --quiet needs-restarting --reboothint 2>&1)"
+            probe_rc=$?
+            probe_source="dnf-needs-restarting"
+          fi
+
+          if [ -z "$probe_source" ]; then
+            printf 'supported=false\n'
+            printf 'detected=false\n'
+            printf 'source=needs-restarting-missing\n'
+            printf 'detail=needs-restarting is not installed (dnf-utils/yum-utils)\n'
+            printf 'packages=\n'
+            exit 0
+          fi
+
+          detail="$(printf '%s' "$probe_output" | sed '/^[[:space:]]*$/d' | tail -n 1)"
+
+          case "$probe_rc" in
+            0)
+              printf 'supported=true\n'
+              printf 'detected=false\n'
+              ;;
+            1)
+              printf 'supported=true\n'
+              printf 'detected=true\n'
+              ;;
+            *)
+              printf 'supported=false\n'
+              printf 'detected=false\n'
+              detail="$probe_source exited $probe_rc: $detail"
+              ;;
+          esac
+          printf 'source=%s\n' "$probe_source"
+          printf 'detail=%s\n' "$detail"
+          printf 'packages=\n'
+  register: linux_vitals_redhat_reboot_cmd
+  changed_when: false
+  failed_when: false
+  when: ansible_facts['os_family'] == 'RedHat'
+  tags:
+    - discovery
+    - kernel
+
+- name: Check if reboot is recommended on SUSE family
+  ansible.builtin.command:
+    argv:
+      - sh
+      - -c
+      - |
+          # zypper 1.14.44+ answers this directly: exit 0 means no reboot is
+          # needed, 102 (ZYPPER_EXIT_INF_REBOOT_NEEDED) means one is. Older
+          # zypper rejects the subcommand, so fall back to the marker files
+          # written by the zypper plugin / transactional-update.
+          if command -v zypper >/dev/null 2>&1; then
+            zypper --non-interactive needs-rebooting >/dev/null 2>&1
+            zypper_rc=$?
+            case "$zypper_rc" in
+              0)
+                printf 'supported=true\ndetected=false\nsource=zypper-needs-rebooting\ndetail=\npackages=\n'
+                exit 0
+                ;;
+              102)
+                printf 'supported=true\ndetected=true\nsource=zypper-needs-rebooting\n'
+                printf 'detail=zypper reports core libraries or the kernel were updated\n'
+                printf 'packages=\n'
+                exit 0
+                ;;
+            esac
+          fi
+
+          marker=""
+          for candidate in /run/reboot-needed /var/run/reboot-needed /run/reboot-required /var/run/reboot-required; do
+            if [ -f "$candidate" ]; then
+              marker="$candidate"
+              break
+            fi
+          done
+
+          printf 'supported=true\n'
+          printf 'detected=%s\n' "$([ -n "$marker" ] && printf 'true' || printf 'false')"
+          printf 'source=%s\n' "$([ -n "$marker" ] && printf '%s' "$marker" || printf 'reboot-needed-file')"
+          printf 'detail=\n'
+          printf 'packages=\n'
+  register: linux_vitals_suse_reboot_cmd
+  changed_when: false
+  failed_when: false
+  when: ansible_facts['os_family'] == 'Suse'
+  tags:
+    - discovery
+    - kernel

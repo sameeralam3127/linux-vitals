@@ -22,6 +22,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   at `info`. Set `linux_vitals_log_priority: warning` to count warnings
   again. The finding id, its severity and the report shape are unchanged.
 
+- `vitals_scan`'s 1,048-line `discovery.yml` is split into one task file per
+  concern, which `discovery.yml` imports in order
+  ([#27](https://github.com/sameeralam3127/linux-vitals/issues/27)). No
+  behaviour change: the same tasks run in the same order with the same tags
+  and conditions, and no golden file changed. The layout, and what each file
+  has to run after, is in
+  [docs/architecture.md](docs/architecture.md#vitals_scan-task-layout).
+
 ### Fixed
 
 - **Self-healing no longer reports a service `Fixed` before the restart has

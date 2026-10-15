@@ -1,0 +1,30 @@
+---
+# Whether the bootloader's default entry boots the latest installed kernel.
+# Reads facts extended_facts.yml sets, and the second task reads the first's.
+- name: Finalize bootloader default-kernel match fact
+  ansible.builtin.set_fact:
+    linux_vitals_bootloader_default_matches_latest: >-
+      {{
+        linux_vitals_bootloader_default_status == 'resolved'
+        and linux_vitals_bootloader_default_kernel == linux_vitals_latest_installed_kernel
+      }}
+  tags:
+    - discovery
+    - kernel
+
+- name: Finalize bootloader validation message
+  ansible.builtin.set_fact:
+    linux_vitals_bootloader_validation_message: >-
+      {{
+        'Default boot entry selects the latest installed kernel'
+        if linux_vitals_bootloader_default_status == 'resolved'
+        and linux_vitals_bootloader_default_matches_latest
+        else 'Default boot entry does not select the latest installed kernel'
+        if linux_vitals_bootloader_default_status == 'resolved'
+        else 'Default boot entry detected but the kernel could not be resolved'
+        if linux_vitals_bootloader_default_status == 'entry-only'
+        else 'Bootloader default kernel validation is not available on this host'
+      }}
+  tags:
+    - discovery
+    - kernel

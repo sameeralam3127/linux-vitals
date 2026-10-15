@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import yaml
 
+from scan_tasks import discovery_tasks
 from test_self_healing import _dump_task, _run_playbook
 from test_templates import REPO_ROOT
 
@@ -16,7 +17,8 @@ def _named(tasks, name):
 
 
 def test_scan_and_heal_share_the_service_status_task(tmp_path):
-    scan = yaml.safe_load((SCAN_TASKS / "discovery.yml").read_text(encoding="utf-8"))
+    # Every task discovery runs, across the files discovery.yml imports.
+    scan = discovery_tasks()
     heal = yaml.safe_load(HEAL_MAIN.read_text(encoding="utf-8"))[0]["block"]
     shared = yaml.safe_load((SCAN_TASKS / "services.yml").read_text(encoding="utf-8"))
 

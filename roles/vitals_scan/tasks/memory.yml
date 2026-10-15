@@ -1,0 +1,29 @@
+---
+# RAM usage from ansible_facts. extended_facts.yml reads
+# linux_vitals_ram_used_pct, so this runs before it.
+- name: Evaluate base memory health
+  ansible.builtin.set_fact:
+    linux_vitals_memory_total_mb: "{{ ansible_facts.memtotal_mb | float }}"
+    linux_vitals_memory_available_mb: >-
+      {{ ansible_facts.memavailable_mb | default(ansible_facts.memfree_mb, true) | float }}
+    linux_vitals_memory_used_mb: >-
+      {{
+        (ansible_facts.memtotal_mb | float)
+        - (ansible_facts.memavailable_mb | default(ansible_facts.memfree_mb, true) | float)
+      }}
+    linux_vitals_ram_used_pct: >-
+      {{
+        (
+          (
+            (
+              (ansible_facts.memtotal_mb | float)
+              - (ansible_facts.memavailable_mb | default(ansible_facts.memfree_mb, true) | float)
+            ) / (ansible_facts.memtotal_mb | float)
+          ) * 100
+        ) | round(1)
+      }}
+  tags:
+    - discovery
+    - kernel
+    - security
+    - boot

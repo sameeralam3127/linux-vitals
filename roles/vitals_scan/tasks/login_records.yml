@@ -1,0 +1,27 @@
+---
+# Probes: failed logins (lastb, from btmp) and the last boot (who -b, from
+# utmp). extended_facts.yml parses what they register.
+- name: Collect recent failed login attempts
+  ansible.builtin.command:
+    argv:
+      - sh
+      - -c
+      - "lastb -n 5 2>/dev/null"
+  register: linux_vitals_failed_login_attempts_cmd
+  changed_when: false
+  failed_when: false
+  tags:
+    - discovery
+    - security
+
+- name: Collect last reboot information
+  ansible.builtin.command:
+    argv:
+      - who
+      - -b
+  register: linux_vitals_last_reboot_cmd
+  changed_when: false
+  failed_when: false
+  tags:
+    - discovery
+    - boot

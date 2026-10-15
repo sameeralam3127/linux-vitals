@@ -1,11 +1,13 @@
-"""Tests for the discovery-fact bug fixes in `vitals_scan/tasks/discovery.yml`.
+"""Tests for the discovery-fact bug fixes in `vitals_scan`'s discovery tasks.
 
 Each test extracts the exact Jinja2 expression for the fact under test out
 of the real task YAML (rather than duplicating it by hand) and renders it
 through `ansible-playbook` with a fresh, minimal `set_fact` task, seeded
 with just the input facts that expression depends on. This keeps the tests
 tied to the production template text without requiring the rest of
-discovery.yml's many prerequisite command results.
+discovery's many prerequisite command results. Tasks are found by name
+(`scan_tasks.scan_task`), whichever file under `roles/vitals_scan/tasks/`
+holds them.
 
 See CHANGELOG.md for the bugs these facts fix:
 - `selinux_status` was reported as an empty string on Debian hosts (no
@@ -21,20 +23,12 @@ from pathlib import Path
 
 import yaml
 
+from scan_tasks import scan_task
 from test_templates import REPO_ROOT, _ansible_playbook_bin, _base_env
-
-DISCOVERY_TASKS = REPO_ROOT / "roles" / "vitals_scan" / "tasks" / "discovery.yml"
-
-
-def _load_discovery_tasks() -> list[dict]:
-    return yaml.safe_load(DISCOVERY_TASKS.read_text(encoding="utf-8"))
 
 
 def _extract_set_fact_value(task_name: str, fact_name: str) -> str:
-    for task in _load_discovery_tasks():
-        if task.get("name") == task_name:
-            return task["ansible.builtin.set_fact"][fact_name]
-    raise AssertionError(f"task {task_name!r} not found in {DISCOVERY_TASKS}")
+    return scan_task(task_name)["ansible.builtin.set_fact"][fact_name]
 
 
 def _run_playbook(tmp_path: Path, tasks: list[dict]) -> dict:

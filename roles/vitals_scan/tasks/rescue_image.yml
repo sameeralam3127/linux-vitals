@@ -1,0 +1,14 @@
+---
+# Probe: rescue images in /boot. extended_facts.yml parses it.
+- name: Collect rescue image presence
+  ansible.builtin.command:
+    argv:
+      - sh
+      - -c
+      - "find /boot -maxdepth 1 \\( -name '*rescue*' -o -name 'initramfs-*rescue*' \\) 2>/dev/null | head -n 5"
+  register: linux_vitals_rescue_image_cmd
+  changed_when: false
+  failed_when: false
+  tags:
+    - discovery
+    - boot

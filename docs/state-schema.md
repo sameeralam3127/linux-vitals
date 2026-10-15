@@ -144,7 +144,7 @@ evaluator policy, so both values are recorded and neither is chosen here.
 Entries from `ansible_facts.mounts` whose `mount` is `/boot` or `/boot/efi`,
 **in the order the facts report them**, with only the three keys any finding
 reads. The current preference for `/boot` over `/boot/efi`
-(`discovery.yml:907`) is a policy and stays in the evaluator, so both are
+(`boot_space.yml:6`) is a policy and stays in the evaluator, so both are
 kept when both exist. An empty list means neither is a separate mount — which
 is a real observation, not a missing probe.
 
@@ -235,15 +235,15 @@ each is a judgement:
 
 | Excluded | Currently computed at | Belongs to |
 | --- | --- | --- |
-| `ram_used_pct`, `ram_status` | `discovery.yml:667`, `:704` | evaluate |
-| `boot_free_pct`, `boot_space_status` | `discovery.yml:943`, `:955` | evaluate |
-| `latest_kernel_selected` | `discovery.yml:757` | evaluate |
-| `apparmor_status` (`enabled`/`disabled`) | `discovery.yml:829` | evaluate |
-| `bootloader_default_matches_latest` | `discovery.yml:879` | evaluate |
+| `ram_used_pct`, `ram_status` | `memory.yml:14`, `extended_facts.yml:7` | evaluate |
+| `boot_free_pct`, `boot_space_status` | `boot_space.yml:40`, `:52` | evaluate |
+| `latest_kernel_selected` | `extended_facts.yml:60` | evaluate |
+| `apparmor_status` (`enabled`/`disabled`) | `extended_facts.yml:132` | evaluate |
+| `bootloader_default_matches_latest` | `bootloader_facts.yml:6` | evaluate |
 | `reboot_required` (the decision, not the probe) | `reboot_facts.yml:58` | evaluate |
 | `service_status` three-key map | `services.yml` | evaluate |
 | every threshold and severity | `vitals_scan/defaults/main.yml` | rules file |
-| `uptime_readable`, `platform_type`, `log_excerpt` | `discovery.yml:715`, `:724`, `:703` | render |
+| `uptime_readable`, `platform_type`, `log_excerpt` | `extended_facts.yml:27`, `:18`, `journal_facts.yml:39` | render |
 
 Excerpts are a render concern: the state document holds full `stdout`, and
 truncation to five lines is presentation.

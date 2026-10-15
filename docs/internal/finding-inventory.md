@@ -6,6 +6,12 @@ refactor, tracked from
 should be. Nothing here is a proposal; where the current behaviour looks
 wrong it is recorded in [NOTES](#notes) and left alone.
 
+Every `discovery.yml:<line>` below is a line in that commit's single
+`discovery.yml`. [#27](https://github.com/sameeralam3127/linux-vitals/issues/27)
+has since split that file into one task file per concern without changing
+any task; [architecture.md](../architecture.md#vitals_scan-task-layout) says
+which file each task now lives in.
+
 Purpose: before anything is moved, know exactly what every finding reads,
 where its severity is decided, and which files have to agree for it to fire.
 

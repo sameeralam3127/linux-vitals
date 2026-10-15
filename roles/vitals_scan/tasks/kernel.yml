@@ -1,0 +1,51 @@
+---
+# Probe: the latest installed kernel. extended_facts.yml parses it and
+# compares it with the running kernel.
+- name: Collect latest installed kernel version
+  ansible.builtin.command:
+    argv:
+      - sh
+      - -c
+      - |
+          # A /lib/modules directory left behind by an interrupted package
+          # removal (no modules.dep, no matching image in /boot) is not an
+          # installed kernel -- counting it as "latest" produces a permanent
+          # false "latest installed kernel is not running" finding, so only
+          # directories that still look like a real kernel are considered.
+          list_installed_kernels() {
+            for module_dir in /lib/modules/*; do
+              [ -d "$module_dir" ] || continue
+              version="${module_dir##*/}"
+              if [ -f "$module_dir/modules.dep" ] ||
+                 [ -f "/boot/vmlinuz-$version" ] ||
+                 [ -f "/boot/vmlinuz-$version.efi" ] ||
+                 [ -f "/boot/kernel-$version" ]; then
+                printf '%s\n' "$version"
+              fi
+            done
+          }
+
+          latest="$(list_installed_kernels | sort -V | tail -n 1)"
+          filtered=true
+          if [ -z "$latest" ]; then
+            # Nothing passed the filter (minimal image, container, unusual
+            # layout) -- fall back to the unfiltered listing rather than
+            # reporting no installed kernel at all.
+            latest="$(ls -1 /lib/modules 2>/dev/null | sort -V | tail -n 1)"
+            filtered=false
+          fi
+
+          updated_at=""
+          if [ -n "$latest" ] && [ -d "/lib/modules/$latest" ]; then
+            updated_at="$(stat -c '%y' "/lib/modules/$latest" 2>/dev/null || true)"
+          fi
+
+          printf 'latest=%s\n' "$latest"
+          printf 'updated_at=%s\n' "$updated_at"
+          printf 'filtered=%s\n' "$filtered"
+  register: linux_vitals_latest_kernel_cmd
+  changed_when: false
+  failed_when: false
+  tags:
+    - discovery
+    - kernel

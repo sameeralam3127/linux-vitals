@@ -1,0 +1,70 @@
+---
+# The /boot (or /boot/efi) mount and its free space, from ansible_facts.mounts.
+# The second task reads the mount the first one picks.
+- name: Build boot partition facts
+  ansible.builtin.set_fact:
+    linux_vitals_boot_mount: >-
+      {{
+        (
+          (
+            ansible_facts['mounts'] | default([])
+            | selectattr('mount', 'equalto', '/boot')
+            | list
+          )
+          + (
+            ansible_facts['mounts'] | default([])
+            | selectattr('mount', 'equalto', '/boot/efi')
+            | list
+          )
+        )
+        | first
+        | default({}, true)
+      }}
+  tags:
+    - discovery
+    - boot
+
+- name: Finalize boot space facts
+  ansible.builtin.set_fact:
+    linux_vitals_boot_mount_point: "{{ linux_vitals_boot_mount.mount | default('not-mounted') }}"
+    linux_vitals_boot_free_mb: >-
+      {{
+        (linux_vitals_boot_mount.size_available | default(0) | float / 1048576)
+        | round(1)
+      }}
+    linux_vitals_boot_total_mb: >-
+      {{
+        (linux_vitals_boot_mount.size_total | default(0) | float / 1048576)
+        | round(1)
+      }}
+    linux_vitals_boot_free_pct: >-
+      {{
+        (
+          (
+            (
+              linux_vitals_boot_mount.size_available | default(0) | float
+            ) / (
+              linux_vitals_boot_mount.size_total | default(1) | float
+            )
+          ) * 100
+        ) | round(1)
+      }}
+    linux_vitals_boot_space_status: >-
+      {{
+        'Not Available'
+        if linux_vitals_boot_mount.mount is not defined
+        else 'Low'
+        if (
+          (
+            (
+              linux_vitals_boot_mount.size_available | default(0) | float
+            ) / (
+              linux_vitals_boot_mount.size_total | default(1) | float
+            ) * 100
+          ) | round(1)
+        ) < linux_vitals_boot_warning_threshold | float
+        else 'Healthy'
+      }}
+  tags:
+    - discovery
+    - boot

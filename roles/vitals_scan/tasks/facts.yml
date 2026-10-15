@@ -1,0 +1,54 @@
+---
+# Platform and service facts, and the distro context derived from them.
+# Everything after this reads ansible_facts. The second set_fact reads what
+# the first one sets, so they stay two tasks, in this order.
+- name: Refresh platform facts for health evaluation
+  ansible.builtin.setup:
+    gather_subset:
+      - min
+      - hardware
+      - network
+      - virtual
+  tags:
+    - discovery
+
+- name: Collect service facts
+  ansible.builtin.service_facts:
+  tags:
+    - discovery
+
+- name: Define distro-aware health check context
+  ansible.builtin.set_fact:
+    linux_vitals_service_names: "{{ ansible_facts.services.keys() | list }}"
+    linux_vitals_pkg_manager: >-
+      {{ 'apt' if ansible_facts['os_family'] == 'Debian' else
+         'zypper' if ansible_facts['os_family'] == 'Suse' else
+         'dnf' }}
+    linux_vitals_log_source: >-
+      {{ 'journald' if ansible_facts['service_mgr'] == 'systemd' else 'system logs' }}
+    linux_vitals_time_sync_candidates:
+      - chronyd.service
+      - chronyd
+      - chrony.service
+      - chrony
+      - ntpd.service
+      - ntpd
+      - ntp.service
+      - ntp
+      - systemd-timesyncd.service
+      - systemd-timesyncd
+  tags:
+    - discovery
+
+- name: Resolve time synchronization service
+  ansible.builtin.set_fact:
+    linux_vitals_time_sync_service: >-
+      {{
+        (
+          linux_vitals_time_sync_candidates
+          | select('in', linux_vitals_service_names) | list
+          | first
+        ) | default('absent', true)
+      }}
+  tags:
+    - discovery

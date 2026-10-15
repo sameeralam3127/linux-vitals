@@ -150,15 +150,91 @@ to modify.
    - `notify.yml` sends the same summary through whichever channels are
      configured.
 
-Today collection and evaluation both happen inside step 1: `discovery.yml`
-gathers raw state and also decides several statuses from it (RAM, boot space,
-kernel selection, AppArmor, bootloader match, reboot fallback). The raw state
+Today collection and evaluation both happen inside step 1: the discovery tasks
+gather raw state and also decide several statuses from it (RAM, boot space,
+kernel selection, AppArmor, bootloader match, reboot fallback); see
+[the task layout](#vitals_scan-task-layout) for where. The raw state
 on its own is specified as a separate, independently versioned document,
 `state_schema: 1`, in [state-schema.md](state-schema.md). Nothing emits it
 yet; it is the contract the collection/evaluation split
 ([#98](https://github.com/sameeralam3127/linux-vitals/issues/98)) builds
 against. What step 1 produces for a given state is pinned by the golden-file
 tests described in [testing.md](testing.md#golden-file-tests).
+
+## `vitals_scan` task layout
+
+`vitals_scan/tasks/main.yml` is three tasks: the check-mode gate, an
+`include_tasks` of `discovery.yml`, and an `include_tasks` of `result.yml`,
+which turns the discovered facts into findings and `linux_vitals_result`.
+
+`discovery.yml` holds no checks of its own. It is the ordered list of the
+files that do, one per concern, each brought in with `import_tasks`
+([#27](https://github.com/sameeralam3127/linux-vitals/issues/27)). An import
+is inlined when `discovery.yml` loads, so its tasks run exactly as if they
+were written in `discovery.yml`: same order, same tags and conditions, and no
+extra task per host. Anything written on an import itself, a tag or a `when`,
+would be passed on to every task in its file, which is why none of the
+imports carry any. `reboot_facts.yml` and `services.yml` predate the split
+and are still dynamic `include_tasks`; `vitals_heal` also runs `services.yml`
+after a restart.
+
+The files run in three phases, in this order:
+
+| # | File | What it does | Tags besides `discovery` |
+| --- | --- | --- | --- |
+| 1 | `facts.yml` | `setup`, `service_facts`, the distro context, the time-sync unit | -- |
+| 2 | `log_errors.yml` | probe: journal entries at `linux_vitals_log_priority` or worse | -- |
+| 3 | `login_records.yml` | probes: `lastb`, `who -b` | `security`; `boot` |
+| 4 | `kernel.yml` | probe: latest installed kernel | `kernel` |
+| 5 | `bootloader.yml` | probe: bootloader default entry | `kernel` |
+| 6 | `reboot_probes.yml` | probes: the Debian, RedHat and SUSE reboot checks (one runs) | `kernel` |
+| 7 | `security.yml` | probes: `getenforce`, `aa-status` | `security` |
+| 8 | `rescue_image.yml` | probe: rescue images in `/boot` | `boot` |
+| 9 | `kernel_install_failures.yml` | probe: kernel/bootloader failures in the journal | `kernel` |
+| 10 | `journal_facts.yml` | whether each journal probe could read; counts and excerpts | `kernel`; `kernel`, `security`, `boot` |
+| 11 | `memory.yml` | RAM usage | `kernel`, `security`, `boot` |
+| 12 | `extended_facts.yml` | parses every probe into `linux_vitals_*` facts | `kernel`, `security`, `boot` |
+| 13 | `reboot_facts.yml` (include) | whether a reboot is required, and why | `kernel` |
+| 14 | `bootloader_facts.yml` | whether the default entry boots the latest kernel | `kernel` |
+| 15 | `boot_space.yml` | the `/boot` mount and its free space | `boot` |
+| 16 | `services.yml` (include) | the required-service status map | -- |
+
+Where a file holds tasks with different tags, they are separated by `;` in
+the order of the tasks. Every task also carries `discovery`, applied by
+`main.yml` (see [Tags](#tags)).
+
+**The order is load-bearing.** What each step needs to have run first:
+
+- **Facts (1)** come first: everything after reads `ansible_facts`. Inside
+  `facts.yml`, the time-sync unit is resolved from the service list the
+  previous task builds.
+- **Probes (2-9)** are read-only commands that register raw output and
+  derive nothing. They read only `ansible_facts` and role variables, never
+  another probe's result, so their relative order is not a dependency; it is
+  kept as it was before the split.
+- **Derived facts (10-16)** each read facts set above them:
+  - `journal_facts.yml` reads both journal probes (2 and 9).
+  - `extended_facts.yml` reads `linux_vitals_ram_used_pct` from
+    `memory.yml` and the output of probes 3 to 8.
+  - `reboot_facts.yml` reads `linux_vitals_reboot_probe_output` and
+    `linux_vitals_latest_kernel_selected`, and `bootloader_facts.yml` reads
+    `linux_vitals_bootloader_default_*` and
+    `linux_vitals_latest_installed_kernel`. `extended_facts.yml` sets all of
+    them, so both run after it.
+  - `services.yml` reads `linux_vitals_time_sync_service` from `facts.yml`.
+  - `result.yml`, from `main.yml`, reads all of the above.
+- **A `set_fact` cannot read a fact it sets itself.** Every value in the
+  task is templated before any is set. So a fact that needs another fact is
+  set by a later task: the two `set_fact` tasks in `facts.yml`, `memory.yml` before
+  `extended_facts.yml`, the two in `bootloader_facts.yml` and in
+  `boot_space.yml`, and the three in `reboot_facts.yml`. Merging any of these
+  pairs into one task breaks it.
+
+A new check belongs in its own file, imported from `discovery.yml` at the
+point its inputs exist. `tests/test_scan_task_size.py` fails if a task file
+in the role grows past 250 lines. The one exception is `bootloader.yml`,
+whose single task embeds a 287-line shell script; it is pinned at its
+current length.
 
 ## The finding object, and the finding contract
 
@@ -285,14 +361,34 @@ snapshots it does not overwrite.
 ## Tags
 
 `vitals_scan` and `vitals_report`'s task files are included with
-`include_tasks: ... apply: tags: [...]`, which applies a default tag to
-every task in the included file that doesn't already declare its own. This
-means, for example, that all of `discovery.yml` picks up the `discovery`
-tag automatically, while specific tasks additionally carry `kernel`,
-`security`, or `boot` so `--tags kernel` (etc.) works without re-running
-the whole scan. The `always` tag on `vitals_report`'s `config.yml` ensures
-notification configuration loads even when you run a narrowly-tagged
-subset.
+`include_tasks: ... apply: tags: [...]`. The `tags` on the include decide
+whether the file is loaded at all, and are not inherited; `apply: tags` adds
+its tags to every task in the file, alongside the task's own. So every
+discovery task, whichever file `discovery.yml` imports it from, carries
+`discovery`, while specific tasks additionally carry `kernel`, `security`, or
+`boot` so `--tags kernel` (etc.) runs a slice instead of the whole scan. The
+`always` tag on `vitals_report`'s `config.yml` ensures notification
+configuration loads even when you run a narrowly-tagged subset.
+
+A tagged run has only the facts set by tasks that ran. A task that reads a
+fact set by a task without the same tag fails on an undefined variable, which
+is the bug [#16](https://github.com/sameeralam3127/linux-vitals/pull/16) fixed
+for the bootloader facts. `tests/test_tagged_scan.py` runs the role over the
+golden fixtures under each selection the docs suggest, and three of them stop
+on exactly this today. They predate the #27 split, which left them alone
+because fixing them changes behaviour; the test pins where each one stops:
+
+- `--tags kernel,reporting` stops in `journal_facts.yml`, which reads
+  `linux_vitals_journalctl`, registered by `log_errors.yml`, tagged
+  `discovery` only.
+- `--tags security,reporting` and `--tags boot,reporting` stop in
+  `result.yml`, which reads `linux_vitals_service_status` from `services.yml`,
+  tagged `discovery` only. On ansible-core 2.16 they stop earlier, in
+  `extended_facts.yml`, on `linux_vitals_bootloader_default_cmd`, which only
+  the `kernel`-tagged bootloader probe registers.
+
+Adding `discovery` to a selection runs the whole scan, and works:
+`--tags discovery,kernel,reporting`.
 
 ## Fact cache lifetime
 

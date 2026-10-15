@@ -7,13 +7,12 @@ from pathlib import Path
 from shutil import which
 
 import pytest
-import yaml
 
+from scan_tasks import discovery_tasks
 from test_templates import REPO_ROOT, _ansible_playbook_bin, _base_env
 
 
 REBOOT_PLAYBOOK = REPO_ROOT / "tests" / "fixtures" / "reboot_detection.yml"
-SCAN_TASKS = REPO_ROOT / "roles" / "vitals_scan" / "tasks"
 
 # The discovery probes read fixed absolute paths on the managed host; rewriting
 # those roots lets the real script run against a synthetic /boot layout here.
@@ -82,10 +81,9 @@ def test_unusable_distro_check_falls_back_to_kernel_comparison(tmp_path: Path) -
 
 
 def _discovery_scripts() -> dict[str, str]:
-    tasks = yaml.safe_load((SCAN_TASKS / "discovery.yml").read_text(encoding="utf-8"))
     return {
         task["name"]: task["ansible.builtin.command"]["argv"][2]
-        for task in tasks
+        for task in discovery_tasks()
         if "ansible.builtin.command" in task
         and task["ansible.builtin.command"].get("argv", [])[:2] == ["sh", "-c"]
     }

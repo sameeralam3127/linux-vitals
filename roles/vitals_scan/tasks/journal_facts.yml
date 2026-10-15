@@ -1,0 +1,58 @@
+---
+# Evaluate both journal probes (log_errors.yml, kernel_install_failures.yml):
+# whether each could be read, and a count and an excerpt for each. Both
+# probes have to have run first.
+- name: Evaluate journal probe availability
+  ansible.builtin.set_fact:
+    linux_vitals_journal_checks: >-
+      {{ linux_vitals_journal_checks | default({}) | combine({item.id: reason | default('', true) | trim}) }}
+  vars:
+    reason: >-
+      {% if ansible_facts['service_mgr'] != 'systemd' %}
+      no systemd journal (service manager: {{ ansible_facts['service_mgr'] }})
+      {% elif linux_vitals_log_max_lines | int < 1 %}
+      linux_vitals_log_max_lines is {{ linux_vitals_log_max_lines }}, so no journal lines were read; set it to 1 or more
+      {% elif item.probe.rc | default(1) | int != 0 %}
+      journalctl exited {{ item.probe.rc | default('unknown') }}:
+      {{ item.probe.stderr | default(item.probe.msg | default('journal unavailable'), true) | trim }}
+      {% elif 'not seeing messages from other users' in (item.probe.stderr | default('')) %}
+      system journal not readable by automation
+      {% endif %}
+  loop:
+    - id: log_errors
+      probe: "{{ linux_vitals_journalctl }}"
+    - id: kernel_install_failures
+      probe: "{{ linux_vitals_audit_journalctl }}"
+  loop_control:
+    label: "{{ item.id }}"
+  tags:
+    - discovery
+    - kernel
+
+- name: Summarise journal scans as counts and excerpts
+  # Only a count and up to five lines are kept per scan (#23). The matched
+  # lines live in task vars, which end with this task, so they are never kept
+  # as host facts. Both probes are capped on the host, so each count stops at
+  # linux_vitals_log_max_lines.
+  ansible.builtin.set_fact:
+    linux_vitals_log_errors: "{{ log_entries | length }}"
+    linux_vitals_log_excerpt: "{{ log_entries[:5] }}"
+    linux_vitals_kernel_install_failures: "{{ kernel_failures | length }}"
+    linux_vitals_kernel_install_failure_excerpt: "{{ kernel_failures[:5] }}"
+  vars:
+    # Every line journalctl printed is already at the configured priority.
+    # Count each entry once: skip blank lines, the space-indented continuation
+    # lines of a multi-line message, and journalctl's own "-- No entries --"
+    # and "-- Boot ... --" markers. No backslash in the pattern, so it reads
+    # the same however a core escapes Jinja string literals. The probe ran
+    # with --reverse, so reverse again to get the entries oldest first.
+    log_entries: >-
+      {{ linux_vitals_journalctl.stdout | default('') | regex_findall('(?m)^(?! |-- ).+$') | reverse | list }}
+    # The host-side grep printed matching lines only.
+    kernel_failures: >-
+      {{ linux_vitals_audit_journalctl.stdout_lines | default([]) | reject('equalto', '') | list }}
+  tags:
+    - discovery
+    - kernel
+    - security
+    - boot

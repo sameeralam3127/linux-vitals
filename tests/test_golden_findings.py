@@ -3,9 +3,9 @@
 Each fixture in `tests/fixtures/state/` is one host's collected state, in the
 shape `docs/state-schema.md` specifies (`state_schema: 1`). These tests run
 that state through the **real, unmodified** scan tasks -- every set_fact in
-`discovery.yml`, `reboot_facts.yml`, `services.yml`, `result.yml` and
-`severity.yml` -- and compare the per-host result object against a snapshot in
-`tests/golden/`.
+`discovery.yml` and the files it imports, `reboot_facts.yml`, `services.yml`,
+`result.yml` and `severity.yml` -- and compare the per-host result object
+against a snapshot in `tests/golden/`.
 
 Only the collection tasks are replaced: `setup` and `service_facts` become one
 `set_fact` of `ansible_facts`, and each `command` probe becomes a `set_fact`
@@ -53,7 +53,7 @@ SCAN_DEFAULTS = REPO_ROOT / "roles" / "vitals_scan" / "defaults" / "main.yml"
 
 UPDATE_GOLDEN = os.environ.get("LINUX_VITALS_UPDATE_GOLDEN") == "1"
 
-# Every registered probe in discovery.yml, mapped to the state-schema probe
+# Every registered probe in the discovery tasks, mapped to the state-schema probe
 # that feeds it. The three reboot probes share one schema entry: exactly one
 # of them runs, chosen by os_family.
 PROBE_FOR_REGISTER = {
@@ -73,7 +73,7 @@ PROBE_FOR_REGISTER = {
 
 # The key=value blocks the shell probes print, in the order they print them.
 # The schema stores these parsed; the adapter prints them back so the real
-# regex_findall parsing in discovery.yml and reboot_facts.yml still runs.
+# regex_findall parsing in extended_facts.yml and reboot_facts.yml still runs.
 KEY_VALUE_PROBES = {
     "installed_kernels": ["latest", "updated_at", "filtered"],
     "bootloader": ["supported", "source", "default_entry", "default_kernel", "status"],
@@ -223,6 +223,20 @@ def _adapt(task: dict, source: Path) -> list[dict]:
         included = TASKS_DIR / task[module]
         assert included.is_file(), f"{source.name} includes missing {included}"
         return [dict(task, **{module: str(included)})]
+    if module == "ansible.builtin.import_tasks":
+        # A static import is inlined where it stands, which is what Ansible
+        # does with it. An import would pass its own tags or `when` on to every
+        # task it imports; none carries any, and one that does has to be taught
+        # here rather than dropped.
+        imported = TASKS_DIR / task[module]
+        assert imported.is_file(), f"{source.name} imports missing {imported}"
+        extra = sorted(set(task) - {"name", module})
+        assert not extra, f"{source.name}: import {name!r} carries {extra}, which _adapt() does not apply"
+        return [
+            adapted
+            for imported_task in yaml.safe_load(imported.read_text(encoding="utf-8"))
+            for adapted in _adapt(imported_task, imported)
+        ]
     raise AssertionError(
         f"{source.name}: task {name!r} uses {module}, which the golden adapter does not "
         "handle. Teach _adapt() about it rather than letting the golden tests skip it."

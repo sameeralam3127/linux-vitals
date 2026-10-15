@@ -1,0 +1,173 @@
+---
+# Parse every probe's output into the linux_vitals_* facts result.yml reads.
+# Runs after memory.yml and after every probe. reboot_facts.yml and
+# bootloader_facts.yml read facts this task sets, so they run after it.
+- name: Finalize extended discovery facts
+  ansible.builtin.set_fact:
+    linux_vitals_ram_status: >-
+      {{
+        'Critical'
+        if linux_vitals_ram_used_pct | float
+        >= linux_vitals_ram_critical_threshold | float
+        else 'Warning'
+        if linux_vitals_ram_used_pct | float
+        >= linux_vitals_ram_warning_threshold | float
+        else 'OK'
+      }}
+    linux_vitals_virtualization_type: "{{ ansible_facts['virtualization_type'] | default('unknown') }}"
+    linux_vitals_platform_type: >-
+      {{
+        'Virtual Machine'
+        if ansible_facts['virtualization_role'] | default('NA') == 'guest'
+        else 'Physical'
+        if ansible_facts['virtualization_type'] | default('') in ['NA', '', 'none']
+        else 'Hypervisor'
+      }}
+    linux_vitals_uptime_seconds: "{{ ansible_facts['uptime_seconds'] | default(0) | int }}"
+    linux_vitals_uptime_readable: >-
+      {{
+        (
+          (ansible_facts['uptime_seconds'] | default(0) | int // 86400) | string
+        ) ~ 'd '
+        ~ (
+          ((ansible_facts['uptime_seconds'] | default(0) | int % 86400) // 3600) | string
+        ) ~ 'h '
+        ~ (
+          (((ansible_facts['uptime_seconds'] | default(0) | int % 3600) // 60)) | string
+        ) ~ 'm'
+      }}
+    linux_vitals_running_kernel: "{{ ansible_facts['kernel'] | default('unknown') }}"
+    linux_vitals_latest_installed_kernel: >-
+      {{
+        linux_vitals_latest_kernel_cmd.stdout
+        | default('')
+        | regex_findall('(?m)^latest=(.*)$')
+        | first
+        | default('', true)
+        | trim
+        | default('unknown', true)
+      }}
+    linux_vitals_latest_kernel_updated_at: >-
+      {{
+        linux_vitals_latest_kernel_cmd.stdout
+        | default('')
+        | regex_findall('(?m)^updated_at=(.*)$')
+        | first
+        | default('', true)
+        | trim
+        | default('unknown', true)
+      }}
+    linux_vitals_latest_kernel_selected: >-
+      {{
+        (
+          linux_vitals_latest_kernel_cmd.stdout
+          | default('')
+          | regex_findall('(?m)^latest=(.*)$')
+          | first
+          | default('')
+          | trim
+        ) == (
+          ansible_facts['kernel'] | default('') | trim
+        )
+      }}
+    linux_vitals_bootloader_supported: >-
+      {{
+        (
+          linux_vitals_bootloader_default_cmd.stdout
+          | regex_findall('(?m)^supported=(.*)$')
+          | first
+          | default('false')
+          | trim
+        ) == 'true'
+      }}
+    linux_vitals_bootloader_default_source: >-
+      {{
+        linux_vitals_bootloader_default_cmd.stdout
+        | regex_findall('(?m)^source=(.*)$')
+        | first
+        | default('unavailable')
+        | trim
+      }}
+    linux_vitals_bootloader_default_entry: >-
+      {{
+        linux_vitals_bootloader_default_cmd.stdout
+        | regex_findall('(?m)^default_entry=(.*)$')
+        | first
+        | default('')
+        | trim
+      }}
+    linux_vitals_bootloader_default_kernel: >-
+      {{
+        linux_vitals_bootloader_default_cmd.stdout
+        | regex_findall('(?m)^default_kernel=(.*)$')
+        | first
+        | default('')
+        | trim
+      }}
+    linux_vitals_bootloader_default_status: >-
+      {{
+        linux_vitals_bootloader_default_cmd.stdout
+        | regex_findall('(?m)^status=(.*)$')
+        | first
+        | default('unavailable')
+        | trim
+      }}
+    linux_vitals_reboot_probe_output: >-
+      {{
+        linux_vitals_debian_reboot_cmd.stdout | default('')
+        if ansible_facts['os_family'] == 'Debian'
+        else linux_vitals_redhat_reboot_cmd.stdout | default('')
+        if ansible_facts['os_family'] == 'RedHat'
+        else linux_vitals_suse_reboot_cmd.stdout | default('')
+        if ansible_facts['os_family'] == 'Suse'
+        else ''
+      }}
+    linux_vitals_selinux_status: >-
+      {{
+        linux_vitals_selinux_cmd.stdout
+        | default('', true)
+        | trim
+        | default('not-installed', true)
+      }}
+    linux_vitals_apparmor_status: >-
+      {{
+        'enabled'
+        if linux_vitals_apparmor_cmd.rc | default(1) == 0
+        else 'disabled'
+      }}
+    linux_vitals_failed_login_attempts: >-
+      {{
+        linux_vitals_failed_login_attempts_cmd.stdout_lines
+        | default([])
+        | reject('equalto', '')
+        | reject('match', '^btmp begins ')
+        | list
+      }}
+    linux_vitals_last_failed_login: >-
+      {{
+        (
+          linux_vitals_failed_login_attempts_cmd.stdout_lines
+          | default([])
+          | reject('equalto', '')
+          | reject('match', '^btmp begins ')
+          | list
+        ) | first | default('No failed login attempts found')
+      }}
+    linux_vitals_last_reboot: >-
+      {{
+        linux_vitals_last_reboot_cmd.stdout
+        | default('Unknown')
+        | regex_replace('^\s*system boot\s+', '')
+        | trim
+        | default('Unknown', true)
+      }}
+    linux_vitals_rescue_image_available: >-
+      {{
+        linux_vitals_rescue_image_cmd.stdout | default('') | trim | length > 0
+      }}
+    linux_vitals_rescue_image_paths: "{{ linux_vitals_rescue_image_cmd.stdout_lines | default([]) }}"
+  tags:
+    - discovery
+    - kernel
+    - security
+    - boot
