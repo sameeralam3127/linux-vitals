@@ -5,7 +5,7 @@ and pull request:
 
 | Layer | Command | What it proves |
 | --- | --- | --- |
-| Unit / template | `pytest -q` | Report templates render, reboot/kernel detection logic derives the right facts, the embedded discovery shell scripts are POSIX-clean, and fixture host state produces the findings recorded in `tests/golden/`. No hosts involved. |
+| Unit / template | `pytest -q` | Report templates render, reboot/kernel detection logic derives the right facts, the embedded discovery shell scripts are POSIX-clean, fixture host state produces the findings recorded in `tests/golden/`, and notifications are resolved and delivered to listeners on 127.0.0.1. No hosts involved. |
 | Molecule scenarios | `molecule test -s <scenario>` | The roles actually run end to end against a live systemd host of each supported distribution. |
 
 Plus `ansible-lint roles/ playbooks/ molecule/ demo/` and
@@ -70,6 +70,50 @@ one-sentence comment saying what the host represents, and give every probe
 before committing: the golden file records whatever the scan does, so a
 fixture that does not trigger what its comment claims would freeze the wrong
 thing.
+
+## Notification delivery tests
+
+`tests/test_notification_delivery.py` runs the real `vitals_report`
+`config.yml` and `notify.yml` and checks what actually arrives
+([#29](https://github.com/sameeralam3127/linux-vitals/issues/29)). An HTTP
+listener stands in for Slack and the generic webhook, and a small SMTP sink
+for the mail server. Both run in the test process on 127.0.0.1 with ephemeral
+ports. Nothing leaves the machine.
+
+Each scenario is one host in its own generated inventory directory, because
+`.env` is read from `inventory_dir`. All scenarios run as `serial: 1` batches
+of one `ansible-playbook` invocation, driven by
+`tests/fixtures/notification_delivery.yml`. Extra-vars apply to every host, so
+the extra-vars precedence case gets a second, one-host run. The tests cover:
+
+- **`.env` precedence**: an inventory or extra-vars value wins over `.env`,
+  `.env` is used when inventory is unset, and a channel set in neither is
+  skipped. This covers both webhook URLs and the SMTP host, username and
+  password.
+- **The send path**: the Slack and webhook posts are `POST`s of
+  `application/json` whose parsed bodies equal what
+  `slack_message.json.j2` and `generic_webhook_payload.json.j2` render. The
+  webhook carries its configured headers. The email's body is what
+  `slack_message.txt.j2` renders.
+- **Every skip condition**: an empty Slack URL, the generic webhook disabled,
+  email disabled, and email with no recipients. Each must report the send
+  task as skipped, with nothing arriving for that channel. In the same
+  scenario another channel must arrive, so a dead listener cannot pass for a
+  skip.
+
+**Your `.env` is never read.** A checkout usually holds a `.env` with real
+credentials, so the playbook never runs from it. It runs from a temporary
+copy of `ansible.cfg`, `galaxy.yml`, `meta/`, `plugins/` and `roles/`. This is
+an allowlist, so a `.env` cannot be copied. Every `ANSIBLE_*` and proxy
+variable is removed from the playbook's environment. The copy is then seeded
+with decoy `.env` files: at its root, next to the playbook, in the role
+directory, and above the inventory directories. They point at a second
+listener, which must receive nothing. If `config.yml` ever reads `.env` from
+anywhere but `inventory_dir`, these tests fail rather than post with your
+credentials.
+
+A failing scenario does not stop the others. Its block is rescued, and the
+test names the failed task and its message.
 
 ## ansible-core versions
 

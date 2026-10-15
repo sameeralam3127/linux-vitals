@@ -1,0 +1,162 @@
+---
+# Drives the real roles/vitals_report/tasks/config.yml and notify.yml against
+# listeners that tests/test_notification_delivery.py runs on 127.0.0.1 (#29).
+#
+# Nothing in this file knows the scenarios. Each one is a host in its own
+# generated inventory directory, so it has its own inventory_dir -- and with it
+# its own .env -- and its notification settings are inventory variables, which
+# is where an operator sets them. For that reason none of the variables
+# config.yml resolves may be set here: play vars outrank inventory and would
+# hide the precedence under test.
+#
+# serial: 1 makes every scenario its own batch, so notify.yml's run_once sends
+# fire once per scenario instead of once for the whole run. The block's rescue
+# records a failure instead of ending the batch, which would stop the play and
+# every scenario after it.
+#
+# Each scenario writes one JSON record. Everything else runs on the controller,
+# because a module call per scenario per file was most of the run's time.
+- name: Resolve and send notifications for each scenario
+  hosts: lv_delivery_scenarios
+  gather_facts: false
+  serial: 1
+  vars:
+    lv_record: "{{ lookup('ansible.builtin.env', 'TEST_OUTPUT_DIR') }}/{{ inventory_hostname }}.json"
+    lv_templates_dir: "{{ playbook_dir }}/../../roles/vitals_report/templates"
+    linux_vitals_reporting_hosts: "{{ ansible_play_batch }}"
+    linux_vitals_phase: "adhoc"
+    linux_vitals_maintenance_id: ""
+    linux_vitals_report_title: "LinuxVitals Delivery Fixture"
+    linux_vitals_slack_message_header: "LinuxVitals Delivery Fixture"
+    linux_vitals_slack_message_footer: "Sent by the delivery fixture"
+    linux_vitals_slack_include_host_breakdown: true
+    linux_vitals_slack_max_hosts: 20
+    linux_vitals_email_from: "linux-vitals-fixture@example.com"
+    linux_vitals_email_subject: "LinuxVitals delivery fixture: {{ inventory_hostname }}"
+    linux_vitals_summary:
+      servers_checked: 1
+      auto_fixed_count: 0
+      critical_error_count: 0
+      health_score_pct: 100.0
+      health_score_band: "Excellent"
+      hosts_by_severity: {none: 0, info: 0, warning: 1, critical: 0}
+      findings_by_severity: {info: 0, warning: 1, critical: 0}
+      unknown_host_count: 0
+      comparison_active: false
+      regressed_count: 0
+      improved_count: 0
+      new_hosts_count: 0
+      snippet: "1 Servers Checked, 0 Auto-Fixed, 0 Critical Errors"
+  tasks:
+    - name: Seed the per-host result the notification templates read
+      ansible.builtin.set_fact:
+        linux_vitals_result:
+          hostname: "{{ inventory_hostname }}"
+          ip_address: "127.0.0.1"
+          os: "Ubuntu 24.04"
+          os_family: "Debian"
+          platform_type: "Virtual Machine"
+          uptime: "1d 2h 3m"
+          running_kernel: "6.8.0-test"
+          latest_installed_kernel: "6.8.0-test"
+          latest_kernel_selected: true
+          bootloader_default_status: "resolved"
+          bootloader_default_kernel: "6.8.0-test"
+          bootloader_default_entry: "/boot/vmlinuz-6.8.0-test"
+          bootloader_default_matches_latest: true
+          reboot_required: false
+          reboot_required_source: "reboot-required-file"
+          reboot_required_packages: []
+          boot_space_status: "Healthy"
+          failed_login_count: 0
+          final_status: "Pass"
+          severity: "warning"
+          severity_counts: {critical: 0, warning: 1, info: 0}
+          unknown_count: 0
+          findings:
+            - id: "ram_status"
+              subject: ""
+              severity: "warning"
+              status: "fail"
+              message: "RAM usage is elevated"
+
+    - name: Resolve, render and send this scenario's notifications
+      block:
+        - name: Resolve the notification configuration
+          ansible.builtin.include_role:
+            name: sameeralam3127.linux_vitals.vitals_report
+            tasks_from: config.yml
+
+        # Rendered from the role's templates before notify.yml runs, so the
+        # expectation never comes from a fact notify.yml sets: a send that
+        # posts the wrong thing cannot also supply what it is compared with.
+        # On ansible-core 2.16 the JSON lookups come back as dicts, on newer
+        # cores as strings; the test accepts either.
+        - name: Render the payloads each send is expected to carry
+          ansible.builtin.set_fact:
+            lv_expected:
+              slack: "{{ lookup('ansible.builtin.template', lv_templates_dir ~ '/slack_message.json.j2') }}"
+              webhook: "{{ lookup('ansible.builtin.template', lv_templates_dir ~ '/generic_webhook_payload.json.j2') }}"
+              message: "{{ linux_vitals_notification_message }}"
+          vars:
+            linux_vitals_notification_message: >-
+              {{ lookup('ansible.builtin.template', lv_templates_dir ~ '/slack_message.txt.j2') }}
+
+        - name: Send the notifications
+          ansible.builtin.include_role:
+            name: sameeralam3127.linux_vitals.vitals_report
+            tasks_from: notify.yml
+
+        - name: Record what config.yml resolved and what each send task did
+          ansible.builtin.copy:
+            dest: "{{ lv_record }}"
+            mode: "0600"
+            content: >-
+              {{ {
+                'failed': false,
+                'effective': {
+                  'slack_webhook_url': linux_vitals_effective_slack_webhook_url,
+                  'generic_webhook_url': linux_vitals_effective_generic_webhook_url,
+                  'email_host': linux_vitals_effective_email_host,
+                  'email_username': linux_vitals_effective_email_username,
+                  'email_password': linux_vitals_effective_email_password,
+                },
+                'inventory_dir': inventory_dir,
+                'playbook_dir': playbook_dir,
+                'slack': {
+                  'skipped': linux_vitals_slack_delivery.skipped | default(false),
+                  'status': linux_vitals_slack_delivery.status | default(none),
+                },
+                'webhook': {
+                  'skipped': linux_vitals_generic_webhook_delivery.skipped | default(false),
+                  'status': linux_vitals_generic_webhook_delivery.status | default(none),
+                },
+                'email': {
+                  'skipped': linux_vitals_email_delivery.skipped | default(false),
+                  'msg': linux_vitals_email_delivery.msg | default(none),
+                },
+                'expected': lv_expected,
+              } | to_nice_json }}
+
+      # Keeps what config.yml resolved, if it got that far, so the checks that
+      # no other .env was read still hold up when a send fails.
+      rescue:
+        - name: Record the failure instead of ending the batch
+          ansible.builtin.copy:
+            dest: "{{ lv_record }}"
+            mode: "0600"
+            content: >-
+              {{ {
+                'failed': true,
+                'task': ansible_failed_task.name | default(''),
+                'msg': ansible_failed_result.msg | default(''),
+                'effective': {
+                  'slack_webhook_url': linux_vitals_effective_slack_webhook_url | default(''),
+                  'generic_webhook_url': linux_vitals_effective_generic_webhook_url | default(''),
+                  'email_host': linux_vitals_effective_email_host | default(''),
+                  'email_username': linux_vitals_effective_email_username | default(''),
+                  'email_password': linux_vitals_effective_email_password | default(''),
+                },
+                'inventory_dir': inventory_dir,
+                'playbook_dir': playbook_dir,
+              } | to_nice_json }}
