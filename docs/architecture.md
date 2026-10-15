@@ -134,7 +134,10 @@ to modify.
      precedence in that order).
    - `snapshot.yml` persists `linux_vitals_result` as JSON under
      `linux_vitals_snapshot_dir/<maintenance_id>/<phase>/<host>.json` when
-     `linux_vitals_phase` is `baseline` or `postcheck`.
+     `linux_vitals_phase` is `baseline` or `postcheck`. Before it writes any,
+     it records the run's hosts in that directory's
+     `.shards/<shard>.json` and checks them against what the shard was
+     recorded with (see [below](#runs-that-share-a-directory)).
    - `compare.yml`, only in the `postcheck` phase, loads the matching
      baseline snapshot per host and merges a `comparison` object into
      `linux_vitals_result`. Findings are matched on `(id, subject)`, and a
@@ -227,6 +230,57 @@ Every path that should live in *your* project -- `linux_vitals_output_path`,
 lookup -- is anchored to `inventory_dir` instead, since your inventory file
 is reliably wherever your project actually is, regardless of how the
 playbook was invoked.
+
+## Runs that share a directory
+
+Two runs often write to the same place: a cron schedule overlapping a manual
+run, two inventories in CI, or a large fleet sharded into many runs
+([performance.md](performance.md#sharding-a-large-fleet)). There is no lock.
+What keeps them apart is which files each run writes, and how it writes them
+([#26](https://github.com/sameeralam3127/linux-vitals/issues/26)).
+
+- **Every write replaces the file.** Reports, archives, snapshots and shard
+  manifests are all written by the `template` or `copy` module. Both write a
+  temporary file in the destination directory and `rename()` it into place, so
+  a reader, or another run, sees the old file or the new one, never a partial
+  one. A run killed mid-write can leave a `tmp*` or `.ansible_tmp*` file in
+  that directory. It is never at a report's path and is never pruned as an
+  archive. Delete it if you find one. Keep it that way: a task that writes a
+  report with `shell`, `lineinfile` or `unsafe_writes` breaks this, and
+  `tests/test_concurrent_runs.py` fails on it.
+- **Each run archives the report it rendered.** The archive is rendered from
+  the template, not copied from `linux_vitals_output_path`, which may by then
+  hold another run's report.
+- **Retention pruning only matches this report's own archives:**
+  `<stem>-<timestamp><ext>`, where the timestamp has the same shape as this
+  run's. Another report's archives in the same directory are never matched,
+  even when its name starts with this one's. Two runs pruning the same
+  archives at once both succeed and leave the same newest
+  `linux_vitals_report_retention_count`: deleting a file that is already gone
+  is not an error, and an archive is only pruned when that many newer ones of
+  the same report exist.
+- **Each snapshot set records who wrote it.** A maintenance window's snapshot
+  set (`<snapshot_dir>/<maintenance_id>/<phase>/`) can be written by several
+  runs. Each records its hosts, once, in a manifest of its own,
+  `.shards/<linux_vitals_snapshot_shard>.json`, or `.shards/default.json` when
+  no shard id is set. Manifests are never rewritten, so no run ever modifies a
+  file another run reads. A run whose hosts are all in its shard's manifest is
+  a re-run, whole or `--limit`ed. A run that brings in hosts its shard was not
+  recorded with fails before writing any snapshot if it named its shard, and
+  warns if it did not.
+
+| Shared by concurrent runs | Safe? |
+| --- | --- |
+| One report and archive directory, a different `linux_vitals_output_path` and `linux_vitals_json_output_path` per run | Yes. |
+| One `linux_vitals_output_path` | The latest report is the last run's, and always complete. Each run archives its own report, but two runs that start rendering in the same second get the same archive name and only the later is kept. Give concurrent runs their own output paths. |
+| One snapshot directory and maintenance id, a different `linux_vitals_snapshot_shard` per run | Yes. A shard id reused for other hosts fails the run. Shards may overlap; a host in two shards keeps the snapshot of whichever wrote it last. |
+| One snapshot directory and maintenance id, no shard ids | Nothing is corrupted, since snapshots are per host, but the runs cannot be told apart: a run with hosts the first run did not record gets a warning, not an error. This is how every release before shard ids behaved, apart from the warning, and sequential per-group runs rely on it. |
+| One shard id, two runs recording it at the same moment | Both can find no manifest and write one, and the later write wins. The earlier run reads the manifest back in its next task, sees the other run's hosts and reports the conflict. Neither notices only if the later run stalls between its existence check and its rename, a few lines apart in one module call, for longer than the earlier run takes to read the manifest back. |
+
+A snapshot set written before shard manifests existed has host snapshots and
+no `.shards/`. Which run wrote them cannot be checked, so the first run to
+reach it records its own manifest, goes ahead, and names any of those
+snapshots it does not overwrite.
 
 ## Tags
 

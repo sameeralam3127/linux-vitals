@@ -13,6 +13,20 @@
   tags:
     - reporting
 
+- name: Require a usable snapshot shard id
+  ansible.builtin.assert:
+    that:
+      - linux_vitals_snapshot_shard | default('', true) | string | trim is match('^([A-Za-z0-9][A-Za-z0-9._-]*)?$')
+    fail_msg: >-
+      linux_vitals_snapshot_shard must be empty, or a name of letters, digits,
+      '.', '_' and '-' that starts with a letter or digit; got
+      '{{ linux_vitals_snapshot_shard }}'. The shard id names a file in the
+      snapshot directory.
+    quiet: true
+  when: linux_vitals_phase in ['baseline', 'postcheck']
+  tags:
+    - reporting
+
 - name: Compute the snapshot directory for this maintenance id and phase
   ansible.builtin.set_fact:
     linux_vitals_snapshot_phase_dir: >-
@@ -29,6 +43,220 @@
   delegate_to: localhost
   run_once: true
   when: linux_vitals_phase in ['baseline', 'postcheck']
+  tags:
+    - reporting
+
+# One snapshot set (<maintenance_id>/<phase>) may be written by several runs:
+# a large fleet is sharded into many runs that share one maintenance id (#26).
+# Each run records the hosts it covers in a manifest of its own,
+# .shards/<shard>.json, so that a run reusing a shard id for a different set
+# of hosts -- a different fleet, or another part of it -- is reported instead
+# of silently merged into the set. One file per shard, never one shared file:
+# parallel shards would read-modify-write a shared file and lose each other's
+# updates. A manifest is written once and never changed, so no run ever
+# rewrites a file another run reads.
+- name: Ensure the shard manifest directory exists
+  ansible.builtin.file:
+    path: "{{ linux_vitals_snapshot_phase_dir }}/.shards"
+    state: directory
+    mode: "{{ linux_vitals_report_dir_mode }}"
+  delegate_to: localhost
+  run_once: true
+  when: linux_vitals_phase in ['baseline', 'postcheck']
+  tags:
+    - reporting
+
+- name: Identify this run's snapshot shard and the hosts it covers
+  ansible.builtin.set_fact:
+    linux_vitals_snapshot_shard_name: "{{ linux_vitals_snapshot_shard_id }}"
+    # Named by the operator, a host-set conflict fails the run. Left empty, the
+    # run is shard "default" and a conflict only warns: refusing it would break
+    # sequential per-group runs sharing a maintenance id, which every earlier
+    # release merged silently and which work (docs/compatibility.md).
+    linux_vitals_snapshot_shard_explicit: "{{ linux_vitals_snapshot_shard | default('', true) | string | trim | length > 0 }}"
+    linux_vitals_snapshot_shard_manifest: >-
+      {{ linux_vitals_snapshot_phase_dir }}/.shards/{{ linux_vitals_snapshot_shard_id }}.json
+    # Every host the play targets after --limit, including hosts that failed or
+    # were unreachable, so a re-run that reaches a host the first attempt could
+    # not is still the same shard. Under `serial` this is the whole play, not
+    # the batch.
+    linux_vitals_snapshot_shard_hosts: "{{ ansible_play_hosts_all | unique | sort }}"
+  vars:
+    linux_vitals_snapshot_shard_id: >-
+      {{ linux_vitals_snapshot_shard | default('', true) | string | trim | default('default', true) }}
+  delegate_to: localhost
+  run_once: true
+  when: linux_vitals_phase in ['baseline', 'postcheck']
+  tags:
+    - reporting
+
+- name: List the host snapshots already in this phase directory
+  # Listed before the manifests, never after. No run writes a host snapshot
+  # until its shard's manifest exists, so if this sees a snapshot written by
+  # this release, the next task sees at least one manifest. The other order
+  # could mistake a parallel shard's first snapshots for a set written before
+  # manifests existed.
+  ansible.builtin.find:
+    paths: "{{ linux_vitals_snapshot_phase_dir }}"
+    patterns:
+      - "*.json"
+    file_type: file
+  register: linux_vitals_snapshot_existing_hosts
+  delegate_to: localhost
+  run_once: true
+  when: linux_vitals_phase in ['baseline', 'postcheck']
+  tags:
+    - reporting
+
+- name: List the shard manifests already recorded for this phase
+  ansible.builtin.find:
+    paths: "{{ linux_vitals_snapshot_phase_dir }}/.shards"
+    patterns:
+      - "*.json"
+    file_type: file
+  register: linux_vitals_snapshot_existing_shards
+  delegate_to: localhost
+  run_once: true
+  when: linux_vitals_phase in ['baseline', 'postcheck']
+  tags:
+    - reporting
+
+- name: Record this shard's manifest unless the shard already has one
+  # force: false leaves an existing manifest alone, so a shard's manifest keeps
+  # the host list of the run that first recorded it, and the next task compares
+  # against whichever manifest is on disk. Two runs of one shard can both find
+  # no manifest and both write one; the later rename wins, and the earlier run
+  # reads the later run's hosts back and reports the conflict. Only a later run
+  # stalled between the module's existence check and its rename for longer
+  # than that read-back takes would go unnoticed.
+  ansible.builtin.copy:
+    content: "{{ linux_vitals_snapshot_shard_record | to_nice_json }}\n"
+    dest: "{{ linux_vitals_snapshot_shard_manifest }}"
+    mode: "{{ linux_vitals_report_file_mode }}"
+    force: false
+  vars:
+    linux_vitals_snapshot_shard_record:
+      manifest_version: 1
+      maintenance_id: "{{ linux_vitals_maintenance_id }}"
+      phase: "{{ linux_vitals_phase }}"
+      shard: "{{ linux_vitals_snapshot_shard_name }}"
+      hosts: "{{ linux_vitals_snapshot_shard_hosts }}"
+      recorded_at: "{{ now(utc=true, fmt='%Y-%m-%dT%H:%M:%SZ') }}"
+  delegate_to: localhost
+  run_once: true
+  when: linux_vitals_phase in ['baseline', 'postcheck']
+  tags:
+    - reporting
+
+- name: Compare this run's hosts with the hosts its shard was recorded with
+  ansible.builtin.set_fact:
+    linux_vitals_snapshot_shard_recorded_count: "{{ linux_vitals_snapshot_shard_recorded | length }}"
+    # Hosts this run would add to its shard. A run covering only some of the
+    # recorded hosts (--limit, or re-running the hosts that failed) adds none,
+    # and is a re-run of part of the shard.
+    linux_vitals_snapshot_shard_foreign_hosts: >-
+      {{ linux_vitals_snapshot_shard_hosts | difference(linux_vitals_snapshot_shard_recorded) | sort }}
+    # A snapshot set written before shard manifests existed has host snapshots
+    # and no manifest. Which run wrote them cannot be known, so the run is not
+    # refused; hosts in it that this run will not overwrite are named instead.
+    linux_vitals_snapshot_unmanifested_hosts: >-
+      {{
+        (
+          linux_vitals_snapshot_existing_hosts.files
+          | map(attribute='path')
+          | map('basename')
+          | map('splitext')
+          | map('first')
+          | difference(linux_vitals_snapshot_shard_hosts)
+          | sort
+        )
+        if linux_vitals_snapshot_existing_shards.matched | int == 0
+        else []
+      }}
+  vars:
+    linux_vitals_snapshot_shard_recorded: >-
+      {{ (lookup('ansible.builtin.file', linux_vitals_snapshot_shard_manifest) | from_json).hosts | default([]) }}
+  delegate_to: localhost
+  run_once: true
+  when: linux_vitals_phase in ['baseline', 'postcheck']
+  tags:
+    - reporting
+
+- name: Refuse to add hosts to a named shard that was recorded without them
+  ansible.builtin.fail:
+    msg: >-
+      Snapshot shard '{{ linux_vitals_snapshot_shard_name }}' of maintenance id
+      '{{ linux_vitals_maintenance_id }}' ({{ linux_vitals_phase }}) was recorded
+      with {{ linux_vitals_snapshot_shard_recorded_count }} host(s), and this run
+      also targets {{ linux_vitals_snapshot_shard_foreign_hosts | length }} host(s)
+      that are not in it: {{ linux_vitals_snapshot_host_list }}.
+      No snapshot was written. If these hosts are another part of the same fleet,
+      give this run a linux_vitals_snapshot_shard that no other run of this
+      window uses. If they are a different fleet, use a different
+      linux_vitals_maintenance_id. If this shard's host list really has changed,
+      delete {{ linux_vitals_snapshot_shard_manifest }} and run again.
+  vars:
+    linux_vitals_snapshot_host_list: >-
+      {{ linux_vitals_snapshot_shard_foreign_hosts[:20] | join(', ') }}{{
+        ' and ' ~ (linux_vitals_snapshot_shard_foreign_hosts | length - 20) ~ ' more'
+        if linux_vitals_snapshot_shard_foreign_hosts | length > 20 else ''
+      }}
+  delegate_to: localhost
+  run_once: true
+  when:
+    - linux_vitals_phase in ['baseline', 'postcheck']
+    - linux_vitals_snapshot_shard_explicit | bool
+    - linux_vitals_snapshot_shard_foreign_hosts | length > 0
+  tags:
+    - reporting
+
+- name: Warn that this run mixes a different host set into an unsharded snapshot set
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: the snapshot set for maintenance id
+      '{{ linux_vitals_maintenance_id }}' ({{ linux_vitals_phase }}) was recorded
+      by a run of {{ linux_vitals_snapshot_shard_recorded_count }} host(s), and
+      this run adds {{ linux_vitals_snapshot_shard_foreign_hosts | length }}
+      host(s) that were not in it: {{ linux_vitals_snapshot_host_list }}.
+      Their snapshots are written to the same set. If these runs are shards of
+      one fleet, give each its own linux_vitals_snapshot_shard, which also makes
+      a conflict like this an error. If they are different fleets, use a
+      different linux_vitals_maintenance_id, or the comparison will mix them.
+  vars:
+    linux_vitals_snapshot_host_list: >-
+      {{ linux_vitals_snapshot_shard_foreign_hosts[:20] | join(', ') }}{{
+        ' and ' ~ (linux_vitals_snapshot_shard_foreign_hosts | length - 20) ~ ' more'
+        if linux_vitals_snapshot_shard_foreign_hosts | length > 20 else ''
+      }}
+  delegate_to: localhost
+  run_once: true
+  when:
+    - linux_vitals_phase in ['baseline', 'postcheck']
+    - not (linux_vitals_snapshot_shard_explicit | bool)
+    - linux_vitals_snapshot_shard_foreign_hosts | length > 0
+  tags:
+    - reporting
+
+- name: Warn about host snapshots written before shard manifests existed
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: {{ linux_vitals_snapshot_phase_dir }} already holds
+      {{ linux_vitals_snapshot_unmanifested_hosts | length }} host snapshot(s)
+      written before this release recorded shard manifests, for hosts this run
+      does not cover: {{ linux_vitals_snapshot_host_list }}. Which run wrote them
+      cannot be checked. If they are not part of this maintenance window, remove
+      them before the postcheck compares against them.
+  vars:
+    linux_vitals_snapshot_host_list: >-
+      {{ linux_vitals_snapshot_unmanifested_hosts[:20] | join(', ') }}{{
+        ' and ' ~ (linux_vitals_snapshot_unmanifested_hosts | length - 20) ~ ' more'
+        if linux_vitals_snapshot_unmanifested_hosts | length > 20 else ''
+      }}
+  delegate_to: localhost
+  run_once: true
+  when:
+    - linux_vitals_phase in ['baseline', 'postcheck']
+    - linux_vitals_snapshot_unmanifested_hosts | length > 0
   tags:
     - reporting
 

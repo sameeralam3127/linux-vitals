@@ -121,7 +121,47 @@ Rules of thumb, none of which substitute for measuring your own fleet:
   worst case is predictable, but it still grows with every host you add.
 - **Reporting is `run_once`.** Rendering happens once on the control node
   regardless of fleet size, so it is a fixed cost, but the template iterates
-  every host -- expect the HTML file itself to grow roughly linearly.
+  every host -- expect the HTML file itself to grow roughly linearly. With
+  archiving on, each archived report is rendered again rather than copied
+  from the latest one, so a concurrent run's report can never be archived
+  as this run's.
+
+## Sharding a large fleet
+
+Past what one control node holds in memory, split the fleet into several
+runs, one per group, run one after another or side by side. Every shard of a
+maintenance window keeps the window's `linux_vitals_maintenance_id` and the
+same `linux_vitals_snapshot_dir`, so each postcheck host finds its baseline
+whichever shard wrote it. What each shard needs of its own:
+
+- **`linux_vitals_snapshot_shard`.** This is what shards sharing one snapshot
+  directory must set. Each shard records its hosts in
+  `<snapshot_dir>/<maintenance_id>/<phase>/.shards/<shard>.json`, and a run
+  that reuses a shard id for hosts it was not recorded with fails before
+  writing anything, so two groups given the same id by mistake cannot quietly
+  end up in one comparison. Without shard ids every run counts as shard
+  `default`, and a run with other hosts only warns. Re-running a shard, or
+  part of it with `--limit`, is fine. Baseline and postcheck shards need not
+  line up.
+- **`linux_vitals_output_path` and `linux_vitals_json_output_path`**, so each
+  shard writes its own dashboard. They can share a directory, and the archive
+  directory: retention pruning only touches each report's own archives.
+
+```bash
+for group in web db cache; do
+  ansible-playbook -i inventory.ini sameeralam3127.linux_vitals.baseline \
+    --limit "$group" \
+    -e linux_vitals_maintenance_id=2026-11-02-patch \
+    -e linux_vitals_snapshot_shard="$group" \
+    -e linux_vitals_output_path="{{ inventory_dir }}/reports/baseline-$group.html" \
+    -e linux_vitals_json_output_path="{{ inventory_dir }}/reports/baseline-$group.json" &
+done
+wait
+```
+
+Each shard's dashboard covers its own hosts; there is no merged fleet-wide
+dashboard. What is safe for concurrent runs to share, and what is not, is in
+[architecture.md](architecture.md#runs-that-share-a-directory).
 
 ## How to measure
 
@@ -184,11 +224,12 @@ host" is useful to everyone. "100 hosts, 4 minutes" is not.
   host (§1), so memory scales with host count and `linux_vitals_log_max_lines`
   rather than with log volume; nobody has yet measured where that limit falls
   on a real fleet.
-- **Concurrent runs sharing an output directory can corrupt reports and
-  snapshots** ([#26](https://github.com/sameeralam3127/linux-vitals/issues/26)).
-  Sharding a large fleet across parallel runs needs a distinct
-  `linux_vitals_output_path` and `linux_vitals_snapshot_dir` per shard until
-  that is fixed.
+- **Concurrent runs need their own output paths and shard ids, not their own
+  directories** ([#26](https://github.com/sameeralam3127/linux-vitals/issues/26)).
+  Two runs writing the same `linux_vitals_output_path` at once leave a
+  complete report, the last one's, but two that start rendering in the same
+  second share an archive name and keep only one archive. See
+  [Sharding a large fleet](#sharding-a-large-fleet).
 - **There is no batching or `serial` in the shipped playbooks.** Every host is
   in one play. If you need rolling execution, wrap the roles in your own
   playbook with `serial:` set.

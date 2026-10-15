@@ -406,6 +406,13 @@ at snapshot time (schema matches a single entry in the JSON report's
 pruned automatically -- clean them up per your own retention policy if you
 run many maintenance windows.
 
+Beside them, `.shards/<shard>.json` records which hosts each run of that
+phase covered: `maintenance_id`, `phase`, `shard` (`default` when
+`linux_vitals_snapshot_shard` is empty), the sorted `hosts`, and
+`recorded_at`. It is written once, by the first run of that shard, and is
+what lets a later run reusing the shard id for other hosts be refused. See
+[Sharding a large fleet](performance.md#sharding-a-large-fleet).
+
 ## Unreadable system journals
 
 `log_errors` and `kernel_install_failures` report `status: unknown` with a

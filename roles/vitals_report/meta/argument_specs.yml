@@ -48,6 +48,24 @@ argument_specs:
           - Anchored to C(inventory_dir) rather than C(playbook_dir) so it
             resolves inside your project when the collection is installed and
             invoked by FQCN.
+      linux_vitals_snapshot_shard:
+        type: str
+        default: ""
+        description:
+          - Names this run's part of a snapshot set that several runs share,
+            for a fleet sharded into runs with one C(linux_vitals_maintenance_id).
+            Give each shard its own id; baseline and postcheck shards do not
+            have to match.
+          - Each run records its hosts in
+            C(<snapshot_dir>/<maintenance_id>/<phase>/.shards/<shard>.json). A
+            run whose shard id was recorded with other hosts fails before
+            writing any snapshot. Re-running all or some of a shard's hosts is
+            allowed.
+          - Empty records the run as shard C(default) and only warns when the
+            host set differs, which keeps sequential per-group runs that share
+            a maintenance id working.
+          - Letters, digits, C(.), C(_) and C(-), starting with a letter or
+            digit.
       linux_vitals_output_path:
         type: str
         default: "{{ inventory_dir }}/reports/linux_vitals_report.html"
@@ -116,6 +134,9 @@ argument_specs:
         description:
           - Keep only the newest N archived files per artefact type. Set to C(0)
             to disable pruning and keep everything.
+          - Only this report's own archives, C(<stem>-<timestamp><ext>), are
+            counted and pruned. Another report sharing the archive directory is
+            left alone, even when its name starts with this one's.
       linux_vitals_archive_timestamp:
         type: str
         default: ""
@@ -123,6 +144,8 @@ argument_specs:
           - Override the UTC timestamp used for this run's archive filenames.
           - Exists mainly so tests can produce deterministic filenames; blank
             means "now".
+          - Pruning matches archives whose timestamp has the same shape as this
+            one, digits where it has digits, so keep to one format.
       linux_vitals_slack_webhook_url:
         type: str
         default: ""

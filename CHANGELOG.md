@@ -93,6 +93,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   whitespace-only, or missing output, and strips the `system boot` prefix
   from normal timestamps
   ([#122](https://github.com/sameeralam3127/linux-vitals/issues/122)).
+- **Retention pruning no longer deletes another report's archives**
+  ([#26](https://github.com/sameeralam3127/linux-vitals/issues/26)). Pruning
+  matched `<stem>-*<ext>`, so with two reports in one archive directory whose
+  names share a prefix -- `linux_vitals_report.html` and a shard's
+  `linux_vitals_report-web.html` -- the first report's pruning also counted
+  the second's archives. A letter sorts above a digit, so it kept those and
+  deleted its own history. Pruning now matches only `<stem>-<timestamp><ext>`
+  with a timestamp shaped like this run's. Anything else that the old glob
+  happened to match is no longer pruned: a hand-made
+  `linux_vitals_report-backup.html`, or archives from before a change to the
+  format of `linux_vitals_archive_timestamp`. Delete those by hand if you
+  relied on pruning for them.
+- **Each run archives the report it rendered.** The archive was a copy of
+  `linux_vitals_output_path`, which two runs writing the same output path at
+  once could replace in between, archiving the other run's report twice and
+  this one's never. The archive is now rendered from the template, which costs
+  one more render per archived report. Reports, archives and snapshots were
+  already written to a temporary file and renamed into place, so a reader
+  never saw a partial one; that is now covered by a test and documented in
+  [docs/architecture.md](docs/architecture.md#runs-that-share-a-directory),
+  with what concurrent runs can and cannot safely share.
 
 ### Added
 
@@ -119,6 +140,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   new scan probe sets `failed_when: false`, so a new check is reviewed
   against the contract before it can reintroduce a false-clean report. See
   [docs/report-guide.md](docs/report-guide.md#status-when-a-check-could-not-run).
+
+- **Snapshot sets record which runs wrote them, and a reused shard id is
+  refused** ([#26](https://github.com/sameeralam3127/linux-vitals/issues/26)).
+  A large fleet is sharded into several runs that share one
+  `linux_vitals_maintenance_id`, and nothing told that apart from two
+  different fleets reusing an id: both silently merged into one snapshot set,
+  and the postcheck compared whatever was there. Each `baseline` and
+  `postcheck` run now records its hosts once, before writing any snapshot, in
+  `<snapshot_dir>/<maintenance_id>/<phase>/.shards/<shard>.json`. The new
+  `linux_vitals_snapshot_shard` names the shard. A run whose shard id was
+  recorded with other hosts fails before writing anything, naming the hosts
+  and the fix. Re-running a shard, whole or with `--limit`, and adding new
+  shards are allowed. See
+  [docs/performance.md](docs/performance.md#sharding-a-large-fleet).
+
+  With the variable left empty, as every existing setup has it, the run is
+  shard `default`, and a run with other hosts prints a warning instead of
+  failing. Refusing it would break sequential per-group runs that share a
+  maintenance id, which work today, so that only becomes an error for runs
+  that name their shard. A snapshot set written by an earlier release (host
+  snapshots, no `.shards/`) is used as before; the first run to reach it names
+  any snapshots in it that it will not overwrite. The `.shards/` directory is
+  hidden, so `<phase>/*.json` still lists only host snapshots.
 
 ### Documentation
 

@@ -73,6 +73,11 @@ ansible-playbook -i inventory.ini sameeralam3127.linux_vitals.baseline \
 controls where snapshots live if you want them somewhere other than next to
 your other reports.
 
+A fleet too large for one run is split into several runs that share the
+maintenance id. Give each its own `-e linux_vitals_snapshot_shard=<name>`, so
+that a shard id reused for other hosts is refused rather than merged; see
+[Sharding a large fleet](performance.md#sharding-a-large-fleet).
+
 ## Report output and retention
 
 ```yaml
@@ -94,7 +99,9 @@ linux_vitals_report_retention_count: 10
   `linux_vitals_report_dir_mode: "0700"` to keep reports, archives, and
   snapshots private to the automation user on a shared control node.
 - Archived copies get a UTC timestamp suffix, e.g.
-  `linux_vitals_report-20260712T120000Z.html`.
+  `linux_vitals_report-20260712T120000Z.html`. Retention counts and prunes
+  only the report's own archives, so several reports with different output
+  paths can share one archive directory.
 - Set `linux_vitals_report_retention_count: 0` to keep every archived
   report (no pruning).
 

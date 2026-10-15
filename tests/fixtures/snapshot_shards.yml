@@ -1,0 +1,28 @@
+---
+# Runs the real vitals_report snapshot.yml for a fleet of fake hosts (see
+# snapshot_shards.ini), the way baseline.yml would. The test chooses which
+# hosts run (--limit), the shard (-e linux_vitals_snapshot_shard=...), the
+# batch size (-e fixture_serial=...) and what the snapshot directory held
+# beforehand, then asserts on the manifests, the snapshots and the output.
+- name: Persist baseline snapshots for one shard of a fleet
+  hosts: fleet
+  connection: local
+  gather_facts: false
+  serial: "{{ fixture_serial | default(0) }}"
+  vars:
+    output_dir: "{{ lookup('ansible.builtin.env', 'TEST_OUTPUT_DIR') }}"
+    linux_vitals_phase: "baseline"
+    linux_vitals_maintenance_id: "shard-window"
+    linux_vitals_snapshot_dir: "{{ output_dir }}/snapshots"
+  tasks:
+    - name: Seed a minimal health result for each host
+      ansible.builtin.set_fact:
+        linux_vitals_result:
+          hostname: "{{ inventory_hostname }}"
+          final_status: "Pass"
+          findings: []
+
+    - name: Persist snapshots through the role
+      ansible.builtin.include_role:
+        name: sameeralam3127.linux_vitals.vitals_report
+        tasks_from: snapshot

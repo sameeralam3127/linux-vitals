@@ -15,8 +15,15 @@ Slack/email/generic-webhook summaries.
 See [docs/variable-reference.md](https://github.com/sameeralam3127/linux-vitals/blob/main/docs/variable-reference.md)
 and [docs/configuration-reference.md](https://github.com/sameeralam3127/linux-vitals/blob/main/docs/configuration-reference.md)
 in the parent collection for the full list: maintenance workflow
-(`linux_vitals_phase`, `linux_vitals_maintenance_id`), output/archiving,
-and each notification channel.
+(`linux_vitals_phase`, `linux_vitals_maintenance_id`, and
+`linux_vitals_snapshot_shard` for a fleet sharded into several runs),
+output/archiving, and each notification channel.
+
+Several runs can share the report, archive and snapshot directories. Give each
+its own output path and, for one maintenance window split across runs, its own
+`linux_vitals_snapshot_shard`. See
+[docs/architecture.md](https://github.com/sameeralam3127/linux-vitals/blob/main/docs/architecture.md#runs-that-share-a-directory)
+for what is safe to share.
 
 ## Example
 

@@ -53,6 +53,7 @@ Override any of these in inventory, `group_vars`, or `-e` extra vars.
 | `linux_vitals_phase` | `"adhoc"` | One of `adhoc`, `baseline`, `postcheck`. Set by `playbooks/baseline.yml` / `postcheck.yml`; `healthcheck.yml` leaves it at `adhoc`. |
 | `linux_vitals_maintenance_id` | `""` | Required (non-empty) when phase is `baseline` or `postcheck`. Correlates a baseline snapshot with its postcheck. |
 | `linux_vitals_snapshot_dir` | `"{{ inventory_dir }}/reports/snapshots"` | Root directory for per-host, per-phase JSON snapshots. |
+| `linux_vitals_snapshot_shard` | `""` | Names this run's part of a snapshot set shared by several runs of one maintenance id (a [sharded fleet](performance.md#sharding-a-large-fleet)). Each run records its hosts in `<maintenance_id>/<phase>/.shards/<shard>.json`; a run that reuses a shard id for hosts it was not recorded with fails before writing any snapshot. Re-running all or some of a shard's hosts is allowed. Empty records the run as shard `default` and only warns on a different host set. Letters, digits, `.`, `_`, `-`, starting with a letter or digit. |
 | `linux_vitals_fail_on_status` | `""` | Optional final pipeline gate. Empty never fails the run; `any_fail` fails when failed hosts exceed the threshold; `regression` considers only Pass → Fail hosts during a `postcheck`. Reports and notifications are produced before the gate runs. |
 | `linux_vitals_fail_threshold_count` | `0` | Number of failed/regressed hosts tolerated before the optional fleet gate returns non-zero. |
 
@@ -68,8 +69,8 @@ Override any of these in inventory, `group_vars`, or `-e` extra vars.
 | `linux_vitals_archive_html_reports` | `true` | Copy the HTML dashboard into `linux_vitals_report_archive_dir` with a UTC timestamp on every run. |
 | `linux_vitals_archive_json_reports` | `false` | Same, for the JSON report. |
 | `linux_vitals_report_archive_dir` | `"{{ linux_vitals_output_path \| dirname }}/archive"` | Where archived, timestamped copies are stored. |
-| `linux_vitals_report_retention_count` | `10` | Keep only the newest N archived HTML/JSON files (per type); `0` disables pruning. |
-| `linux_vitals_archive_timestamp` | `""` | Override the UTC timestamp used for this run's archive filenames (mainly for testing); blank means "now". |
+| `linux_vitals_report_retention_count` | `10` | Keep only the newest N archived HTML/JSON files (per type) of this report; `0` disables pruning. Archives of other reports in the same directory are never counted or pruned. |
+| `linux_vitals_archive_timestamp` | `""` | Override the UTC timestamp used for this run's archive filenames (mainly for testing); blank means "now". Pruning matches archives whose timestamp has the same shape, digits where this one has digits, so keep one format. |
 
 ## `vitals_report` -- Slack
 

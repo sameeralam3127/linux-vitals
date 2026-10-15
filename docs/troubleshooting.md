@@ -26,6 +26,25 @@ Both phases need `-e linux_vitals_maintenance_id=<id>`; the id has no
 sensible default because it's what correlates a baseline with its
 postcheck. Reuse the exact same id for both runs.
 
+**A `baseline` or `postcheck` run fails with "Snapshot shard '...' of
+maintenance id '...' (...) was recorded with N host(s), and this run also
+targets ...".**
+Another run already wrote this phase's snapshots under the same
+`linux_vitals_snapshot_shard`, for a set of hosts that does not include the
+ones named. Nothing was written. If this run is another part of the same
+fleet, give it a shard id of its own. If it is a different fleet, use a
+different `linux_vitals_maintenance_id`. If that shard's hosts really
+changed, delete the `.shards/<shard>.json` file the message names and run
+again. Re-running some or all of a shard's own hosts is never refused.
+
+**A run prints "WARNING: the snapshot set for maintenance id ... adds N
+host(s) that were not in it".**
+The same, for runs without a shard id: this run's snapshots were written,
+into a set an earlier run of other hosts also wrote. If these runs are shards
+of one fleet, that is fine, but give each a `linux_vitals_snapshot_shard` and
+the check becomes exact. If not, the postcheck will compare hosts from both;
+use a separate maintenance id.
+
 **The dashboard shows every `postcheck` host as "New" with no comparison.**
 The baseline snapshot wasn't found. Check that
 `linux_vitals_snapshot_dir/<maintenance_id>/baseline/<hostname>.json`

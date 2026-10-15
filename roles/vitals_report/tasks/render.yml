@@ -38,6 +38,29 @@
         ~ linux_vitals_effective_archive_timestamp
         ~ linux_vitals_json_output_ext
       }}
+    # Retention pruning must only ever match this report's own archives (#26).
+    # The glob it used, <stem>-*<ext>, also matched the archives of any report
+    # whose name starts with <stem>- -- a shard writing linux_vitals_report-web.html
+    # beside linux_vitals_report.html -- and because a letter sorts above a
+    # digit, it kept those and deleted this report's own history instead. The
+    # timestamp is matched by shape: every digit of this run's timestamp becomes
+    # [0-9], so the default %Y%m%dT%H%M%SZ and a pinned timestamp of the same
+    # form both match, and another report's suffix never does.
+    linux_vitals_archive_html_regex: >-
+      {{
+        '^' ~ (linux_vitals_output_stem | regex_escape)
+        ~ '-' ~ linux_vitals_archive_timestamp_shape
+        ~ (linux_vitals_output_ext | regex_escape) ~ '$'
+      }}
+    linux_vitals_archive_json_regex: >-
+      {{
+        '^' ~ (linux_vitals_json_output_stem | regex_escape)
+        ~ '-' ~ linux_vitals_archive_timestamp_shape
+        ~ (linux_vitals_json_output_ext | regex_escape) ~ '$'
+      }}
+  vars:
+    linux_vitals_archive_timestamp_shape: >-
+      {{ linux_vitals_effective_archive_timestamp | regex_escape | regex_replace('[0-9]', '[0-9]') }}
   delegate_to: localhost
   run_once: true
 
@@ -256,43 +279,39 @@
   tags:
     - reporting
 
+# Every report, archive and snapshot write in this role goes through the
+# template or copy module, which writes a temporary file in the destination
+# directory and rename()s it into place, so a reader -- or a concurrent run --
+# only ever sees a complete file. Each run archives the report it rendered
+# rather than copying linux_vitals_output_path, which by then may hold another
+# run's report when two runs write the same output path (#26).
 - name: Archive consolidated HTML dashboard
-  ansible.builtin.copy:
-    src: "{{ linux_vitals_output_path }}"
+  ansible.builtin.template:
+    src: dashboard.html.j2
     dest: "{{ linux_vitals_archive_html_path }}"
     mode: "{{ linux_vitals_report_file_mode }}"
-    remote_src: true
   delegate_to: localhost
   run_once: true
   when: linux_vitals_archive_html_reports
 
-- name: Check whether JSON report exists for archiving
-  ansible.builtin.stat:
-    path: "{{ linux_vitals_json_output_path }}"
-  register: linux_vitals_json_output_file
-  delegate_to: localhost
-  run_once: true
-  when: linux_vitals_archive_json_reports
-
-- name: Archive JSON report when present
-  ansible.builtin.copy:
-    src: "{{ linux_vitals_json_output_path }}"
+- name: Archive JSON report
+  ansible.builtin.template:
+    src: report.json.j2
     dest: "{{ linux_vitals_archive_json_path }}"
     mode: "{{ linux_vitals_report_file_mode }}"
-    remote_src: true
   delegate_to: localhost
   run_once: true
   when:
     - linux_vitals_archive_json_reports
     - linux_vitals_json_output_path | trim | length > 0
-    - linux_vitals_json_output_file.stat.exists | default(false)
 
 - name: Find archived HTML reports
   ansible.builtin.find:
     paths: "{{ linux_vitals_effective_archive_dir }}"
     file_type: file
+    use_regex: true
     patterns:
-      - "{{ linux_vitals_output_stem }}-*{{ linux_vitals_output_ext }}"
+      - "{{ linux_vitals_archive_html_regex }}"
   register: linux_vitals_archived_html_reports
   delegate_to: localhost
   run_once: true
@@ -304,8 +323,9 @@
   ansible.builtin.find:
     paths: "{{ linux_vitals_effective_archive_dir }}"
     file_type: file
+    use_regex: true
     patterns:
-      - "{{ linux_vitals_json_output_stem }}-*{{ linux_vitals_json_output_ext }}"
+      - "{{ linux_vitals_archive_json_regex }}"
   register: linux_vitals_archived_json_reports
   delegate_to: localhost
   run_once: true
