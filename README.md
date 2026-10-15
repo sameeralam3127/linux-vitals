@@ -320,46 +320,41 @@ Solid red roles always run; dashed ones are opt-in and off by default.
 
 ```mermaid
 flowchart TB
-    CN(["<b>Ansible control node</b><br/>healthcheck · baseline · postcheck"])
+    subgraph FLEET["Managed hosts · SSH only, nothing installed"]
+        direction LR
+        DEB["<b>Debian family</b><br/>Ubuntu · Debian"]
+        RH["<b>Red Hat family</b><br/>RHEL · Rocky · Alma<br/>Fedora · Amazon Linux"]
+        SUSE["<b>SUSE family</b><br/>openSUSE · SLES"]
+        DEB ~~~ RH ~~~ SUSE
+    end
 
-    subgraph ROLES["Roles, run in order"]
+    subgraph ROLES["Ansible control node · roles run in order"]
         direction LR
         SCAN["<b>vitals_scan</b><br/>read-only checks"]
-        HEAL["<b>vitals_heal</b><br/>restart failed units"]
+        HEAL["<b>vitals_heal</b><br/>restarts failed units"]
         CERTS["<b>vitals_certs</b><br/>TLS certificates"]
         REPORT["<b>vitals_report</b><br/>compare · render<br/>notify · gate"]
         SCAN --> HEAL --> CERTS --> REPORT
     end
 
-    subgraph FLEET["Managed hosts · nothing installed"]
-        direction TB
-        DEB["<b>Ubuntu · Debian</b><br/><i>reboot-required file</i>"]
-        RH["<b>RHEL · Rocky · Alma</b><br/><b>Fedora · Amazon Linux</b><br/><i>needs-restarting</i>"]
-        SUSE["<b>openSUSE · SLES</b><br/><i>zypper needs-rebooting</i>"]
-        DEB ~~~ RH ~~~ SUSE
-    end
-
-    subgraph OUT["What you get, beside your inventory"]
-        direction TB
-        HTML["HTML dashboard<br/><i>one file, no CDN</i>"]
-        JSON["JSON report<br/><i>schema 2.1</i>"]
-        SNAP["Snapshots<br/><i>baseline → postcheck</i>"]
-        MSG["Slack · email · webhook<br/><i>summary only</i>"]
+    subgraph OUT["What you get"]
+        direction LR
+        HTML["<b>HTML dashboard</b><br/>one file, no CDN"]
+        JSON["<b>JSON report</b><br/>schema 2.1"]
+        SNAP["<b>Snapshots</b><br/>before → after"]
+        MSG["<b>Notifications</b><br/>Slack · email<br/>webhook"]
         HTML ~~~ JSON ~~~ SNAP ~~~ MSG
     end
 
-    CN --> ROLES
-    ROLES -->|"SSH"| FLEET
+    FLEET -->|"over SSH"| ROLES
     ROLES --> OUT
 
     classDef core fill:#ee0000,stroke:#a60000,color:#ffffff
     classDef optin fill:#ffffff,stroke:#ee0000,stroke-width:2px,stroke-dasharray:6 4,color:#151515
     classDef item fill:#f2f2f2,stroke:#8a8d90,color:#151515
-    classDef control fill:#151515,stroke:#8a8d90,color:#ffffff
     class SCAN,REPORT core
     class HEAL,CERTS optin
     class DEB,RH,SUSE,HTML,JSON,SNAP,MSG item
-    class CN control
     style ROLES fill:none,stroke:#ee0000,stroke-width:1px,color:#8a8d90
     style FLEET fill:none,stroke:#8a8d90,stroke-dasharray:4 4,color:#8a8d90
     style OUT fill:none,stroke:#8a8d90,stroke-dasharray:4 4,color:#8a8d90
