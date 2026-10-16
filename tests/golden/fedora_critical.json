@@ -26,6 +26,13 @@
       "status": "fail"
     },
     {
+      "id": "pressure_stall_high",
+      "message": "Memory pressure: tasks stalled 33.0% of the last minute",
+      "severity": "warning",
+      "status": "fail",
+      "subject": "memory"
+    },
+    {
       "id": "journald_inactive",
       "message": "systemd-journald is not active",
       "severity": "critical",
@@ -61,6 +68,47 @@
   "os_family": "RedHat",
   "package_manager": "dnf",
   "platform_type": "Virtual Machine",
+  "pressure": {
+    "cpu_count": 4,
+    "load": {
+      "15m": 1.7,
+      "1m": 2.2,
+      "5m": 2.05
+    },
+    "load_per_cpu": {
+      "15m": 0.42,
+      "1m": 0.55,
+      "5m": 0.51
+    },
+    "load_reason": "",
+    "load_status": "OK",
+    "psi": {
+      "cpu_some": 0.85,
+      "io_full": 0.11,
+      "io_some": 0.42,
+      "memory_full": 14.2,
+      "memory_some": 33.0
+    },
+    "psi_reason": "",
+    "psi_status": "Warning",
+    "psi_supported": true,
+    "stalled": [
+      {
+        "resource": "memory",
+        "severity": "warning",
+        "some_avg60": 33.0
+      }
+    ],
+    "swap_in_per_sec": 0,
+    "swap_out_per_sec": 0,
+    "swap_rate_per_sec": 0,
+    "swap_reason": "",
+    "swap_sample_seconds": 2,
+    "swap_status": "OK",
+    "swap_total_mb": 2048.0,
+    "swap_used_mb": 0.0,
+    "swap_used_pct": 0.0
+  },
   "ram_status": "Critical",
   "ram_total_mb": 8000.0,
   "ram_used_mb": 7600.0,
@@ -79,7 +127,7 @@
   "severity_counts": {
     "critical": 2,
     "info": 0,
-    "warning": 2
+    "warning": 3
   },
   "unknown_count": 0,
   "uptime": "0d 2h 0m",

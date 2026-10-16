@@ -29,6 +29,24 @@ state:
     systemd-journald.service: {state: stopped, status: static}
     ssh.service: {state: running, status: enabled}
   probes:
+    pressure:
+      # 5-minute load 25.30 on 8 CPUs is 3.16 per CPU: cpu_load_high (critical)
+      ran: true
+      rc: 0
+      load: "26.10 25.30 20.00"
+      cpus: 8
+      psi: supported
+      psi_reason: ""
+      psi_cpu_some: 48.90
+      psi_memory_some: 12.00
+      psi_memory_full: 3.00
+      psi_io_some: 0.42
+      psi_io_full: 0.11
+      swap_total_kb: 2097148
+      swap_free_kb: 2097148
+      swap_sample_seconds: 2
+      swap_in_per_sec: 0
+      swap_out_per_sec: 0
     logs:
       # Entries at priority err or worse: the kernel logs the OOM kill at err,
       # and systemd's "Failed with result" line is a warning, so it is absent.

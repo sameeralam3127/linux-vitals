@@ -30,6 +30,24 @@ state:
     chronyd.service: {state: running, status: enabled}
     sshd.service: {state: running, status: enabled}
   probes:
+    pressure:
+      # openSUSE kernels ship PSI disabled (CONFIG_PSI_DEFAULT_DISABLED): unsupported, not zero
+      ran: true
+      rc: 0
+      load: "0.75 0.70 0.66"
+      cpus: 2
+      psi: unsupported
+      psi_reason: "reading /proc/pressure/cpu failed: Operation not supported"
+      psi_cpu_some: null
+      psi_memory_some: null
+      psi_memory_full: null
+      psi_io_some: null
+      psi_io_full: null
+      swap_total_kb: 2097148
+      swap_free_kb: 2097148
+      swap_sample_seconds: 2
+      swap_in_per_sec: 0
+      swap_out_per_sec: 0
     logs:
       ran: true
       rc: 0

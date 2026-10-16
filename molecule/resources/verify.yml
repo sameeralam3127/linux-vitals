@@ -40,6 +40,29 @@
         finding_ids: "{{ host_report.findings | map(attribute='id') | list }}"
 
     # ------------------------------------------------------------------
+    # CPU load, pressure stalls and swap (#34)
+    # ------------------------------------------------------------------
+    - name: Assert the load, pressure and swap probe read this host
+      # The golden fixtures prove the parsing; this proves the script runs on
+      # each distribution's own sh, awk and getconf against a real /proc. The
+      # levels themselves depend on the CI runner, so only "measured" is
+      # asserted: never Unknown, and PSI either read or reported unsupported.
+      ansible.builtin.assert:
+        that:
+          - host_report.pressure.load_status in ['OK', 'Warning', 'Critical']
+          - host_report.pressure.cpu_count | int >= 1
+          - host_report.pressure.load_per_cpu['5m'] is number
+          - host_report.pressure.psi_status in ['OK', 'Warning', 'Critical', 'Unsupported']
+          - (host_report.pressure.psi_status == 'Unsupported') == (host_report.pressure.psi is none)
+          - host_report.pressure.swap_status in ['OK', 'Warning', 'Critical']
+          - host_report.pressure.swap_rate_per_sec is number
+          - >-
+            host_report.findings
+            | selectattr('id', 'in', ['cpu_load_high', 'pressure_stall_high', 'swap_paging_high'])
+            | selectattr('status', 'equalto', 'unknown') | list | length == 0
+        fail_msg: "The saturation probe did not produce a full reading: {{ host_report.pressure }}"
+
+    # ------------------------------------------------------------------
     # Finding severity (#8)
     # ------------------------------------------------------------------
     - name: Assert every finding carries an id, a message, and a known severity

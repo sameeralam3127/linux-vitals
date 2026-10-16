@@ -114,7 +114,7 @@ That is the whole loop. Everything below is optional.
 | Area | Checks |
 | --- | --- |
 | **System** | CPU and platform discovery, virtualization type, uptime, last reboot, asset serial |
-| **Memory** | Usage against warning and critical thresholds |
+| **Memory & load** | RAM usage; 5-minute load per CPU; pressure stalls (PSI) for CPU, memory and I/O; swap paging rate -- each against warning and critical thresholds |
 | **Services** | `sssd`, `systemd-journald`, and the resolved time-sync unit |
 | **Logs** | Journal entries at priority `err` or worse (configurable) in a bounded window, plus kernel/bootloader install failures |
 | **Kernel & boot** | Running vs. latest installed kernel, bootloader default entry, reboot-required (per distro), `/boot` free space, rescue image |

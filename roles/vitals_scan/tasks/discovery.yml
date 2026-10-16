@@ -44,12 +44,18 @@
 - name: Probe the journal for kernel install failures
   ansible.builtin.import_tasks: kernel_install_failures.yml
 
+- name: Probe CPU load, pressure stalls and swap activity
+  ansible.builtin.import_tasks: pressure.yml
+
 # 3. Derived facts. Each reads facts set above it, never ones it sets itself.
 - name: Evaluate the journal probes
   ansible.builtin.import_tasks: journal_facts.yml
 
 - name: Evaluate memory usage
   ansible.builtin.import_tasks: memory.yml
+
+- name: Evaluate CPU load, pressure stalls and swap activity
+  ansible.builtin.import_tasks: pressure_facts.yml
 
 - name: Parse the probes into discovery facts
   ansible.builtin.import_tasks: extended_facts.yml

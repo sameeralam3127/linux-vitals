@@ -26,6 +26,19 @@
       "status": "fail"
     },
     {
+      "id": "cpu_load_high",
+      "message": "5-minute load average is 3.16 per CPU (25.3 across 8 CPUs)",
+      "severity": "critical",
+      "status": "fail"
+    },
+    {
+      "id": "pressure_stall_high",
+      "message": "CPU pressure: tasks stalled 48.9% of the last minute",
+      "severity": "warning",
+      "status": "fail",
+      "subject": "cpu"
+    },
+    {
       "id": "log_errors",
       "message": "Recent logs contain error or failed entries",
       "severity": "info",
@@ -83,6 +96,47 @@
   "os_family": "Debian",
   "package_manager": "apt",
   "platform_type": "Virtual Machine",
+  "pressure": {
+    "cpu_count": 8,
+    "load": {
+      "15m": 20.0,
+      "1m": 26.1,
+      "5m": 25.3
+    },
+    "load_per_cpu": {
+      "15m": 2.5,
+      "1m": 3.26,
+      "5m": 3.16
+    },
+    "load_reason": "",
+    "load_status": "Critical",
+    "psi": {
+      "cpu_some": 48.9,
+      "io_full": 0.11,
+      "io_some": 0.42,
+      "memory_full": 3.0,
+      "memory_some": 12.0
+    },
+    "psi_reason": "",
+    "psi_status": "Warning",
+    "psi_supported": true,
+    "stalled": [
+      {
+        "resource": "cpu",
+        "severity": "warning",
+        "some_avg60": 48.9
+      }
+    ],
+    "swap_in_per_sec": 0,
+    "swap_out_per_sec": 0,
+    "swap_rate_per_sec": 0,
+    "swap_reason": "",
+    "swap_sample_seconds": 2,
+    "swap_status": "OK",
+    "swap_total_mb": 2048.0,
+    "swap_used_mb": 0.0,
+    "swap_used_pct": 0.0
+  },
   "ram_status": "Critical",
   "ram_total_mb": 3920.0,
   "ram_used_mb": 3822.0,
@@ -99,9 +153,9 @@
   "services_healed": [],
   "severity": "critical",
   "severity_counts": {
-    "critical": 2,
+    "critical": 3,
     "info": 1,
-    "warning": 4
+    "warning": 5
   },
   "unknown_count": 0,
   "uptime": "1d 0h 0m",

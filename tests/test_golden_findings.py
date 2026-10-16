@@ -69,6 +69,7 @@ PROBE_FOR_REGISTER = {
     "linux_vitals_apparmor_cmd": "apparmor",
     "linux_vitals_rescue_image_cmd": "rescue_images",
     "linux_vitals_audit_journalctl": "audit_logs",
+    "linux_vitals_pressure_cmd": "pressure",
 }
 
 # The key=value blocks the shell probes print, in the order they print them.
@@ -78,6 +79,11 @@ KEY_VALUE_PROBES = {
     "installed_kernels": ["latest", "updated_at", "filtered"],
     "bootloader": ["supported", "source", "default_entry", "default_kernel", "status"],
     "reboot_required": ["supported", "detected", "source", "detail", "packages"],
+    "pressure": [
+        "load", "cpus", "psi", "psi_reason",
+        "psi_cpu_some", "psi_memory_some", "psi_memory_full", "psi_io_some", "psi_io_full",
+        "swap_total_kb", "swap_free_kb", "swap_sample_seconds", "swap_in_per_sec", "swap_out_per_sec",
+    ],
 }
 LINE_PROBES = {"failed_logins", "rescue_images"}
 

@@ -180,6 +180,7 @@ Then per probe:
 | `selinux` | `stdout` | `selinux_disabled` |
 | `apparmor` | `rc` only — the probe has no output, the exit code *is* the answer | `apparmor_disabled` |
 | `rescue_images` | `stdout_lines` | report only |
+| `pressure` | `load`, `cpus`, `psi`, `psi_reason`, `psi_cpu_some`, `psi_memory_some`, `psi_memory_full`, `psi_io_some`, `psi_io_full`, `swap_total_kb`, `swap_free_kb`, `swap_sample_seconds`, `swap_in_per_sec`, `swap_out_per_sec` | `cpu_load_high`, `pressure_stall_high`, `swap_paging_high` |
 
 Two deliberate choices:
 
@@ -192,6 +193,12 @@ Two deliberate choices:
 - **`window` is recorded.** `linux_vitals_log_window` is a collection
   parameter, not a judgement threshold: it says what was looked at, and a
   finding's evidence is meaningless without it.
+
+`pressure` ([#34](https://github.com/sameeralam3127/linux-vitals/issues/34)) is a `key=value` block too, printed in the order listed.
+A value the probe could not read is `null`, never `0`: `psi` is `unsupported`
+with the kernel's answer in `psi_reason` on a kernel without PSI, and the two
+swap rates are `null` when `swap_sample_seconds` is `0`. Adding the probe
+added fields, so `state_schema` stays `1` (see [Versioning](#versioning)).
 
 `reboot_required.packages` is a list here; the probe prints it
 comma-separated and `reboot_facts.yml:41` splits it. Same reasoning as above.

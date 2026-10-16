@@ -232,6 +232,75 @@ journalctl --system --since "7 days ago" --output=short-iso \
 bootloader entry afterwards**. A partially installed kernel that is listed in
 GRUB but has no initramfs will not boot.
 
+### `cpu_load_high` -- CPU load is high for the number of CPUs
+
+Raised as `warning` or `critical` by threshold, so it can sit in either
+section of a report.
+
+**Means:** the 5-minute load average divided by the online CPUs is at or above
+`linux_vitals_load_warning_threshold` (default 1.5) or
+`linux_vitals_load_critical_threshold` (default 3.0). Above 1.0, runnable
+tasks are queueing for CPU. On Linux, load also counts tasks blocked on I/O,
+so a high load with idle CPUs points at storage, not compute.
+
+**Confirm:**
+```bash
+uptime; nproc
+top -b -n 1 | head -20                 # %us/%sy high = CPU; %wa high = I/O wait
+cat /proc/pressure/cpu /proc/pressure/io
+```
+
+**Do:** check `pressure_stall_high` on the same host. CPU stall agrees with a CPU
+problem; I/O stall with idle CPUs means the load is waiting on disk. Find the
+top consumers, then decide between fixing a runaway, rescheduling batch work,
+or adding capacity. A host that is busy by design (build agents, batch nodes)
+should get its own threshold in `group_vars`, with the reason written down.
+
+### `pressure_stall_high` -- tasks are stalled waiting for CPU, memory or I/O
+
+One finding per resource, named in `subject`; raised as `warning` or
+`critical` by threshold.
+
+**Means:** PSI (pressure stall information, kernel 4.20+) shows that for at
+least `linux_vitals_psi_warning_threshold` percent (default 25) of the last
+minute, some task was waiting for that resource. It measures lost time rather
+than utilisation, which makes it the most direct "is this host struggling"
+signal Linux has. Memory stall means reclaim or swapping is slowing work down;
+I/O stall means storage is the bottleneck.
+
+**Confirm:**
+```bash
+cat /proc/pressure/cpu /proc/pressure/memory /proc/pressure/io
+vmstat 1 5                             # si/so = swapping, wa = I/O wait
+```
+
+**Do:** for memory, read it together with `ram_critical` and `swap_paging_high`:
+find the process growing, or the host that is undersized. For I/O, find the
+busy device and process (`iostat -x 1`, `iotop`). For CPU, see `cpu_load_high`.
+Hosts whose kernel has no PSI show *unsupported* in the report and never raise
+this finding.
+
+### `swap_paging_high` -- the host is actively swapping
+
+Raised as `warning` or `critical` by threshold.
+
+**Means:** between two reads `linux_vitals_swap_sample_seconds` apart (default
+2), the host swapped at least `linux_vitals_swap_rate_warning_threshold` pages
+per second in and out combined (default 100, about 400 KB/s). Swap that is
+merely in use is normal. Pages moving in and out is what makes a host slow.
+
+**Confirm:**
+```bash
+vmstat 1 10                            # si/so columns, pages per second
+free -m
+cat /proc/pressure/memory
+```
+
+**Do:** the sample is short, so treat one occurrence as a lead, not a verdict.
+Memory `pressure_stall_high` on the same host confirms it is sustained. Then
+treat it as memory pressure: find the consumer, add memory, or cap the
+workload.
+
 ## Informational findings
 
 ### `log_errors` -- recent logs contain error entries

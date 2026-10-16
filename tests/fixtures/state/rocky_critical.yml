@@ -30,6 +30,24 @@ state:
     chronyd.service: {state: stopped, status: enabled}
     sshd.service: {state: running, status: enabled}
   probes:
+    pressure:
+      # memory stalled 62.4% (critical), I/O 27.8% (warning), CPU 22% (under), 2700 pages/s swapped (critical); 3.60 on 2 CPUs is 1.8 per CPU (warning)
+      ran: true
+      rc: 0
+      load: "3.90 3.60 2.80"
+      cpus: 2
+      psi: supported
+      psi_reason: ""
+      psi_cpu_some: 22.00
+      psi_memory_some: 62.40
+      psi_memory_full: 41.70
+      psi_io_some: 27.80
+      psi_io_full: 19.30
+      swap_total_kb: 2097148
+      swap_free_kb: 65536
+      swap_sample_seconds: 2
+      swap_in_per_sec: 1800
+      swap_out_per_sec: 900
     logs:
       ran: true
       rc: 0

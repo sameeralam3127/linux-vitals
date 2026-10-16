@@ -1,0 +1,174 @@
+---
+# Evaluate the load, pressure and swap probe (pressure.yml) into
+# linux_vitals_pressure (the values) and linux_vitals_pressure_status (what
+# result.yml raises findings from). Three tasks, because a set_fact cannot
+# read a fact it sets itself: parse, then values, then statuses.
+#
+# Nothing here reads 0 for a value it does not have. A value the probe could
+# not read is `none`, and the status says why: `Unknown` raises an `unknown`
+# finding with the reason (#62); `Unsupported` (no PSI on this kernel) and
+# `Not sampled` (linux_vitals_swap_sample_seconds is 0) raise nothing.
+- name: Parse the load, pressure and swap probe
+  ansible.builtin.set_fact:
+    linux_vitals_pressure_probe: >-
+      {%- set ns = namespace(kv={}) -%}
+      {%- for line in linux_vitals_pressure_cmd.stdout_lines | default([]) -%}
+      {%- set parts = line.split('=', 1) -%}
+      {%- if parts | length == 2 -%}
+      {%- set ns.kv = ns.kv | combine({parts[0] | trim: parts[1] | trim}) -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{ ns.kv }}
+    linux_vitals_pressure_reason: >-
+      {%- if linux_vitals_pressure_cmd.skipped | default(false) -%}
+      the load and pressure probe did not run
+      {%- elif linux_vitals_pressure_cmd.rc | default(1) | int != 0 -%}
+      the load and pressure probe exited {{ linux_vitals_pressure_cmd.rc | default('unknown') }}:
+      {{ (linux_vitals_pressure_cmd.stderr | default('', true)
+          or linux_vitals_pressure_cmd.msg | default('no output', true)) | trim | truncate(200) }}
+      {%- endif -%}
+  tags:
+    - discovery
+    - kernel
+    - security
+    - boot
+
+- name: Evaluate CPU load, pressure stalls and swap usage
+  ansible.builtin.set_fact:
+    linux_vitals_pressure: >-
+      {%- set p = linux_vitals_pressure_probe -%}
+      {%- set probe_reason = linux_vitals_pressure_reason | default('', true) | trim -%}
+      {%- set number = '^[0-9]+(\.[0-9]+)?$' -%}
+      {%- set out = namespace(load=none, per_cpu=none, load_reason='', psi=none, psi_supported=none,
+                              psi_reason='', swap_in=none, swap_out=none, swap_reason='') -%}
+      {%- set fields = (p.load | default('')).split() -%}
+      {%- set cpus = p.cpus | default('0', true) | int -%}
+      {#- Load: the three averages, and each divided by the online CPUs. -#}
+      {%- if probe_reason -%}
+      {%- set out.load_reason = probe_reason -%}
+      {%- elif fields | length != 3 or fields | select('match', number) | list | length != 3 -%}
+      {%- set out.load_reason = 'could not read /proc/loadavg' -%}
+      {%- elif cpus < 1 -%}
+      {%- set out.load_reason = 'could not count the online CPUs' -%}
+      {%- else -%}
+      {%- set out.load = {'1m': fields[0] | float, '5m': fields[1] | float, '15m': fields[2] | float} -%}
+      {%- set out.per_cpu = {
+        '1m': (fields[0] | float / cpus) | round(2),
+        '5m': (fields[1] | float / cpus) | round(2),
+        '15m': (fields[2] | float / cpus) | round(2)} -%}
+      {%- endif -%}
+      {#- PSI: avg60 of each resource, or unsupported with the kernel's reason. -#}
+      {%- set psi_keys = ['cpu_some', 'memory_some', 'memory_full', 'io_some', 'io_full'] -%}
+      {%- if probe_reason -%}
+      {%- set out.psi_reason = probe_reason -%}
+      {%- elif p.psi | default('') == 'supported' -%}
+      {%- set psi_ns = namespace(vals={}) -%}
+      {%- for key in psi_keys -%}
+      {%- set raw = p['psi_' ~ key] | default('') -%}
+      {%- set psi_ns.vals = psi_ns.vals | combine({key: (raw | float) if raw is match(number) else none}) -%}
+      {%- endfor -%}
+      {%- if psi_ns.vals.cpu_some is none or psi_ns.vals.memory_some is none or psi_ns.vals.io_some is none -%}
+      {%- set out.psi_reason = 'could not parse /proc/pressure' -%}
+      {%- else -%}
+      {%- set out.psi_supported = true -%}
+      {%- set out.psi = psi_ns.vals -%}
+      {%- endif -%}
+      {%- else -%}
+      {%- set out.psi_supported = false -%}
+      {%- set out.psi_reason = p.psi_reason | default('', true) or 'PSI is not available on this kernel' -%}
+      {%- endif -%}
+      {#- Swap: size and use from /proc/meminfo; paging rate from two reads. -#}
+      {%- set total_kb = p.swap_total_kb | default('') -%}
+      {%- set free_kb = p.swap_free_kb | default('') -%}
+      {%- set swap_known = total_kb is match('^[0-9]+$') and free_kb is match('^[0-9]+$') -%}
+      {%- set sample = p.swap_sample_seconds | default('0', true) | int -%}
+      {%- if probe_reason -%}
+      {%- set out.swap_reason = probe_reason -%}
+      {%- elif sample > 0 -%}
+      {%- if (p.swap_in_per_sec | default('')) is match('^[0-9]+$') and (p.swap_out_per_sec | default('')) is match('^[0-9]+$') -%}
+      {%- set out.swap_in = p.swap_in_per_sec | int -%}
+      {%- set out.swap_out = p.swap_out_per_sec | int -%}
+      {%- else -%}
+      {%- set out.swap_reason = 'could not read the swap counters in /proc/vmstat' -%}
+      {%- endif -%}
+      {%- endif -%}
+      {{ {
+        'cpu_count': cpus if cpus > 0 else none,
+        'load': out.load,
+        'load_per_cpu': out.per_cpu,
+        'load_reason': out.load_reason,
+        'psi_supported': out.psi_supported,
+        'psi': out.psi,
+        'psi_reason': out.psi_reason,
+        'swap_total_mb': ((total_kb | int) / 1024) | round(1) if swap_known else none,
+        'swap_used_mb': ((total_kb | int - free_kb | int) / 1024) | round(1) if swap_known else none,
+        'swap_used_pct': ((total_kb | int - free_kb | int) / (total_kb | int) * 100) | round(1)
+                         if swap_known and total_kb | int > 0 else none,
+        'swap_sample_seconds': sample,
+        'swap_in_per_sec': out.swap_in,
+        'swap_out_per_sec': out.swap_out,
+        'swap_rate_per_sec': (out.swap_in + out.swap_out) if out.swap_in is not none else none,
+        'swap_reason': out.swap_reason,
+      } }}
+  tags:
+    - discovery
+    - kernel
+    - security
+    - boot
+
+- name: Classify CPU load, pressure stalls and swap activity
+  # Statuses are OK, Warning or Critical by threshold, Unknown when the value
+  # could not be read, and Unsupported (PSI) or Not sampled (swap rate) when
+  # there is nothing to measure. `stalled` lists each PSI resource at or above
+  # the warning threshold, worst first; result.yml raises one finding each.
+  ansible.builtin.set_fact:
+    linux_vitals_pressure_status: >-
+      {%- set pr = linux_vitals_pressure -%}
+      {%- set load_warn = linux_vitals_load_warning_threshold | float -%}
+      {%- set load_crit = linux_vitals_load_critical_threshold | float -%}
+      {%- set psi_warn = linux_vitals_psi_warning_threshold | float -%}
+      {%- set psi_crit = linux_vitals_psi_critical_threshold | float -%}
+      {%- set swap_warn = linux_vitals_swap_rate_warning_threshold | int -%}
+      {%- set swap_crit = linux_vitals_swap_rate_critical_threshold | int -%}
+      {%- if pr.load_per_cpu is none -%}
+      {%- set load_status = 'Unknown' -%}
+      {%- else -%}
+      {%- set per_cpu = pr.load_per_cpu['5m'] | float -%}
+      {%- set load_status = 'Critical' if per_cpu >= load_crit else 'Warning' if per_cpu >= load_warn else 'OK' -%}
+      {%- endif -%}
+      {%- set stalled = [] -%}
+      {%- if pr.psi_supported is sameas false -%}
+      {%- set psi_status = 'Unsupported' -%}
+      {%- elif pr.psi is none -%}
+      {%- set psi_status = 'Unknown' -%}
+      {%- else -%}
+      {%- for resource in ['memory', 'io', 'cpu'] -%}
+      {%- set value = pr.psi[resource ~ '_some'] | float -%}
+      {%- if value >= psi_warn -%}
+      {%- set _ = stalled.append({
+        'resource': resource, 'some_avg60': value,
+        'severity': 'critical' if value >= psi_crit else 'warning'}) -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {%- set psi_status = 'Critical' if stalled | selectattr('severity', 'equalto', 'critical') | list
+                           else 'Warning' if stalled else 'OK' -%}
+      {%- endif -%}
+      {%- if pr.swap_reason -%}
+      {%- set swap_status = 'Unknown' -%}
+      {%- elif pr.swap_rate_per_sec is none -%}
+      {%- set swap_status = 'Not sampled' -%}
+      {%- else -%}
+      {%- set rate = pr.swap_rate_per_sec | int -%}
+      {%- set swap_status = 'Critical' if rate >= swap_crit else 'Warning' if rate >= swap_warn else 'OK' -%}
+      {%- endif -%}
+      {{ {
+        'load_status': load_status,
+        'psi_status': psi_status,
+        'swap_status': swap_status,
+        'stalled': stalled | sort(attribute='some_avg60', reverse=true),
+      } }}
+  tags:
+    - discovery
+    - kernel
+    - security
+    - boot

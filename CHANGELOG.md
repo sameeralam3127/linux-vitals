@@ -134,6 +134,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **CPU saturation, pressure stall and swap activity checks** ([#34](https://github.com/sameeralam3127/linux-vitals/issues/34)).
+  Memory used to be the only pressure signal, so a host pinned at load 40
+  with a thrashing swap device reported `Pass` as long as it had free RAM.
+  One new read-only probe, `pressure.yml`, reads `/proc/loadavg`, the online
+  CPU count, `/proc/pressure/{cpu,memory,io}`, swap use from `/proc/meminfo`,
+  and two `/proc/vmstat` reads `linux_vitals_swap_sample_seconds` apart
+  (default 2). Three findings, each raised as `warning` or `critical` by
+  threshold:
+
+  - `cpu_load_high`: 5-minute load average **per CPU** at or above 1.5 / 3.0
+    (`linux_vitals_load_warning_threshold`, `_critical_threshold`).
+  - `pressure_stall_high`: one per resource (`subject` `cpu`, `memory` or
+    `io`) whose PSI `some avg60` is at or above 25 / 50 %.
+  - `swap_paging_high`: pages swapped in plus out per second at or above
+    100 / 1000.
+
+  A kernel without PSI (before 4.20, or PSI disabled as openSUSE ships it)
+  is reported as unsupported, with `null` values and the kernel's reason,
+  never as zero, and raises no PSI finding. A value that could not be read,
+  or a probe that could not run, raises the finding as `unknown` with the
+  reason (#62). Each host gains a `pressure` object in the JSON report
+  (additive, still schema `2.1`). The dashboard shows load, worst stall and
+  swap rate under each RAM meter, and the full breakdown in the host detail.
+  Every scan now waits `linux_vitals_swap_sample_seconds` once per host for
+  the swap rate; set it to `0` to skip that.
+
 - **A finding can say that a check could not run**
   ([#62](https://github.com/sameeralam3127/linux-vitals/issues/62)). Until
   now a check that failed to run -- a command missing, a log unreadable --

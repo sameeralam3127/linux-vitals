@@ -20,6 +20,13 @@
   "final_status": "Fail",
   "findings": [
     {
+      "id": "pressure_stall_high",
+      "message": "I/O pressure: tasks stalled 31.2% of the last minute",
+      "severity": "warning",
+      "status": "fail",
+      "subject": "io"
+    },
+    {
       "id": "reboot_required",
       "message": "System reboot is required",
       "severity": "warning",
@@ -55,6 +62,47 @@
   "os_family": "RedHat",
   "package_manager": "dnf",
   "platform_type": "Virtual Machine",
+  "pressure": {
+    "cpu_count": 2,
+    "load": {
+      "15m": 1.05,
+      "1m": 1.4,
+      "5m": 1.2
+    },
+    "load_per_cpu": {
+      "15m": 0.53,
+      "1m": 0.7,
+      "5m": 0.6
+    },
+    "load_reason": "",
+    "load_status": "OK",
+    "psi": {
+      "cpu_some": 0.85,
+      "io_full": 12.6,
+      "io_some": 31.2,
+      "memory_full": 0.0,
+      "memory_some": 0.0
+    },
+    "psi_reason": "",
+    "psi_status": "Warning",
+    "psi_supported": true,
+    "stalled": [
+      {
+        "resource": "io",
+        "severity": "warning",
+        "some_avg60": 31.2
+      }
+    ],
+    "swap_in_per_sec": 0,
+    "swap_out_per_sec": 0,
+    "swap_rate_per_sec": 0,
+    "swap_reason": "",
+    "swap_sample_seconds": 2,
+    "swap_status": "OK",
+    "swap_total_mb": 2048.0,
+    "swap_used_mb": 0.0,
+    "swap_used_pct": 0.0
+  },
   "ram_status": "Warning",
   "ram_total_mb": 15732.0,
   "ram_used_mb": 13373.0,
@@ -73,7 +121,7 @@
   "severity_counts": {
     "critical": 0,
     "info": 1,
-    "warning": 2
+    "warning": 3
   },
   "unknown_count": 0,
   "uptime": "36d 0h 0m",

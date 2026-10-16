@@ -95,6 +95,7 @@
         "used_mb": {{ result.ram_used_mb | float }},
         "total_mb": {{ result.ram_total_mb | float }}
       },
+      "pressure": {{ result.pressure | default({}) | to_json }},
       "logs": {
         "error_count": {{ result.log_errors | int }},
         "excerpt": {{ result.log_excerpt | to_json }}

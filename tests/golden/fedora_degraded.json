@@ -20,6 +20,12 @@
   "final_status": "Fail",
   "findings": [
     {
+      "id": "cpu_load_high",
+      "message": "5-minute load average is 1.6 per CPU (6.4 across 4 CPUs)",
+      "severity": "warning",
+      "status": "fail"
+    },
+    {
       "id": "log_errors",
       "message": "Recent logs contain error or failed entries",
       "severity": "info",
@@ -58,6 +64,41 @@
   "os_family": "RedHat",
   "package_manager": "dnf",
   "platform_type": "Physical",
+  "pressure": {
+    "cpu_count": 4,
+    "load": {
+      "15m": 5.1,
+      "1m": 7.8,
+      "5m": 6.4
+    },
+    "load_per_cpu": {
+      "15m": 1.27,
+      "1m": 1.95,
+      "5m": 1.6
+    },
+    "load_reason": "",
+    "load_status": "Warning",
+    "psi": {
+      "cpu_some": 18.4,
+      "io_full": 0.11,
+      "io_some": 0.42,
+      "memory_full": 0.0,
+      "memory_some": 0.0
+    },
+    "psi_reason": "",
+    "psi_status": "OK",
+    "psi_supported": true,
+    "stalled": [],
+    "swap_in_per_sec": 0,
+    "swap_out_per_sec": 0,
+    "swap_rate_per_sec": 0,
+    "swap_reason": "",
+    "swap_sample_seconds": 2,
+    "swap_status": "OK",
+    "swap_total_mb": 2048.0,
+    "swap_used_mb": 0.0,
+    "swap_used_pct": 0.0
+  },
   "ram_status": "OK",
   "ram_total_mb": 31845.0,
   "ram_used_mb": 13612.0,
@@ -78,7 +119,7 @@
   "severity_counts": {
     "critical": 0,
     "info": 1,
-    "warning": 2
+    "warning": 3
   },
   "unknown_count": 0,
   "uptime": "14d 0h 0m",

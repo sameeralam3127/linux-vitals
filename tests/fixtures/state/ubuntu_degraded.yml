@@ -32,6 +32,24 @@ state:
     ssh.service: {state: running, status: enabled}
     payments-api.service: {state: stopped, status: enabled}
   probes:
+    pressure:
+      # 240 pages/s swapped over the sample: swap_paging_high (warning)
+      ran: true
+      rc: 0
+      load: "1.10 0.95 0.80"
+      cpus: 4
+      psi: supported
+      psi_reason: ""
+      psi_cpu_some: 0.85
+      psi_memory_some: 8.20
+      psi_memory_full: 2.10
+      psi_io_some: 0.42
+      psi_io_full: 0.11
+      swap_total_kb: 2097148
+      swap_free_kb: 524288
+      swap_sample_seconds: 2
+      swap_in_per_sec: 180
+      swap_out_per_sec: 60
     logs:
       # Entries at priority err or worse. systemd logs a unit's "Failed with
       # result" line at warning, so it is not among them.

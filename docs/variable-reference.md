@@ -16,6 +16,13 @@ Override any of these in inventory, `group_vars`, or `-e` extra vars.
 | `linux_vitals_ram_warning_threshold` | `80` | RAM used % at or above which `ram_status` becomes `Warning`. |
 | `linux_vitals_ram_critical_threshold` | `95` | RAM used % at or above which `ram_status` becomes `Critical` (and the host fails). |
 | `linux_vitals_boot_warning_threshold` | `20` | Boot partition free % below which `boot_space_status` becomes `Low` (and the host fails). |
+| `linux_vitals_load_warning_threshold` | `1.5` | 5-minute load average **per online CPU** at or above which `cpu_load_high` is raised as `warning`. `1.0` means every CPU was busy on average, which a healthy batch host reaches routinely, so the default sits above it. [#34](https://github.com/sameeralam3127/linux-vitals/issues/34) |
+| `linux_vitals_load_critical_threshold` | `3.0` | 5-minute load average per online CPU at or above which `cpu_load_high` is raised as `critical`. |
+| `linux_vitals_psi_warning_threshold` | `25` | Pressure stall % (PSI `some avg60`: the share of the last minute in which at least one task waited) at or above which `pressure_stall_high` is raised as `warning` for that resource: CPU, memory or I/O. PSI needs kernel 4.20+ with PSI enabled; elsewhere it is reported as unsupported and raises nothing. |
+| `linux_vitals_psi_critical_threshold` | `50` | Pressure stall % at or above which `pressure_stall_high` is raised as `critical`. |
+| `linux_vitals_swap_rate_warning_threshold` | `100` | Pages swapped in plus out per second, over the sample below, at or above which `swap_paging_high` is raised as `warning`. |
+| `linux_vitals_swap_rate_critical_threshold` | `1000` | Pages swapped per second at or above which `swap_paging_high` is raised as `critical`. |
+| `linux_vitals_swap_sample_seconds` | `2` | Seconds between the two `/proc/vmstat` reads the swap rate is measured over. Every host waits this long once per scan. `0` skips the measurement and `swap_paging_high`; values above `60` are treated as `60`. |
 | `linux_vitals_fail_on_severity` | `info` | Severity at or above which a finding fails the host. `info` means any finding fails it, which is the pre-severity behaviour. Raise to `warning`/`critical` to triage. Also moves the fleet health score. |
 | `linux_vitals_finding_severity_overrides` | `{}` | Per-finding severity overrides, merged over the shipped map. E.g. `{apparmor_disabled: info}`. |
 | `linux_vitals_finding_severities` | see [defaults](../roles/vitals_scan/defaults/main.yml) | The shipped finding-id to severity map. Prefer the overrides variable above; replacing this map means findings added later fall back to `warning`. |

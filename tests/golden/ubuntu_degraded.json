@@ -20,6 +20,12 @@
   "final_status": "Fail",
   "findings": [
     {
+      "id": "swap_paging_high",
+      "message": "Swapping 240 pages/s (180 in, 60 out) over a 2 s sample",
+      "severity": "warning",
+      "status": "fail"
+    },
+    {
       "id": "log_errors",
       "message": "Recent logs contain error or failed entries",
       "severity": "info",
@@ -69,6 +75,41 @@
   "os_family": "Debian",
   "package_manager": "apt",
   "platform_type": "Virtual Machine",
+  "pressure": {
+    "cpu_count": 4,
+    "load": {
+      "15m": 0.8,
+      "1m": 1.1,
+      "5m": 0.95
+    },
+    "load_per_cpu": {
+      "15m": 0.2,
+      "1m": 0.28,
+      "5m": 0.24
+    },
+    "load_reason": "",
+    "load_status": "OK",
+    "psi": {
+      "cpu_some": 0.85,
+      "io_full": 0.11,
+      "io_some": 0.42,
+      "memory_full": 2.1,
+      "memory_some": 8.2
+    },
+    "psi_reason": "",
+    "psi_status": "OK",
+    "psi_supported": true,
+    "stalled": [],
+    "swap_in_per_sec": 180,
+    "swap_out_per_sec": 60,
+    "swap_rate_per_sec": 240,
+    "swap_reason": "",
+    "swap_sample_seconds": 2,
+    "swap_status": "Warning",
+    "swap_total_mb": 2048.0,
+    "swap_used_mb": 1536.0,
+    "swap_used_pct": 75.0
+  },
   "ram_status": "Warning",
   "ram_total_mb": 7938.0,
   "ram_used_mb": 6986.0,
@@ -90,7 +131,7 @@
   "severity_counts": {
     "critical": 0,
     "info": 2,
-    "warning": 3
+    "warning": 4
   },
   "unknown_count": 0,
   "uptime": "30d 0h 5m",

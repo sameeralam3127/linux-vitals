@@ -886,6 +886,12 @@ def test_an_unverified_restart_becomes_an_unknown_finding(tmp_path: Path) -> Non
         "linux_vitals_failed_login_attempts": [],
         "linux_vitals_selinux_status": "Enforcing",
         "linux_vitals_apparmor_status": "enabled",
+        # Load, pressure and swap measured and quiet (#34); without these the
+        # saturation checks would rightly be `unknown`.
+        "linux_vitals_pressure": {"load_reason": "", "psi_reason": "", "swap_reason": ""},
+        "linux_vitals_pressure_status": {
+            "load_status": "OK", "psi_status": "OK", "swap_status": "OK", "stalled": [],
+        },
     }
     scan_defaults = _scan_defaults()
     healing_results = [

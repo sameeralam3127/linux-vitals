@@ -83,6 +83,58 @@ argument_specs:
             becomes C(Low), which produces a finding and fails the host.
           - Note this is a I(free) percentage, unlike the RAM thresholds, which
             are I(used) percentages.
+      linux_vitals_load_warning_threshold:
+        type: float
+        default: 1.5
+        description:
+          - 5-minute load average per online CPU at or above which
+            C(cpu_load_high) is raised as a C(warning).
+          - 1.0 means every CPU was busy on average over the five minutes, which
+            a healthy batch host reaches routinely; above it, tasks are queueing.
+      linux_vitals_load_critical_threshold:
+        type: float
+        default: 3.0
+        description:
+          - 5-minute load average per online CPU at or above which
+            C(cpu_load_high) is raised as C(critical).
+      linux_vitals_psi_warning_threshold:
+        type: float
+        default: 25
+        description:
+          - Pressure stall percentage (PSI C(some avg60)) at or above which
+            C(pressure_stall_high) is raised as a C(warning) for that resource
+            (CPU, memory or I/O).
+          - It is the share of the last 60 seconds in which at least one task
+            was stalled waiting for the resource. PSI needs kernel 4.20 or later
+            with PSI enabled; elsewhere the report says it is unsupported and
+            no PSI finding is raised.
+      linux_vitals_psi_critical_threshold:
+        type: float
+        default: 50
+        description:
+          - Pressure stall percentage (PSI C(some avg60)) at or above which
+            C(pressure_stall_high) is raised as C(critical).
+      linux_vitals_swap_rate_warning_threshold:
+        type: int
+        default: 100
+        description:
+          - Pages swapped in plus out per second, over the
+            C(linux_vitals_swap_sample_seconds) sample, at or above which
+            C(swap_paging_high) is raised as a C(warning).
+      linux_vitals_swap_rate_critical_threshold:
+        type: int
+        default: 1000
+        description:
+          - Pages swapped in plus out per second at or above which
+            C(swap_paging_high) is raised as C(critical).
+      linux_vitals_swap_sample_seconds:
+        type: int
+        default: 2
+        description:
+          - Seconds between the two C(/proc/vmstat) reads the swap rate is
+            measured over. Every host waits this long once per scan.
+          - C(0) skips the measurement, and with it C(swap_paging_high); values
+            above 60 are treated as 60.
       linux_vitals_severity_order:
         type: list
         elements: str
@@ -114,6 +166,9 @@ argument_specs:
           time_sync_inactive: warning
           selinux_disabled: warning
           apparmor_disabled: warning
+          cpu_load_high: warning
+          pressure_stall_high: warning
+          swap_paging_high: warning
           log_errors: info
           failed_logins: info
         description:

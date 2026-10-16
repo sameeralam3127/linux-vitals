@@ -26,6 +26,32 @@
       "status": "fail"
     },
     {
+      "id": "cpu_load_high",
+      "message": "5-minute load average is 1.8 per CPU (3.6 across 2 CPUs)",
+      "severity": "warning",
+      "status": "fail"
+    },
+    {
+      "id": "pressure_stall_high",
+      "message": "Memory pressure: tasks stalled 62.4% of the last minute",
+      "severity": "critical",
+      "status": "fail",
+      "subject": "memory"
+    },
+    {
+      "id": "pressure_stall_high",
+      "message": "I/O pressure: tasks stalled 27.8% of the last minute",
+      "severity": "warning",
+      "status": "fail",
+      "subject": "io"
+    },
+    {
+      "id": "swap_paging_high",
+      "message": "Swapping 2700 pages/s (1800 in, 900 out) over a 2 s sample",
+      "severity": "critical",
+      "status": "fail"
+    },
+    {
       "id": "sssd_inactive",
       "message": "sssd is not active",
       "severity": "warning",
@@ -82,6 +108,52 @@
   "os_family": "RedHat",
   "package_manager": "dnf",
   "platform_type": "Virtual Machine",
+  "pressure": {
+    "cpu_count": 2,
+    "load": {
+      "15m": 2.8,
+      "1m": 3.9,
+      "5m": 3.6
+    },
+    "load_per_cpu": {
+      "15m": 1.4,
+      "1m": 1.95,
+      "5m": 1.8
+    },
+    "load_reason": "",
+    "load_status": "Warning",
+    "psi": {
+      "cpu_some": 22.0,
+      "io_full": 19.3,
+      "io_some": 27.8,
+      "memory_full": 41.7,
+      "memory_some": 62.4
+    },
+    "psi_reason": "",
+    "psi_status": "Critical",
+    "psi_supported": true,
+    "stalled": [
+      {
+        "resource": "memory",
+        "severity": "critical",
+        "some_avg60": 62.4
+      },
+      {
+        "resource": "io",
+        "severity": "warning",
+        "some_avg60": 27.8
+      }
+    ],
+    "swap_in_per_sec": 1800,
+    "swap_out_per_sec": 900,
+    "swap_rate_per_sec": 2700,
+    "swap_reason": "",
+    "swap_sample_seconds": 2,
+    "swap_status": "Critical",
+    "swap_total_mb": 2048.0,
+    "swap_used_mb": 1984.0,
+    "swap_used_pct": 96.9
+  },
   "ram_status": "Critical",
   "ram_total_mb": 7682.0,
   "ram_used_mb": 7390.0,
@@ -98,9 +170,9 @@
   "services_healed": [],
   "severity": "critical",
   "severity_counts": {
-    "critical": 1,
+    "critical": 3,
     "info": 0,
-    "warning": 6
+    "warning": 8
   },
   "unknown_count": 0,
   "uptime": "7d 0h 0m",

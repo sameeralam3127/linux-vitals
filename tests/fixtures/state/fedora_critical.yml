@@ -29,6 +29,24 @@ state:
     ntpd.service: {state: stopped, status: disabled}
     sshd.service: {state: running, status: enabled}
   probes:
+    pressure:
+      # memory stalled 33% of the last minute: pressure_stall_high memory (warning)
+      ran: true
+      rc: 0
+      load: "2.20 2.05 1.70"
+      cpus: 4
+      psi: supported
+      psi_reason: ""
+      psi_cpu_some: 0.85
+      psi_memory_some: 33.00
+      psi_memory_full: 14.20
+      psi_io_some: 0.42
+      psi_io_full: 0.11
+      swap_total_kb: 2097148
+      swap_free_kb: 2097148
+      swap_sample_seconds: 2
+      swap_in_per_sec: 0
+      swap_out_per_sec: 0
     logs:
       ran: true
       rc: 0

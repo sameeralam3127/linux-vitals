@@ -165,6 +165,9 @@ REVIEWED_PROBES_THAT_IGNORE_FAILURE = {
     "Collect AppArmor status",
     "Collect rescue image presence",
     "Collect kernel install failures from logs",
+    # Handles its own failure: a probe that could not run, and any value it
+    # could not read, become `unknown` findings in pressure_facts.yml (#34).
+    "Collect CPU load, pressure stalls and swap activity",
 }
 
 

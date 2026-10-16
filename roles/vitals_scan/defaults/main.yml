@@ -13,6 +13,21 @@ linux_vitals_log_max_lines: 2000
 linux_vitals_ram_warning_threshold: 80
 linux_vitals_ram_critical_threshold: 95
 linux_vitals_boot_warning_threshold: 20
+# CPU saturation, pressure stalls and swap activity (#34). Load is the
+# 5-minute load average divided by the online CPUs: 1.0 means every CPU was
+# busy on average, so the warning level sits above it.
+linux_vitals_load_warning_threshold: 1.5
+linux_vitals_load_critical_threshold: 3.0
+# PSI `some avg60`: the percentage of the last minute in which at least one
+# task was stalled waiting for CPU, memory or I/O (kernel 4.20 and later).
+linux_vitals_psi_warning_threshold: 25
+linux_vitals_psi_critical_threshold: 50
+# Pages swapped in plus out per second, measured over a short sample.
+linux_vitals_swap_rate_warning_threshold: 100
+linux_vitals_swap_rate_critical_threshold: 1000
+# Seconds between the two /proc/vmstat reads the swap rate comes from. Every
+# host waits this long once per scan; 0 skips the rate and its finding.
+linux_vitals_swap_sample_seconds: 2
 
 # --------------------------------------------------------------------------
 # Finding severity
@@ -52,6 +67,11 @@ linux_vitals_finding_severities:
   time_sync_inactive: warning
   selinux_disabled: warning
   apparmor_disabled: warning
+  # Saturation (#34). Each of these carries its own severity, warning or
+  # critical by threshold; this entry is what an `unknown` one gets.
+  cpu_load_high: warning
+  pressure_stall_high: warning
+  swap_paging_high: warning
   # Worth seeing, too noisy to page on. Both are counts of things that occur
   # on healthy hosts as a matter of course.
   log_errors: info

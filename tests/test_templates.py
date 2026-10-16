@@ -114,6 +114,18 @@ def test_templates_render_with_representative_health_data(tmp_path: Path) -> Non
     assert generic_webhook["hosts"][0]["reboot_required_source"] == "reboot-required-file"
     assert "Reboot: No (reboot-required-file)" in slack
     assert json_report["hosts"][0]["security"]["apparmor_status"] == "enabled"
+    # CPU load, pressure stalls and swap (#34): the JSON carries the values,
+    # and the dashboard shows them under the RAM meter and in the host detail.
+    pressure = json_report["hosts"][0]["pressure"]
+    assert pressure["load_per_cpu"]["5m"] == 0.4
+    assert pressure["psi"]["memory_some"] == 31.2
+    assert pressure["psi_status"] == "Warning"
+    assert pressure["swap_rate_per_sec"] == 0
+    assert '<span class="sig sig--good" title="5-minute load average per CPU">Load 0.4/CPU</span>' in report
+    assert "PSI 31.2%</span>" in report
+    assert "Swap 0/s</span>" in report
+    assert "<strong>CPU, pressure &amp; swap</strong>" in report
+    assert "memory 31.2 (all tasks 9.8)" in report
 
     # Slack renders the top-level `text` ABOVE the attachment, so it must be
     # one short line. Putting the full plain-text summary there printed the

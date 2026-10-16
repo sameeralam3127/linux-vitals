@@ -36,6 +36,41 @@
   "os_family": "RedHat",
   "package_manager": "dnf",
   "platform_type": "Virtual Machine",
+  "pressure": {
+    "cpu_count": 2,
+    "load": {
+      "15m": 0.19,
+      "1m": 0.18,
+      "5m": 0.22
+    },
+    "load_per_cpu": {
+      "15m": 0.1,
+      "1m": 0.09,
+      "5m": 0.11
+    },
+    "load_reason": "",
+    "load_status": "OK",
+    "psi": {
+      "cpu_some": 0.85,
+      "io_full": 0.11,
+      "io_some": 0.42,
+      "memory_full": 0.0,
+      "memory_some": 0.0
+    },
+    "psi_reason": "",
+    "psi_status": "OK",
+    "psi_supported": true,
+    "stalled": [],
+    "swap_in_per_sec": 0,
+    "swap_out_per_sec": 0,
+    "swap_rate_per_sec": 0,
+    "swap_reason": "",
+    "swap_sample_seconds": 2,
+    "swap_status": "OK",
+    "swap_total_mb": 2048.0,
+    "swap_used_mb": 0.0,
+    "swap_used_pct": 0.0
+  },
   "ram_status": "OK",
   "ram_total_mb": 15732.0,
   "ram_used_mb": 4522.0,

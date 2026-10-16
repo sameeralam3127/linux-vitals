@@ -55,6 +55,35 @@
   "os_family": "Suse",
   "package_manager": "zypper",
   "platform_type": "Virtual Machine",
+  "pressure": {
+    "cpu_count": 2,
+    "load": {
+      "15m": 0.66,
+      "1m": 0.75,
+      "5m": 0.7
+    },
+    "load_per_cpu": {
+      "15m": 0.33,
+      "1m": 0.38,
+      "5m": 0.35
+    },
+    "load_reason": "",
+    "load_status": "OK",
+    "psi": null,
+    "psi_reason": "reading /proc/pressure/cpu failed: Operation not supported",
+    "psi_status": "Unsupported",
+    "psi_supported": false,
+    "stalled": [],
+    "swap_in_per_sec": 0,
+    "swap_out_per_sec": 0,
+    "swap_rate_per_sec": 0,
+    "swap_reason": "",
+    "swap_sample_seconds": 2,
+    "swap_status": "OK",
+    "swap_total_mb": 2048.0,
+    "swap_used_mb": 0.0,
+    "swap_used_pct": 0.0
+  },
   "ram_status": "Warning",
   "ram_total_mb": 3931.0,
   "ram_used_mb": 3223.0,

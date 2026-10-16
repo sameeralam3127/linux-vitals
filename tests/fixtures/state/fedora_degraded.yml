@@ -29,6 +29,24 @@ state:
     chronyd.service: {state: running, status: enabled}
     sshd.service: {state: running, status: enabled}
   probes:
+    pressure:
+      # 5-minute load 6.40 on 4 CPUs is 1.6 per CPU: cpu_load_high (warning)
+      ran: true
+      rc: 0
+      load: "7.80 6.40 5.10"
+      cpus: 4
+      psi: supported
+      psi_reason: ""
+      psi_cpu_some: 18.40
+      psi_memory_some: 0.00
+      psi_memory_full: 0.00
+      psi_io_some: 0.42
+      psi_io_full: 0.11
+      swap_total_kb: 2097148
+      swap_free_kb: 2097148
+      swap_sample_seconds: 2
+      swap_in_per_sec: 0
+      swap_out_per_sec: 0
     logs:
       # Entries at priority err or worse, newest first (journalctl --reverse).
       ran: true

@@ -36,7 +36,11 @@ copy).
 (click again to reverse). Click the chevron (or the row) to expand an
 inline detail panel with everything the summary row doesn't show. A host
 with checks that could not run carries an `N unknown` pill beside its
-Pass/Fail status.
+Pass/Fail status. Under each RAM meter, one line shows the host's saturation
+signals ([#34](https://github.com/sameeralam3127/linux-vitals/issues/34)): the 5-minute load per CPU, the worst pressure stall
+and the swap rate, each with a dot coloured by its status. `n/a` means not
+measurable on that host (no PSI, or swap sampling off); `?` means the check
+could not run.
 
 - Identity (OS family, package manager, log source, virtualization type,
   serial number)
@@ -108,6 +112,7 @@ by log shippers, SIEMs, or your own dashboards.
       "security": { "selinux_status": "not-installed", "apparmor_status": "enabled", "failed_login_count": 0, "last_failed_login": "No failed login attempts found" },
       "boot_space": { "mount": "/boot", "free_pct": 65.3, "status": "Healthy", "rescue_image_available": true, "rescue_image_paths": ["..."] },
       "memory": { "status": "OK", "used_pct": 42.5, "used_mb": 3480.0, "total_mb": 8192.0 },
+      "pressure": { "cpu_count": 4, "load": {"1m": 0.4, "5m": 0.36, "15m": 0.3}, "load_per_cpu": {"1m": 0.1, "5m": 0.09, "15m": 0.08}, "load_status": "OK", "psi_supported": true, "psi": {"cpu_some": 0.85, "memory_some": 0.0, "memory_full": 0.0, "io_some": 0.42, "io_full": 0.11}, "psi_status": "OK", "stalled": [], "swap_total_mb": 2048.0, "swap_used_mb": 0.0, "swap_used_pct": 0.0, "swap_sample_seconds": 2, "swap_in_per_sec": 0, "swap_out_per_sec": 0, "swap_rate_per_sec": 0, "swap_status": "OK", "load_reason": "", "psi_reason": "", "swap_reason": "" },
       "logs": { "error_count": 0, "excerpt": [] },
       "self_healing": { "services_healed": ["chronyd.service"], "healing_results": [{ "service": "chronyd.service", "result": "Fixed", "outcome": "fixed", "reason": "stayed_active", "detail": "it stayed active for 5 s after the restart" }] },
       "asset_serial": "VMware-56 4d 2a",
@@ -138,8 +143,26 @@ by log shippers, SIEMs, or your own dashboards.
 Schema `2.1` is additive over `2.0`: every finding gains `status` (and
 `reason` when the status is `unknown`), each host gains `unknown_count`, the
 summary gains `unknown_host_count`, and each `healing_results` entry gains
-`outcome`, `reason` and `detail`. Nothing was removed or renamed, and no
-existing field changed type or meaning.
+`outcome`, `reason` and `detail`. Each host also gains `pressure`
+([#34](https://github.com/sameeralam3127/linux-vitals/issues/34)). Nothing was removed or renamed, and no existing field changed
+type or meaning.
+
+`pressure` holds the CPU load, pressure stall and swap values the scan read,
+and a status for each of the three checks:
+
+- `load`, `load_per_cpu`: the 1, 5 and 15-minute load averages, raw and divided
+  by `cpu_count` (online CPUs). `load_status` is judged on the 5-minute value.
+- `psi`: PSI `avg60` percentages: the share of the last minute in which at least
+  one task (`*_some`) or every task (`*_full`) was stalled on CPU, memory or I/O.
+  `stalled` lists the resources at or above the warning threshold, worst first.
+- `swap_*`: swap size and use, and the pages swapped in and out per second
+  between two reads `swap_sample_seconds` apart.
+- Each `*_status` is `OK`, `Warning` or `Critical` by threshold, or:
+  - `Unknown`: it could not be read, and `*_reason` says why;
+  - `Unsupported` (PSI): no PSI on this kernel; `psi` is `null` and `psi_reason` gives the kernel's answer;
+  - `Not sampled` (swap): `linux_vitals_swap_sample_seconds` is `0`.
+
+  A value that could not be measured is `null`, never `0`.
 
 `comparison` is always present with at least `baseline_available`; on
 `adhoc`/`baseline` runs, or for a host with no matching baseline snapshot,
@@ -259,12 +282,20 @@ at its highest level, so the numbers partition the fleet) and
 | `kernel_install_failures` | warning | Kernel/bootloader failures in the audit log window |
 | `selinux_disabled` | warning | SELinux disabled/unavailable on a RedHat-family host |
 | `apparmor_disabled` | warning | AppArmor disabled/unavailable on a Debian-family host |
+| `cpu_load_high` | warning or critical | 5-minute load average per online CPU at or above `linux_vitals_load_warning_threshold` (warning) or `linux_vitals_load_critical_threshold` (critical). `unknown` when the load or CPU count could not be read |
+| `pressure_stall_high` | warning or critical | One per resource (`subject`: `cpu`, `memory` or `io`) whose PSI `some avg60` is at or above `linux_vitals_psi_warning_threshold` / `linux_vitals_psi_critical_threshold`. Nothing on a kernel without PSI; `unknown` when the probe could not run |
+| `swap_paging_high` | warning or critical | Pages swapped in plus out per second, over `linux_vitals_swap_sample_seconds`, at or above `linux_vitals_swap_rate_warning_threshold` / `linux_vitals_swap_rate_critical_threshold`. `unknown` when the counters could not be read |
 | `log_errors` | info | The journal has entries at priority `linux_vitals_log_priority` (default `err`) or worse in the log window |
 | `failed_logins` | info | Recent failed login attempts were detected |
 
-Certificate findings, from the opt-in `vitals_certs` role. These are the one
-group whose severity is computed rather than looked up, because it depends on
-the certificate rather than on the finding type:
+The three saturation findings ([#34](https://github.com/sameeralam3127/linux-vitals/issues/34)) also carry their own severity,
+from the threshold the value crossed. The map entry for each (`warning`) is
+only what an `unknown` one gets, and `linux_vitals_finding_severity_overrides`
+still overrides both.
+
+Certificate findings, from the opt-in `vitals_certs` role. Their severity is
+computed rather than looked up, because it depends on the certificate rather
+than on the finding type:
 
 | id | Severity | Fires when |
 | --- | --- | --- |

@@ -16,6 +16,13 @@
 # linux_vitals_ram_warning_threshold: 80
 # linux_vitals_ram_critical_threshold: 95
 # linux_vitals_boot_warning_threshold: 20
+# linux_vitals_load_warning_threshold: 1.5
+# linux_vitals_load_critical_threshold: 3.0
+# linux_vitals_psi_warning_threshold: 25
+# linux_vitals_psi_critical_threshold: 50
+# linux_vitals_swap_rate_warning_threshold: 100
+# linux_vitals_swap_rate_critical_threshold: 1000
+# linux_vitals_swap_sample_seconds: 2
 
 # Self-healing is disabled by default; opt in explicitly.
 # linux_vitals_heal_enabled: true

@@ -1,0 +1,100 @@
+---
+# Probe: CPU load, pressure stall information (PSI) and swap activity (#34).
+# pressure_facts.yml evaluates what it registers.
+- name: Collect CPU load, pressure stalls and swap activity
+  # One read-only script, printing key=value lines in a fixed order:
+  #
+  #   load, cpus             /proc/loadavg and the online CPU count
+  #   psi, psi_reason        whether /proc/pressure can be read, and why not
+  #   psi_<resource>_<kind>  avg60 of /proc/pressure/{cpu,memory,io}
+  #   swap_total_kb, ...     SwapTotal and SwapFree from /proc/meminfo
+  #   swap_*_per_sec         pages swapped in and out per second, from two
+  #                          /proc/vmstat reads $1 seconds apart
+  #
+  # A value it cannot read is printed empty, never as 0, and
+  # pressure_facts.yml turns an empty value into an `unknown` finding or an
+  # unsupported state; a non-zero exit is the whole check not running. PSI is
+  # absent before kernel 4.20 and disabled on some distros (psi=0, or
+  # CONFIG_PSI_DEFAULT_DISABLED), where reading the file fails with "Operation
+  # not supported": that is reported as unsupported, with the reason.
+  #
+  # The sample interval is the only input, passed as a positional parameter
+  # and expanded quoted, never pasted into the script. An optional second
+  # parameter replaces /proc, so tests can run this script against a fake
+  # tree; the task never passes one.
+  ansible.builtin.command:
+    argv:
+      - sh
+      - -c
+      - |
+          interval="$1"
+          proc="${2:-/proc}"
+
+          load=$(awk '{ print $1 " " $2 " " $3 }' "$proc/loadavg")
+          echo "load=$load"
+          cpus=$(getconf _NPROCESSORS_ONLN 2>/dev/null) || cpus=""
+          [ -n "$cpus" ] || cpus=$(grep -c '^processor' "$proc/cpuinfo")
+          echo "cpus=$cpus"
+
+          psi_reason=""
+          if [ ! -e "$proc/pressure/cpu" ]; then
+            psi_reason="/proc/pressure is not present (no PSI support; it needs kernel 4.20 or later)"
+          elif ! psi_error=$(cat "$proc/pressure/cpu" 2>&1 >/dev/null); then
+            psi_reason="reading /proc/pressure/cpu failed: ${psi_error##*: }"
+          fi
+          avg60() {
+            awk -v kind="$2" '$1 == kind { for (i = 2; i <= NF; i++) if (sub(/^avg60=/, "", $i)) print $i }' "$proc/pressure/$1"
+          }
+          if [ -z "$psi_reason" ]; then
+            echo "psi=supported"
+            echo "psi_reason="
+            echo "psi_cpu_some=$(avg60 cpu some)"
+            echo "psi_memory_some=$(avg60 memory some)"
+            echo "psi_memory_full=$(avg60 memory full)"
+            echo "psi_io_some=$(avg60 io some)"
+            echo "psi_io_full=$(avg60 io full)"
+          else
+            echo "psi=unsupported"
+            echo "psi_reason=$psi_reason"
+            for key in cpu_some memory_some memory_full io_some io_full; do
+              echo "psi_$key="
+            done
+          fi
+
+          awk '$1 == "SwapTotal:" { total = $2 } $1 == "SwapFree:" { free = $2 }
+               END { print "swap_total_kb=" total; print "swap_free_kb=" free }' "$proc/meminfo"
+          echo "swap_sample_seconds=$interval"
+          swap_pages() {
+            awk '$1 == "pswpin" { i = $2 } $1 == "pswpout" { o = $2 }
+                 END { if (i != "" && o != "") print i " " o }' "$proc/vmstat"
+          }
+          first=""
+          second=""
+          if [ "$interval" -gt 0 ]; then
+            first=$(swap_pages)
+            sleep "$interval"
+            second=$(swap_pages)
+          fi
+          if [ -n "$first" ] && [ -n "$second" ]; then
+            awk -v a="$first" -v b="$second" -v s="$interval" 'BEGIN {
+              split(a, x, " "); split(b, y, " ")
+              printf "swap_in_per_sec=%d\nswap_out_per_sec=%d\n", (y[1] - x[1]) / s, (y[2] - x[2]) / s
+            }'
+          else
+            echo "swap_in_per_sec="
+            echo "swap_out_per_sec="
+          fi
+      - linux-vitals-pressure
+      - "{{ [[linux_vitals_swap_sample_seconds | int, 0] | max, 60] | min }}"
+  environment:
+    LC_ALL: C
+  register: linux_vitals_pressure_cmd
+  changed_when: false
+  # Not a failure of the play: pressure_facts.yml reads rc and turns a probe
+  # that could not run into `unknown` findings with the reason (#62).
+  failed_when: false
+  tags:
+    - discovery
+    - kernel
+    - security
+    - boot

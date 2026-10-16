@@ -75,6 +75,27 @@
       ram_used_pct: 43.2
       ram_used_mb: 3456.0
       ram_total_mb: 8192.0
+      pressure:
+        cpu_count: 4
+        load: {"1m": 1.2, "5m": 1.6, "15m": 1.4}
+        load_per_cpu: {"1m": 0.3, "5m": 0.4, "15m": 0.35}
+        load_reason: ""
+        load_status: "OK"
+        psi_supported: true
+        psi: {cpu_some: 2.5, memory_some: 31.2, memory_full: 9.8, io_some: 4.0, io_full: 1.1}
+        psi_reason: ""
+        psi_status: "Warning"
+        stalled:
+          - {resource: memory, some_avg60: 31.2, severity: warning}
+        swap_total_mb: 2048.0
+        swap_used_mb: 512.0
+        swap_used_pct: 25.0
+        swap_sample_seconds: 2
+        swap_in_per_sec: 0
+        swap_out_per_sec: 0
+        swap_rate_per_sec: 0
+        swap_reason: ""
+        swap_status: "OK"
       log_errors: 0
       log_excerpt: []
       asset_serial: "TEST-SERIAL-0001"

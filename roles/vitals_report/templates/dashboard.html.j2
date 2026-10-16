@@ -392,6 +392,24 @@
 
   .detail-item { font-size: 13px; }
 
+  /* CPU load, pressure stalls and swap (#34), under the RAM meter. The dot
+     carries the status, so the text can stay at full contrast. */
+  .signals { margin-top: 4px; font-size: 11px; color: var(--ink-secondary); white-space: nowrap; }
+  .sig + .sig { margin-left: 8px; }
+  .sig::before {
+    content: "";
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-right: 4px;
+    border-radius: 50%;
+    vertical-align: 1px;
+    background: var(--ink-muted);
+  }
+  .sig--good::before { background: var(--good); }
+  .sig--warning::before { background: var(--warning); }
+  .sig--critical::before { background: var(--critical); }
+
   .list { margin: 4px 0 0; padding-left: 16px; }
   .list li { margin-bottom: 2px; }
 
@@ -566,6 +584,8 @@
         {% set ram_class = 'good' if result.ram_status == 'OK' else 'warning' if result.ram_status == 'Warning' else 'critical' %}
         {% set boot_class = 'good' if result.boot_space_status == 'Healthy' else 'warning' if result.boot_space_status == 'Low' else 'muted' %}
         {% set cmp = result.comparison %}
+        {% set pr = result.pressure | default({}) %}
+        {% set sig_class = {'OK': 'good', 'Warning': 'warning', 'Critical': 'critical'} %}
         {% set cmp_key = 'new' if not cmp.baseline_available else 'regressed' if cmp.status_regressed else 'improved' if cmp.status_improved else 'unchanged' %}
         <tr class="row"
             id="host-{{ result.hostname | e }}"
@@ -601,6 +621,13 @@
               <div class="meter-track"><div class="meter-fill meter-fill--{{ ram_class }}" style="width: {{ result.ram_used_pct }}%;"></div></div>
               <span class="meter-value">{{ result.ram_used_pct }}%</span>
             </div>
+            {% if pr %}
+            <div class="signals">
+              <span class="sig sig--{{ sig_class.get(pr.load_status, 'muted') }}" title="5-minute load average per CPU">Load {{ (pr.load_per_cpu['5m'] ~ '/CPU') if pr.load_per_cpu else '?' }}</span>
+              <span class="sig sig--{{ sig_class.get(pr.psi_status, 'muted') }}" title="Worst pressure stall: share of the last minute tasks waited for CPU, memory or I/O (PSI some avg60)">PSI {{ ([pr.psi.cpu_some, pr.psi.memory_some, pr.psi.io_some] | max ~ '%') if pr.psi else ('n/a' if pr.psi_status == 'Unsupported' else '?') }}</span>
+              <span class="sig sig--{{ sig_class.get(pr.swap_status, 'muted') }}" title="Pages swapped in and out per second">Swap {{ (pr.swap_rate_per_sec ~ '/s') if pr.swap_rate_per_sec is not none else ('n/a' if pr.swap_status == 'Not sampled' else '?') }}</span>
+            </div>
+            {% endif %}
           </td>
           <td>
             {% if result.latest_kernel_selected %}
@@ -684,6 +711,24 @@
                 <ul class="list">{% for item in result.rescue_image_paths %}<li>{{ item | e }}</li>{% endfor %}</ul>
                 {% endif %}
               </div>
+              {% if pr %}
+              <div class="detail-item">
+                <strong>CPU, pressure &amp; swap</strong>
+                {% if pr.load %}
+                <span>Load (1/5/15 min): {{ pr.load['1m'] }} / {{ pr.load['5m'] }} / {{ pr.load['15m'] }} on {{ pr.cpu_count }} CPUs</span><br>
+                <span>Per CPU: {{ pr.load_per_cpu['1m'] }} / {{ pr.load_per_cpu['5m'] }} / {{ pr.load_per_cpu['15m'] }} ({{ pr.load_status | e }})</span><br>
+                {% else %}
+                <span>Load: unknown{% if pr.load_reason %} ({{ pr.load_reason | e }}){% endif %}</span><br>
+                {% endif %}
+                {% if pr.psi %}
+                <span>Stalled, % of the last minute: CPU {{ pr.psi.cpu_some }}, memory {{ pr.psi.memory_some }} (all tasks {{ pr.psi.memory_full }}), I/O {{ pr.psi.io_some }} (all tasks {{ pr.psi.io_full }})</span><br>
+                {% else %}
+                <span>Pressure stalls: {{ 'not supported' if pr.psi_status == 'Unsupported' else 'unknown' }}{% if pr.psi_reason %} ({{ pr.psi_reason | e }}){% endif %}</span><br>
+                {% endif %}
+                <span>Swap: {% if pr.swap_total_mb is none %}unknown{% elif pr.swap_total_mb | float == 0 %}none configured{% else %}{{ pr.swap_used_mb }} MB of {{ pr.swap_total_mb }} MB used ({{ pr.swap_used_pct }}%){% endif %}</span><br>
+                <span>Paging: {% if pr.swap_rate_per_sec is not none %}{{ pr.swap_rate_per_sec }} pages/s ({{ pr.swap_in_per_sec }} in, {{ pr.swap_out_per_sec }} out) over {{ pr.swap_sample_seconds }} s{% elif pr.swap_status == 'Not sampled' %}not sampled{% else %}unknown{% if pr.swap_reason %} ({{ pr.swap_reason | e }}){% endif %}{% endif %}</span>
+              </div>
+              {% endif %}
               <div class="detail-item">
                 <strong>Recent log errors ({{ result.log_errors }})</strong>
                 {% if result.log_excerpt %}

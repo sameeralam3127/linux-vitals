@@ -13,6 +13,47 @@
       {%- if linux_vitals_ram_status == 'Critical' -%}
       {%- set _ = findings.append({'id': 'ram_critical', 'message': 'RAM usage is critical'}) -%}
       {%- endif -%}
+      {#- Saturation (#34), from pressure_facts.yml. Each finding carries the
+          severity its threshold gives it; an unknown one takes the map's. A
+          kernel without PSI, and a swap rate that was not sampled, raise
+          nothing: the report says unsupported or not sampled. -#}
+      {%- set pressure = linux_vitals_pressure | default({}) -%}
+      {%- set pressure_status = linux_vitals_pressure_status | default({}) -%}
+      {%- set not_run = 'the load and pressure probe did not run' -%}
+      {%- if pressure_status.load_status | default('Unknown') == 'Unknown' -%}
+      {%- set _ = findings.append({
+        'id': 'cpu_load_high', 'message': 'CPU load could not be measured',
+        'status': 'unknown', 'reason': pressure.load_reason | default('', true) or not_run}) -%}
+      {%- elif pressure_status.load_status in ['Warning', 'Critical'] -%}
+      {%- set _ = findings.append({
+        'id': 'cpu_load_high', 'severity': pressure_status.load_status | lower,
+        'message': '5-minute load average is ' ~ pressure.load_per_cpu['5m'] ~ ' per CPU ('
+                   ~ pressure.load['5m'] ~ ' across ' ~ pressure.cpu_count ~ ' CPUs)'}) -%}
+      {%- endif -%}
+      {%- if pressure_status.psi_status | default('Unknown') == 'Unknown' -%}
+      {%- set _ = findings.append({
+        'id': 'pressure_stall_high', 'message': 'Pressure stall information could not be read',
+        'status': 'unknown', 'reason': pressure.psi_reason | default('', true) or not_run}) -%}
+      {%- else -%}
+      {%- set label = {'cpu': 'CPU', 'memory': 'Memory', 'io': 'I/O'} -%}
+      {%- for stall in pressure_status.stalled | default([]) -%}
+      {%- set _ = findings.append({
+        'id': 'pressure_stall_high', 'subject': stall.resource, 'severity': stall.severity,
+        'message': label[stall.resource] ~ ' pressure: tasks stalled ' ~ stall.some_avg60
+                   ~ '% of the last minute'}) -%}
+      {%- endfor -%}
+      {%- endif -%}
+      {%- if pressure_status.swap_status | default('Unknown') == 'Unknown' -%}
+      {%- set _ = findings.append({
+        'id': 'swap_paging_high', 'message': 'Swap activity could not be measured',
+        'status': 'unknown', 'reason': pressure.swap_reason | default('', true) or not_run}) -%}
+      {%- elif pressure_status.swap_status in ['Warning', 'Critical'] -%}
+      {%- set _ = findings.append({
+        'id': 'swap_paging_high', 'severity': pressure_status.swap_status | lower,
+        'message': 'Swapping ' ~ pressure.swap_rate_per_sec ~ ' pages/s (' ~ pressure.swap_in_per_sec
+                   ~ ' in, ' ~ pressure.swap_out_per_sec ~ ' out) over a '
+                   ~ pressure.swap_sample_seconds ~ ' s sample'}) -%}
+      {%- endif -%}
       {%- if (linux_vitals_journal_checks | default({})).get('log_errors', '') -%}
       {%- set _ = findings.append({
         'id': 'log_errors', 'message': 'Recent logs could not be inspected',
@@ -142,6 +183,10 @@
       # 2.16.3 and 2.20.4. `float` is a no-op once the value is a number.
       ram_used_mb: "{{ linux_vitals_memory_used_mb | float | round(1) }}"
       ram_total_mb: "{{ linux_vitals_memory_total_mb | float | round(1) }}"
+      # CPU load, pressure stalls and swap (#34): the values and statuses from
+      # pressure_facts.yml. A value that could not be read is null, never 0.
+      pressure: >-
+        {{ linux_vitals_pressure | default({}) | combine(linux_vitals_pressure_status | default({})) }}
       log_errors: "{{ linux_vitals_log_errors }}"
       log_excerpt: "{{ linux_vitals_log_excerpt }}"
       asset_serial: "{{ ansible_facts['product_serial'] | default('unavailable') }}"

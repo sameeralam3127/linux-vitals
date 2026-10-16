@@ -191,13 +191,15 @@ The files run in three phases, in this order:
 | 7 | `security.yml` | probes: `getenforce`, `aa-status` | `security` |
 | 8 | `rescue_image.yml` | probe: rescue images in `/boot` | `boot` |
 | 9 | `kernel_install_failures.yml` | probe: kernel/bootloader failures in the journal | `kernel` |
-| 10 | `journal_facts.yml` | whether each journal probe could read; counts and excerpts | `kernel`; `kernel`, `security`, `boot` |
-| 11 | `memory.yml` | RAM usage | `kernel`, `security`, `boot` |
-| 12 | `extended_facts.yml` | parses every probe into `linux_vitals_*` facts | `kernel`, `security`, `boot` |
-| 13 | `reboot_facts.yml` (include) | whether a reboot is required, and why | `kernel` |
-| 14 | `bootloader_facts.yml` | whether the default entry boots the latest kernel | `kernel` |
-| 15 | `boot_space.yml` | the `/boot` mount and its free space | `boot` |
-| 16 | `services.yml` (include) | the required-service status map | -- |
+| 10 | `pressure.yml` | probe: load average, CPU count, PSI, swap use and paging rate | `kernel`, `security`, `boot` |
+| 11 | `journal_facts.yml` | whether each journal probe could read; counts and excerpts | `kernel`; `kernel`, `security`, `boot` |
+| 12 | `memory.yml` | RAM usage | `kernel`, `security`, `boot` |
+| 13 | `pressure_facts.yml` | CPU load, pressure stalls and swap: values and statuses | `kernel`, `security`, `boot` |
+| 14 | `extended_facts.yml` | parses every probe into `linux_vitals_*` facts | `kernel`, `security`, `boot` |
+| 15 | `reboot_facts.yml` (include) | whether a reboot is required, and why | `kernel` |
+| 16 | `bootloader_facts.yml` | whether the default entry boots the latest kernel | `kernel` |
+| 17 | `boot_space.yml` | the `/boot` mount and its free space | `boot` |
+| 18 | `services.yml` (include) | the required-service status map | -- |
 
 Where a file holds tasks with different tags, they are separated by `;` in
 the order of the tasks. Every task also carries `discovery`, applied by
@@ -208,12 +210,14 @@ the order of the tasks. Every task also carries `discovery`, applied by
 - **Facts (1)** come first: everything after reads `ansible_facts`. Inside
   `facts.yml`, the time-sync unit is resolved from the service list the
   previous task builds.
-- **Probes (2-9)** are read-only commands that register raw output and
+- **Probes (2-10)** are read-only commands that register raw output and
   derive nothing. They read only `ansible_facts` and role variables, never
   another probe's result, so their relative order is not a dependency; it is
   kept as it was before the split.
-- **Derived facts (10-16)** each read facts set above them:
+- **Derived facts (11-18)** each read facts set above them:
   - `journal_facts.yml` reads both journal probes (2 and 9).
+  - `pressure_facts.yml` reads the pressure probe (10), in three tasks:
+    parse, values, then statuses.
   - `extended_facts.yml` reads `linux_vitals_ram_used_pct` from
     `memory.yml` and the output of probes 3 to 8.
   - `reboot_facts.yml` reads `linux_vitals_reboot_probe_output` and
