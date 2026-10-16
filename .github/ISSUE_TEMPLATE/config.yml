@@ -1,6 +1,9 @@
 ---
 blank_issues_enabled: false
 contact_links:
+  - name: Questions and ideas
+    url: https://github.com/sameeralam3127/linux-vitals/discussions
+    about: Ask how to use LinuxVitals, share an idea, or discuss before opening an issue.
   - name: Security vulnerability
     url: https://github.com/sameeralam3127/linux-vitals/security/advisories/new
     about: Report privately. Please do not open a public issue.
