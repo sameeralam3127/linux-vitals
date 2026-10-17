@@ -40,6 +40,10 @@ argument_specs:
             value for both runs of a maintenance window.
           - Must be non-empty when C(linux_vitals_phase) is C(baseline) or
             C(postcheck); the role asserts this at run time.
+          - Leading and trailing whitespace is trimmed. The value must not
+            contain a forward slash or backslash, any control characters, or
+            start with a dot, because it names a directory below
+            C(linux_vitals_snapshot_dir).
       linux_vitals_snapshot_dir:
         type: str
         default: "{{ inventory_dir }}/reports/snapshots"

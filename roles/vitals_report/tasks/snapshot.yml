@@ -3,12 +3,24 @@
   ansible.builtin.assert:
     that:
       - linux_vitals_maintenance_id | default('', true) | trim | length > 0
+      - (linux_vitals_maintenance_id | default('', true) | string | trim) is not search('[/\\\\]')
+      - (linux_vitals_maintenance_id | default('', true) | string | trim) is not match('^[.]')
+      - (linux_vitals_maintenance_id | default('', true) | string | trim) is not search('[\\x00-\\x1f\\x7f]')
     fail_msg: >-
       linux_vitals_maintenance_id is required when linux_vitals_phase is
       '{{ linux_vitals_phase }}'. Pass one with, for example,
       -e linux_vitals_maintenance_id=2026-07-12-patch-window
-      and reuse the same id for both the baseline and postcheck runs.
+      and reuse the same id for both the baseline and postcheck runs. The id
+      must not contain path separators, start with '.', or contain control
+      characters; leading and trailing whitespace is ignored.
     quiet: true
+  when: linux_vitals_phase in ['baseline', 'postcheck']
+  tags:
+    - reporting
+
+- name: Normalize the maintenance id
+  ansible.builtin.set_fact:
+    linux_vitals_maintenance_id_normalized: "{{ linux_vitals_maintenance_id | string | trim }}"
   when: linux_vitals_phase in ['baseline', 'postcheck']
   tags:
     - reporting
@@ -30,7 +42,7 @@
 - name: Compute the snapshot directory for this maintenance id and phase
   ansible.builtin.set_fact:
     linux_vitals_snapshot_phase_dir: >-
-      {{ linux_vitals_snapshot_dir }}/{{ linux_vitals_maintenance_id }}/{{ linux_vitals_phase }}
+      {{ linux_vitals_snapshot_dir }}/{{ linux_vitals_maintenance_id_normalized }}/{{ linux_vitals_phase }}
   when: linux_vitals_phase in ['baseline', 'postcheck']
   tags:
     - reporting
@@ -137,7 +149,7 @@
   vars:
     linux_vitals_snapshot_shard_record:
       manifest_version: 1
-      maintenance_id: "{{ linux_vitals_maintenance_id }}"
+      maintenance_id: "{{ linux_vitals_maintenance_id_normalized }}"
       phase: "{{ linux_vitals_phase }}"
       shard: "{{ linux_vitals_snapshot_shard_name }}"
       hosts: "{{ linux_vitals_snapshot_shard_hosts }}"
@@ -186,7 +198,7 @@
   ansible.builtin.fail:
     msg: >-
       Snapshot shard '{{ linux_vitals_snapshot_shard_name }}' of maintenance id
-      '{{ linux_vitals_maintenance_id }}' ({{ linux_vitals_phase }}) was recorded
+      '{{ linux_vitals_maintenance_id_normalized }}' ({{ linux_vitals_phase }}) was recorded
       with {{ linux_vitals_snapshot_shard_recorded_count }} host(s), and this run
       also targets {{ linux_vitals_snapshot_shard_foreign_hosts | length }} host(s)
       that are not in it: {{ linux_vitals_snapshot_host_list }}.
@@ -214,7 +226,7 @@
   ansible.builtin.debug:
     msg: >-
       WARNING: the snapshot set for maintenance id
-      '{{ linux_vitals_maintenance_id }}' ({{ linux_vitals_phase }}) was recorded
+      '{{ linux_vitals_maintenance_id_normalized }}' ({{ linux_vitals_phase }}) was recorded
       by a run of {{ linux_vitals_snapshot_shard_recorded_count }} host(s), and
       this run adds {{ linux_vitals_snapshot_shard_foreign_hosts | length }}
       host(s) that were not in it: {{ linux_vitals_snapshot_host_list }}.

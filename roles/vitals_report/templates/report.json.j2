@@ -8,7 +8,7 @@
   },
   "maintenance": {
     "phase": {{ linux_vitals_phase | to_json }},
-    "maintenance_id": {{ linux_vitals_maintenance_id | to_json }}
+    "maintenance_id": {{ (linux_vitals_maintenance_id | default('', true) | string | trim) | to_json }}
   },
   "summary": {
     "overall_status": {{ ('PASS' if linux_vitals_summary.critical_error_count | int == 0 else 'FAIL') | to_json }},

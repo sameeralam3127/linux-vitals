@@ -199,6 +199,8 @@ def test_baseline_postcheck_comparison_detects_improvement_and_regression(tmp_pa
         [
             _ansible_playbook_bin(),
             str(COMPARE_PLAYBOOK),
+            "-e",
+            json.dumps({"linux_vitals_maintenance_id": " test-window "}),
         ],
         check=True,
         cwd=REPO_ROOT,
