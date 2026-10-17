@@ -5,6 +5,7 @@
     "servers_checked": {{ linux_vitals_summary.servers_checked | int }},
     "auto_fixed_count": {{ linux_vitals_summary.auto_fixed_count | int }},
     "critical_error_count": {{ linux_vitals_summary.critical_error_count | int }},
+    "failing_host_count": {{ linux_vitals_summary.failing_host_count | default(linux_vitals_summary.critical_error_count) | int }},
     "hosts_by_severity": {{ linux_vitals_summary.hosts_by_severity | default({}) | to_json }},
     "findings_by_severity": {{ linux_vitals_summary.findings_by_severity | default({}) | to_json }},
     "unknown_host_count": {{ linux_vitals_summary.unknown_host_count | default(0) | int }},
