@@ -48,6 +48,14 @@ argument_specs:
           - Anchored to C(inventory_dir) rather than C(playbook_dir) so it
             resolves inside your project when the collection is installed and
             invoked by FQCN.
+      linux_vitals_baseline_max_age_hours:
+        type: int
+        default: 72
+        description:
+          - Maximum baseline age shown as a warning during postcheck.
+          - Set to C(0) to disable the age warning; capture times and unknown
+            ages are still shown.
+          - Must be non-negative.
       linux_vitals_snapshot_shard:
         type: str
         default: ""

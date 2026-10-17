@@ -7,6 +7,16 @@
   tags:
     - reporting
 
+- name: Require a non-negative baseline age limit
+  ansible.builtin.assert:
+    that:
+      - linux_vitals_baseline_max_age_hours | int >= 0
+    fail_msg: linux_vitals_baseline_max_age_hours must be zero or greater.
+    quiet: true
+  when: linux_vitals_phase == 'postcheck'
+  tags:
+    - reporting
+
 - name: Check whether a baseline snapshot exists for this host
   ansible.builtin.stat:
     path: "{{ linux_vitals_baseline_snapshot_path }}"
@@ -20,6 +30,41 @@
   ansible.builtin.set_fact:
     linux_vitals_baseline_result: >-
       {{ lookup('ansible.builtin.file', linux_vitals_baseline_snapshot_path) | from_json }}
+  when:
+    - linux_vitals_phase == 'postcheck'
+    - linux_vitals_baseline_snapshot_file.stat.exists | default(false)
+  tags:
+    - reporting
+
+- name: Record the baseline capture time when available
+  ansible.builtin.set_fact:
+    linux_vitals_baseline_captured_at: "{{ linux_vitals_baseline_result.captured_at | default(none) }}"
+    linux_vitals_baseline_age_hours: "{{ none }}"
+  when:
+    - linux_vitals_phase == 'postcheck'
+    - linux_vitals_baseline_snapshot_file.stat.exists | default(false)
+  tags:
+    - reporting
+
+- name: Calculate age of a timestamped baseline
+  ansible.builtin.set_fact:
+    linux_vitals_baseline_age_hours: >-
+      {{ (((now(utc=true, fmt='%Y-%m-%dT%H:%M:%SZ') | to_datetime('%Y-%m-%dT%H:%M:%SZ'))
+           - (linux_vitals_baseline_captured_at | to_datetime('%Y-%m-%dT%H:%M:%SZ')))
+          .total_seconds() / 3600) | round(1) }}
+  when:
+    - linux_vitals_phase == 'postcheck'
+    - linux_vitals_baseline_snapshot_file.stat.exists | default(false)
+    - linux_vitals_baseline_captured_at is not none
+  tags:
+    - reporting
+
+- name: Determine whether baseline age needs attention
+  ansible.builtin.set_fact:
+    linux_vitals_baseline_age_unknown: "{{ linux_vitals_baseline_captured_at is none }}"
+    linux_vitals_baseline_age_warning: >-
+      {{ (linux_vitals_baseline_max_age_hours | int > 0)
+         and (linux_vitals_baseline_age_hours | default(0) | float > linux_vitals_baseline_max_age_hours | int) }}
   when:
     - linux_vitals_phase == 'postcheck'
     - linux_vitals_baseline_snapshot_file.stat.exists | default(false)
@@ -88,6 +133,10 @@
   ansible.builtin.set_fact:
     linux_vitals_comparison:
       baseline_available: true
+      baseline_captured_at: "{{ linux_vitals_baseline_captured_at }}"
+      baseline_age_hours: "{{ linux_vitals_baseline_age_hours | default(none) }}"
+      baseline_age_unknown: "{{ linux_vitals_baseline_age_unknown | bool }}"
+      baseline_age_warning: "{{ linux_vitals_baseline_age_warning | bool }}"
       status_before: "{{ linux_vitals_baseline_result.final_status }}"
       status_after: "{{ linux_vitals_result.final_status }}"
       status_changed: "{{ linux_vitals_baseline_result.final_status != linux_vitals_result.final_status }}"
@@ -182,11 +231,34 @@
       {{ linux_vitals_comparison | combine({
            'ram_used_pct_before': linux_vitals_comparison.ram_used_pct_before | float,
            'ram_used_pct_after': linux_vitals_comparison.ram_used_pct_after | float,
-           'ram_used_pct_delta': linux_vitals_comparison.ram_used_pct_delta | float
+           'ram_used_pct_delta': linux_vitals_comparison.ram_used_pct_delta | float,
+           'baseline_age_hours': (
+             linux_vitals_comparison.baseline_age_hours | float
+             if linux_vitals_comparison.baseline_age_hours is not none else none
+           )
          }) }}
   when:
     - linux_vitals_phase == 'postcheck'
     - linux_vitals_baseline_snapshot_file.stat.exists | default(false)
+  tags:
+    - reporting
+
+- name: Warn when a baseline is old or its age is unknown
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: baseline for {{ inventory_hostname }}
+      {% if linux_vitals_baseline_age_unknown | bool %}
+      has no capture timestamp; its age is unknown and it must not be treated
+      as fresh.
+      {% else %}
+      is {{ linux_vitals_baseline_age_hours }} hours old, beyond the configured
+      limit of {{ linux_vitals_baseline_max_age_hours }} hours. The comparison
+      may reflect an earlier maintenance window.
+      {% endif %}
+  when:
+    - linux_vitals_phase == 'postcheck'
+    - linux_vitals_baseline_snapshot_file.stat.exists | default(false)
+    - linux_vitals_baseline_age_unknown | bool or linux_vitals_baseline_age_warning | bool
   tags:
     - reporting
 
