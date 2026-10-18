@@ -15,7 +15,7 @@ FILE_MODE = "{{ linux_vitals_report_file_mode }}"
     ("task_file", "expected_dirs", "expected_files"),
     # snapshot.yml: the phase directory and its .shards/ directory; the host
     # snapshot and the shard manifest (#26).
-    [("render.yml", 3, 4), ("snapshot.yml", 2, 2)],
+    [("render.yml", 3, 4), ("exports.yml", 1, 2), ("snapshot.yml", 2, 2)],
 )
 def test_report_write_tasks_use_configurable_modes(
     task_file: str, expected_dirs: int, expected_files: int

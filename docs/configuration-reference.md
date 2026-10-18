@@ -83,6 +83,8 @@ that a shard id reused for other hosts is refused rather than merged; see
 ```yaml
 linux_vitals_output_path: "{{ inventory_dir }}/reports/linux_vitals_report.html"
 linux_vitals_json_output_path: "{{ inventory_dir }}/reports/linux_vitals_report.json"
+linux_vitals_metrics_output_path: ""  # Optional .prom textfile on the controller
+linux_vitals_csv_output_path: ""      # Optional fleet CSV on the controller
 linux_vitals_report_file_mode: "0644"
 linux_vitals_report_dir_mode: "0755"
 linux_vitals_report_title: "LinuxVitals Health Check Dashboard"
@@ -112,6 +114,25 @@ linux_vitals_archive_html_reports: true
 linux_vitals_archive_json_reports: false
 linux_vitals_report_retention_count: 30
 ```
+
+### Optional metrics and CSV destinations
+
+Set either path to enable that export; both are off by default:
+
+```yaml
+linux_vitals_metrics_output_path: "/var/lib/node_exporter/textfile_collector/linux_vitals.prom"
+linux_vitals_csv_output_path: "{{ inventory_dir }}/reports/linux_vitals_report.csv"
+```
+
+These are controller-side writes from the already collected report results,
+with the configured report file/directory modes; there is no new discovery or
+HTTP endpoint. Choose separate metrics, CSV, HTML and JSON paths, and separate
+paths for concurrent runs. Metrics also require unique host identities.
+Exports overwrite their files, without the HTML/JSON archive retention policy.
+Setting a path back to `""` skips future writes but does not delete the old
+file; remove obsolete exports explicitly, especially textfiles that would
+otherwise keep being scraped. The [report guide](report-guide.md#optional-prometheus-textfile-and-csv-exports)
+has a node_exporter scrape example, metric/CSV semantics and a file-age check.
 
 ## Notifications
 

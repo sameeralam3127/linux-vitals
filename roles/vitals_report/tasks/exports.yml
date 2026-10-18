@@ -1,0 +1,71 @@
+---
+- name: Keep optional export destinations separate from other reports
+  ansible.builtin.assert:
+    that:
+      - linux_vitals_export_paths | unique(case_sensitive=true) | length == linux_vitals_export_paths | length
+      - linux_vitals_export_paths | intersect(linux_vitals_existing_report_paths) | length == 0
+    fail_msg: >-
+      Metrics and CSV output paths must differ from each other and from the
+      HTML and JSON report paths.
+  vars:
+    linux_vitals_export_paths: >-
+      {%- set paths = [] -%}
+      {%- for path in [linux_vitals_metrics_output_path, linux_vitals_csv_output_path] -%}
+      {%- if path | trim | length > 0 -%}
+      {%- set _ = paths.append(path | realpath) -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{ paths }}
+    linux_vitals_existing_report_paths: >-
+      {{ [linux_vitals_output_path, linux_vitals_json_output_path]
+         | reject('equalto', '') | map('realpath') | list }}
+  delegate_to: localhost
+  run_once: true
+
+- name: Require distinct host identities in the metrics report
+  ansible.builtin.assert:
+    that:
+      - linux_vitals_metric_identities | unique(case_sensitive=true) | length == linux_vitals_result_list | length
+    fail_msg: >-
+      Metrics require unique (hostname, ip_address, os_family) identities.
+      Two completed results would otherwise emit the same labelled sample.
+  vars:
+    linux_vitals_metric_identities: >-
+      {%- set identities = [] -%}
+      {%- for result in linux_vitals_result_list -%}
+      {%- set _ = identities.append([result.hostname, result.ip_address, result.os_family] | to_json) -%}
+      {%- endfor -%}
+      {{ identities }}
+  delegate_to: localhost
+  run_once: true
+  when: linux_vitals_metrics_output_path | trim | length > 0
+
+- name: Ensure optional export directories exist
+  ansible.builtin.file:
+    path: "{{ item | dirname }}"
+    state: directory
+    mode: "{{ linux_vitals_report_dir_mode }}"
+  loop:
+    - "{{ linux_vitals_metrics_output_path }}"
+    - "{{ linux_vitals_csv_output_path }}"
+  delegate_to: localhost
+  run_once: true
+  when: item | trim | length > 0
+
+- name: Generate optional Prometheus textfile
+  ansible.builtin.template:
+    src: metrics.prom.j2
+    dest: "{{ linux_vitals_metrics_output_path }}"
+    mode: "{{ linux_vitals_report_file_mode }}"
+  delegate_to: localhost
+  run_once: true
+  when: linux_vitals_metrics_output_path | trim | length > 0
+
+- name: Generate optional CSV fleet table
+  ansible.builtin.template:
+    src: report.csv.j2
+    dest: "{{ linux_vitals_csv_output_path }}"
+    mode: "{{ linux_vitals_report_file_mode }}"
+  delegate_to: localhost
+  run_once: true
+  when: linux_vitals_csv_output_path | trim | length > 0

@@ -279,6 +279,14 @@
   tags:
     - reporting
 
+- name: Render optional metrics and CSV exports
+  ansible.builtin.include_tasks: exports.yml
+  when: >-
+    linux_vitals_metrics_output_path | trim | length > 0
+    or linux_vitals_csv_output_path | trim | length > 0
+  tags:
+    - reporting
+
 # Every report, archive and snapshot write in this role goes through the
 # template or copy module, which writes a temporary file in the destination
 # directory and rename()s it into place, so a reader -- or a concurrent run --
