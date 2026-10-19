@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -66,6 +67,9 @@ def test_unusable_distro_check_falls_back_to_kernel_comparison(tmp_path: Path) -
     assert missing_tool["required"] is True
     assert missing_tool["source"] == "kernel-comparison"
     assert "no distro reboot check" in missing_tool["reason"]
+    # (#150) the reason keeps the clue the probe printed: why there was no
+    # distro check at all.
+    assert "-- needs-restarting is not installed (dnf-utils/yum-utils)" in missing_tool["reason"]
 
     # The tool erroring out is not evidence that no reboot is needed: the answer
     # falls back to the kernel comparison, which here says the host is current.
@@ -73,11 +77,29 @@ def test_unusable_distro_check_falls_back_to_kernel_comparison(tmp_path: Path) -
     assert failed_tool["supported"] is False
     assert failed_tool["required"] is False
     assert failed_tool["source"] == "kernel-comparison"
+    # (#150) what the tool said is carried out of the probe instead of being
+    # dropped while the reason claims no check is available.
+    assert "-- needs-restarting exited 2: Permission denied" in failed_tool["reason"]
 
     unsupported = facts["unsupported_family"]
     assert unsupported["supported"] is False
     assert unsupported["required"] is False
     assert unsupported["source"] == "kernel-comparison"
+
+
+def test_an_unanswered_kernel_probe_leaves_no_reboot_answer(tmp_path: Path) -> None:
+    facts = _derived_reboot_facts(tmp_path)
+
+    # (#150) needs-restarting is missing and /lib/modules was unreadable:
+    # neither source can answer, so no reboot is inferred and the reason says
+    # both, keeping the probe's detail.
+    unanswered = facts["redhat_kernel_probe_unanswered"]
+    assert unanswered["supported"] is False
+    assert unanswered["required"] is False
+    assert unanswered["source"] == "unavailable"
+    assert "no distro reboot check is available" in unanswered["reason"]
+    assert "-- needs-restarting is not installed (dnf-utils/yum-utils)" in unanswered["reason"]
+    assert "(and the latest-kernel comparison could not run here)" in unanswered["reason"]
 
 
 def _discovery_scripts() -> dict[str, str]:
@@ -178,6 +200,76 @@ def test_bootloader_default_reports_unavailable_without_a_bootloader(
 
     assert result["supported"] == "false"
     assert result["status"] == "unavailable"
+
+
+def _run_rooted_with_bins(script: str, root: Path, bin_dir: Path) -> dict[str, str]:
+    """Run the bootloader probe with `/boot`-style paths rewritten to a
+    synthetic root and fake grubby/grub2-editenv binaries put on PATH."""
+    shell = which("dash") or which("sh")
+    completed = subprocess.run(
+        [shell, "-c", ROOTED_PATHS.sub(lambda m: f"{root}/{m.group(1)}", script)],
+        capture_output=True,
+        text=True,
+        check=True,
+        env={**os.environ, "PATH": f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}"},
+    )
+    return dict(
+        line.split("=", 1)
+        for line in completed.stdout.splitlines()
+        if "=" in line
+    )
+
+
+def _write_tool(path: Path, body: str) -> None:
+    path.write_text(f"#!/bin/sh\n{body}\n", encoding="utf-8")
+    path.chmod(0o755)
+
+
+def test_bootloader_config_present_but_unreadable_records_a_reason(
+    bootloader_script: str, tmp_path: Path
+) -> None:
+    # (#150) A GRUB host where grubby and grub2-editenv cannot read the boot
+    # environment -- typically a run without privileges like docs/threat-model
+    # documents -- must print the tools' failure on one line, not stay silent.
+    _write(tmp_path / "boot/grub2/grubenv", "saved_entry=widget-6.9.0-1\n")
+    _write(tmp_path / "boot/grub2/grub.cfg", "# placeholder\n")
+    bin_dir = tmp_path / "bin"
+    _write_tool(
+        bin_dir / "grubby",
+        'echo "grubby: cannot find default kernel: Permission denied" >&2\necho "usage: grubby" >&2\nexit 2\n',
+    )
+    _write_tool(
+        bin_dir / "grub2-editenv",
+        'echo "grub2-editenv: error: cannot open ${2:-}: Permission denied." >&2\nexit 1\n',
+    )
+
+    result = _run_rooted_with_bins(bootloader_script, tmp_path, bin_dir)
+
+    assert result["supported"] == "false"
+    assert result["source"] == "unavailable"
+    assert result["status"] == "unavailable"
+    reason = result["reason"]
+    # The reason is one line naming both tools, in fixed order, as the
+    # key=value block extended_facts.yml parses.
+    assert "grubby exited 2:" in reason
+    assert "grub2-editenv exited 1:" in reason
+    assert reason.count("\n") == 0
+
+
+def test_bootloader_unanswered_reason_stays_empty_without_boot_config(
+    bootloader_script: str, tmp_path: Path
+) -> None:
+    # (#150) No boot configuration at all -- a container, an EFI-stub or a
+    # cloud boot -- is a host with nothing to check, and must print NO
+    # reason line: result.yml would otherwise report it as unreadable.
+    bin_dir = tmp_path / "bin"
+    _write_tool(bin_dir / "grubby", "exit 2\n")
+
+    result = _run_rooted_with_bins(bootloader_script, tmp_path, bin_dir)
+
+    assert result["supported"] == "false"
+    assert result["status"] == "unavailable"
+    assert "reason" not in result
 
 
 def test_latest_kernel_probe_ignores_leftover_module_directories(tmp_path: Path) -> None:

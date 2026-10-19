@@ -44,7 +44,8 @@
           detail=needs-restarting is not installed (dnf-utils/yum-utils)
           packages=
       # needs-restarting exited non-zero for its own reasons -- an unusable
-      # answer must never be reported as "no reboot needed".
+      # answer must never be reported as "no reboot needed" (#150: the tool's
+      # error now reaches the reason).
       - name: redhat_tool_failed
         latest_kernel_selected: true
         probe: |
@@ -52,6 +53,17 @@
           detected=false
           source=needs-restarting
           detail=needs-restarting exited 2: Permission denied
+          packages=
+      # needs-restarting missing AND the latest-kernel probe gave no answer
+      # (#150): neither source is usable, so no reboot may be inferred at all.
+      - name: redhat_kernel_probe_unanswered
+        latest_kernel_selected: false
+        probe_answered: false
+        probe: |
+          supported=false
+          detected=false
+          source=needs-restarting-missing
+          detail=needs-restarting is not installed (dnf-utils/yum-utils)
           packages=
       # SUSE with a modern zypper answering the question directly.
       - name: suse_pending

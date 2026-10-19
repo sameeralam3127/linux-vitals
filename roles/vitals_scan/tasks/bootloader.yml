@@ -293,7 +293,67 @@
             exit 0
           done
 
+          # Nothing above could resolve the default entry. Tell "no bootloader
+          # configuration to read" apart from "configuration present but
+          # unreadable" (#150): a container, EFI-stub or cloud boot has no boot
+          # environment here at all and stays unavailable with no finding,
+          # while a GRUB host whose tools could not read it -- most often
+          # grubby and grub2-editenv failing without root, see
+          # docs/threat-model.md -- must not be reported the same way. In the
+          # second case an extra reason= line carries the tools' stderr up to
+          # extended_facts.yml, and result.yml raises bootloader_mismatch as
+          # an unknown finding with that reason.
+          config_present=""
+          for present in "$grub_cfg" "$grub_env" \
+              /boot/loader/entries /boot/efi/loader/entries /efi/loader/entries; do
+            if [ -e "$present" ]; then
+              config_present="true"
+              break
+            fi
+          done
+
+          if [ -z "$config_present" ]; then
+            print_result "false" "unavailable" "" "" "unavailable"
+            exit 0
+          fi
+
+          reason=""
+          add_reason() {
+            if [ -n "$1" ]; then
+              reason="${reason:+$reason; }$1"
+            fi
+          }
+          if command -v grubby >/dev/null 2>&1; then
+            grubby_rc=0
+            grubby_err="$(grubby --default-kernel 2>&1 1>/dev/null)" || grubby_rc=$?
+            if [ "$grubby_rc" -ne 0 ]; then
+              add_reason "grubby exited $grubby_rc: $grubby_err"
+            else
+              add_reason "grubby reported no default kernel"
+            fi
+          else
+            add_reason "grubby is not installed"
+          fi
+
+          if [ -z "$grub_editenv_cmd" ]; then
+            add_reason "grub2-editenv/grub-editenv is not installed"
+          elif [ -z "$grub_env" ]; then
+            add_reason "no grubenv file was found"
+          else
+            env_rc=0
+            env_err="$("$grub_editenv_cmd" "$grub_env" list 2>&1 1>/dev/null)" || env_rc=$?
+            if [ "$env_rc" -ne 0 ]; then
+              add_reason "grub2-editenv exited $env_rc: $env_err"
+            else
+              add_reason "grub2-editenv found no saved_entry"
+            fi
+          fi
+
+          # The reason has to stay on one line: extended_facts.yml reads it
+          # back with a single-key regex.
+          reason="$(printf '%s' "$reason" | tr '\n\r' '  ' | sed 's/[[:space:]]*$//')"
           print_result "false" "unavailable" "" "" "unavailable"
+          printf 'reason=%s\n' "$reason"
   register: linux_vitals_bootloader_default_cmd
   changed_when: false
   failed_when: false

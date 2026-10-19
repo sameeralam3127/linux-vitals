@@ -75,11 +75,36 @@
       {%- if linux_vitals_reboot_required -%}
       {%- set _ = findings.append({'id': 'reboot_required', 'message': 'System reboot is required'}) -%}
       {%- endif -%}
-      {%- if not linux_vitals_latest_kernel_selected -%}
+      {#- The latest-kernel probe (#150): a failed or empty probe (an unseen
+          /lib/modules) cannot support a verdict, on the running kernel or on
+          the reboot fallback, so its finding raises as `unknown` with a
+          reason rather than as a clean failure to be current. -#}
+      {%- if not linux_vitals_latest_kernel_probe_answered -%}
+      {%- set _ = findings.append({
+        'id': 'kernel_not_latest', 'message': 'Latest installed kernel could not be determined',
+        'status': 'unknown',
+        'reason': 'the latest-kernel probe produced no answer: /lib/modules is unreadable or empty on this host'}) -%}
+      {%- elif not linux_vitals_latest_kernel_selected -%}
       {%- set _ = findings.append({'id': 'kernel_not_latest', 'message': 'Latest installed kernel is not currently running'}) -%}
       {%- endif -%}
-      {%- if linux_vitals_bootloader_default_status == 'resolved' and not linux_vitals_bootloader_default_matches_latest -%}
+      {#- The bootloader probe distinguishes (#150) no boot configuration at
+          all (a container, EFI-stub or cloud boot: nothing to report, and a
+          container must stay clean) from a boot environment that is present
+          but unreadable -- most often grubby and grub2-editenv failing
+          without root. The second raises bootloader_mismatch as `unknown`
+          with the tools' stderr as the reason. The plain-fail mismatch is
+          also gated on the latest-kernel probe having answered: a mismatch
+          cannot be claimed against a latest kernel nobody could determine
+          -- kernel_not_latest already carries that as `unknown`. -#}
+      {%- if linux_vitals_bootloader_default_status == 'resolved'
+              and linux_vitals_latest_kernel_probe_answered
+              and not linux_vitals_bootloader_default_matches_latest -%}
       {%- set _ = findings.append({'id': 'bootloader_mismatch', 'message': 'Default boot entry does not select the latest installed kernel'}) -%}
+      {%- elif linux_vitals_bootloader_default_status == 'unavailable'
+               and linux_vitals_bootloader_probe_reason | default('', true) | trim | length > 0 -%}
+      {%- set _ = findings.append({
+        'id': 'bootloader_mismatch', 'message': 'Default boot entry could not be read',
+        'status': 'unknown', 'reason': linux_vitals_bootloader_probe_reason}) -%}
       {%- endif -%}
       {%- if linux_vitals_boot_space_status == 'Low' -%}
       {%- set _ = findings.append({'id': 'boot_space_low', 'message': 'Boot partition free space is low'}) -%}
@@ -94,7 +119,17 @@
       {%- if linux_vitals_failed_login_attempts | length > 0 -%}
       {%- set _ = findings.append({'id': 'failed_logins', 'message': 'Recent failed login attempts detected'}) -%}
       {%- endif -%}
-      {%- if linux_vitals_selinux_status not in ['Enforcing', 'Permissive'] and ansible_facts['os_family'] == 'RedHat' -%}
+      {#- SELinux (#150): on RedHat-family hosts a missing or failing
+          getenforce means nobody looked, so the finding raises as `unknown`
+          with a reason, the same thing #39 asks for a missing aa-status on
+          Debian-family hosts. A getenforce that ran and said `Disabled` is
+          still a plain failure: the check ran and found the control off. -#}
+      {%- if ansible_facts['os_family'] == 'RedHat' and not linux_vitals_selinux_probe_ok -%}
+      {%- set _ = findings.append({
+        'id': 'selinux_disabled', 'message': 'SELinux status could not be read',
+        'status': 'unknown',
+        'reason': 'getenforce is missing or failed to report a mode on this host'}) -%}
+      {%- elif linux_vitals_selinux_status not in ['Enforcing', 'Permissive'] and ansible_facts['os_family'] == 'RedHat' -%}
       {%- set _ = findings.append({'id': 'selinux_disabled', 'message': 'SELinux is disabled or unavailable'}) -%}
       {%- endif -%}
       {%- if ansible_facts['os_family'] == 'Debian' and linux_vitals_apparmor_status != 'enabled' -%}

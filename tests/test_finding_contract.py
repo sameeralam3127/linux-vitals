@@ -146,8 +146,40 @@ def test_html_and_json_show_an_unknown_check_distinctly(tmp_path: Path) -> None:
 # Scan probes that set `failed_when: false`, recorded when the contract landed
 # (#62). Ignoring a probe's failure is how a check that could not run ends up
 # reading as clean, so each of these is to be audited against the contract --
-# the failed-login probe first (#39). The two journal probes now handle
-# unknown results (#118); the remaining probes still need their audit.
+# the failed-login probe first (#39). Every probe on this list now has a
+# recorded audit outcome (#150 audits the ones #39/#118/#119 did not):
+#
+# - Journal probes (#118, #130): an unreadable journal raises log_errors and
+#   kernel_install_failures as `unknown` with a reason, via journal_facts.yml
+#   and the journal_checks facts.
+# - Failed logins and AppArmor: their audit outcome is tracked under #39
+#   (a missing `lastb` or `aa-status` must raise an `unknown` finding, not a
+#   clean report); that fix has not landed on main yet, so their entries stay
+#   until #39 does.
+# - Last reboot: reviewed -- the probe feeds no finding, and the 'Unknown'
+#   display fallback is for a boot record nobody recorded, not a silent clean
+#   verdict on a check that could not run (who -b itself is the documented
+#   fallback).
+# - Latest kernel (#150): an empty or failed probe raises kernel_not_latest as
+#   `unknown` with a reason, and does not feed the reboot fallback.
+# - Bootloader (#150): a boot environment that is present but unreadable
+#   (grubby/grub2-editenv failing without root) raises bootloader_mismatch as
+#   `unknown` with the tools' stderr as the reason; a host with no boot
+#   configuration (containers, EFI-stub and cloud boots) stays silent, with no
+#   finding.
+# - Debian reboot: reviewed -- the marker-file probe always answers, and its
+#   file tests are documented fallbacks that feed no finding on their own.
+# - SUSE reboot: reviewed -- zypper answers directly, older hosts fall back to
+#   the documented marker files, and the probe feeds no finding by itself.
+# - RedHat reboot (#150): a failing needs-restarting is reported as
+#   unsupported, and its error is carried into reboot_reason instead of being
+#   dropped while the reason says no check is available.
+# - SELinux (#150): a missing or failing getenforce on a RedHat-family host
+#   raises selinux_disabled as `unknown` with a reason (the matching missing
+#   aa-status case is #39's).
+# - Rescue image: reviewed -- file tests with documented fallbacks feed no
+#   finding; nothing to fix.
+# - Kernel install failures: the same audit as the journal probes (#118).
 #
 # Adding a name here is a review decision, not a way to make this test pass:
 # the probe must tell "ran and found nothing" from "could not run", and raise
