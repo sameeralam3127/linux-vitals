@@ -1,8 +1,9 @@
 # Report Guide
 
-LinuxVitals produces three artifacts per run: an HTML dashboard, a JSON
-report, and (when baseline/postcheck snapshots exist) per-host JSON
-snapshots. All three live under `reports/` next to your inventory.
+LinuxVitals produces an HTML dashboard, a JSON report, and (when
+baseline/postcheck snapshots exist) per-host JSON snapshots. Their default
+paths are under `reports/` next to your inventory. Optional Prometheus
+textfile and CSV exports are disabled until you configure their paths.
 
 ## HTML dashboard
 
@@ -168,6 +169,105 @@ and a status for each of the three checks:
 `adhoc`/`baseline` runs, or for a host with no matching baseline snapshot,
 it's `{"baseline_available": false}` and the rest of the comparison fields
 are absent.
+
+## Optional Prometheus textfile and CSV exports
+
+Both exports use the current `linux_vitals_result_list` already assembled by
+`vitals_report`. They run once on the Ansible controller, do no discovery,
+and add no HTTP endpoint or additional host checks. The HTML and JSON outputs
+keep their existing formats. Enable either export independently:
+
+```yaml
+linux_vitals_metrics_output_path: "/var/lib/node_exporter/textfile_collector/linux_vitals.prom"
+linux_vitals_csv_output_path: "{{ inventory_dir }}/reports/linux_vitals_report.csv"
+```
+
+Both variables default to `""` (off). Use distinct paths for metrics, CSV,
+HTML and JSON, and distinct paths for concurrent runs. Resolved export paths
+that collide with each other or the HTML/JSON paths are rejected. The role
+creates parent directories with `linux_vitals_report_dir_mode` and writes
+files with `linux_vitals_report_file_mode`; defaults are `"0755"` and
+`"0644"`. Give the automation user write access and the chosen reader access.
+Exports overwrite their configured files on each run and are not archived or
+pruned by the HTML/JSON archive settings. Disabling or changing an export path
+does not delete its old file: remove obsolete exports explicitly.
+
+### Prometheus textfile collector
+
+The `.prom` file uses [Prometheus text exposition format 0.0.4](https://prometheus.io/docs/instrumenting/exposition_formats/),
+with HELP/TYPE lines and no sample timestamps; it is not full OpenMetrics.
+Configure an existing [node_exporter textfile collector](https://github.com/prometheus/node_exporter#textfile-collector)
+on the controller to read the directory above, for example by adding
+`--collector.textfile.directory=/var/lib/node_exporter/textfile_collector`
+to its service command. This role does not install or configure node_exporter.
+A Prometheus configuration for node_exporter running on that same machine is:
+
+```yaml
+scrape_configs:
+  - job_name: linux_vitals_controller
+    static_configs:
+      - targets: ["localhost:9100"]
+```
+
+If Prometheus runs elsewhere, replace `localhost` with the controller's
+reachable node_exporter address. The scrape target represents the controller;
+the `host` label identifies the checked host. Per-host metrics have labels
+`host`, `ip_address`, `os_family` and `phase`. Two results with the same
+`(hostname, ip_address, os_family)` are rejected when metrics are enabled,
+to avoid duplicate samples; CSV alone does not impose that identity check.
+
+| Gauge | Meaning |
+| --- | --- |
+| `linux_vitals_host_status` | `1` only for `Pass` with zero unknown checks; otherwise `0`. |
+| `linux_vitals_unknown_count` | Checks that could not run for this host. |
+| `linux_vitals_findings_total` | Current findings by `severity` (`info`, `warning`, `critical`) and `status` (`fail`, `unknown`), including zero-valued combinations. Despite its suffix, this is a gauge, not a cumulative counter. |
+| `linux_vitals_ram_used_pct` | RAM used percentage; `NaN` when unavailable. |
+| `linux_vitals_reboot_required` | `1` required, `0` not required, `NaN` for an explicit unknown reboot finding or null reboot result. An unsupported distro-specific detector still uses the existing kernel fallback; unsupported alone does not mean `NaN`. |
+| `linux_vitals_health_score_pct` | Fleet percentage of `Pass` hosts with zero unknown checks, rounded to one decimal; `0` for an empty fleet. Only the `phase` label is present. |
+
+For example, a healthy host and the fleet score might emit:
+
+```text
+# HELP linux_vitals_host_status 1 when the host passes and every check could run, otherwise 0.
+# TYPE linux_vitals_host_status gauge
+linux_vitals_host_status{host="web01",ip_address="192.0.2.11",os_family="Debian",phase="adhoc"} 1
+# HELP linux_vitals_health_score_pct Percentage of hosts that pass with no unknown checks in this report.
+# TYPE linux_vitals_health_score_pct gauge
+linux_vitals_health_score_pct{phase="adhoc"} 100.0
+```
+
+These are run snapshots, not continuously refreshed host measurements.
+Prometheus scrape time does not establish when the scan ran. Monitor
+node_exporter's `node_textfile_mtime_seconds` for the file and alert on an age
+appropriate to your scan schedule. An old `.prom` file remains scrapeable if a
+run fails or metrics are disabled; remove it explicitly when retiring the
+export. Phase is a label, so a new run with another phase replaces the file's
+previous phase samples rather than preserving history in the file.
+
+### CSV fleet table
+
+The CSV has one header and one row per host, in this fixed 22-column order:
+
+```text
+status,unknown_count,hostname,ip_address,os,os_family,platform_type,phase,ram_used_pct,load_per_cpu_5m,load_status,psi_some_max_pct,psi_status,swap_rate_per_sec,swap_status,kernel_status,reboot_required,reboot_detection_supported,boot_space_status,boot_free_pct,failed_login_count,change
+```
+
+Missing optional measurements are blank, not zero. Pressure status columns
+retain values such as `Unknown`, `Unsupported` and `Not sampled`.
+`psi_some_max_pct` is the largest CPU, memory or I/O `some` percentage.
+`kernel_status` is `Current` or `Outdated`; `reboot_required` is `Required`,
+`No` or `Unknown`, and `reboot_detection_supported` is `true` or `false`.
+`change` is blank outside `postcheck`; during `postcheck` it is `New`,
+`Regressed`, `Improved` or `Unchanged` according to the existing comparison.
+
+Every cell is double-quoted and embedded quotes are doubled, so commas,
+quotes and line breaks in text remain within one cell. Text starting with
+`=`, `+`, `-`, `@`, tab, carriage return or newline receives a leading
+apostrophe to prevent spreadsheet formula interpretation. This protection
+intentionally changes those text cells and is not reversible without knowing
+the original value. Use the JSON report when exact original strings are
+needed. Numeric values do not receive the prefix. Use a CSV parser rather
+than splitting on commas or lines.
 
 ## Self-healing outcomes
 

@@ -90,6 +90,20 @@ argument_specs:
         description:
           - Where the JSON report is written. Set to an empty string to skip
             JSON generation entirely.
+      linux_vitals_metrics_output_path:
+        type: str
+        default: ""
+        description:
+          - Optional Prometheus textfile destination on the control node.
+          - Empty disables this export. Use a C(.prom) filename in the
+            node_exporter textfile collector directory to enable scraping.
+      linux_vitals_csv_output_path:
+        type: str
+        default: ""
+        description:
+          - Optional CSV fleet-table destination on the control node.
+          - Empty disables this export. Writes one row per completed host
+            result, including checks that could not run.
       linux_vitals_report_title:
         type: str
         default: LinuxVitals Health Check Dashboard

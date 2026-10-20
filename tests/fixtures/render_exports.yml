@@ -1,0 +1,46 @@
+---
+- name: Render optional exports from supplied synthetic results only
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    output_dir: "{{ lookup('ansible.builtin.env', 'TEST_OUTPUT_DIR') }}"
+    linux_vitals_output_path: "{{ output_dir }}/report.html"
+    linux_vitals_json_output_path: "{{ output_dir }}/report.json"
+    linux_vitals_phase: "{{ fixture_phase | default('adhoc') }}"
+    linux_vitals_result_list: "{{ fixture_results }}"
+    linux_vitals_metrics_output_path: "{{ fixture_metrics_path | default('') }}"
+    linux_vitals_csv_output_path: "{{ fixture_csv_path | default('') }}"
+    linux_vitals_report_file_mode: "0600"
+    linux_vitals_report_dir_mode: "0700"
+  tasks:
+    - name: Load synthetic results when the fixture runs
+      ansible.builtin.include_vars:
+        file: "{{ lookup('ansible.builtin.env', 'EXPORT_FIXTURE_DATA') }}"
+      tags:
+        - always
+
+    - name: Seed the completed host result for tagged render integration
+      ansible.builtin.set_fact:
+        linux_vitals_result: "{{ fixture_results[0] }}"
+        linux_vitals_auto_fixed_count: 0
+      when: fixture_full_report | default(false)
+      tags:
+        - always
+
+    - name: Render only the exporter tasks without scanning or notifications
+      ansible.builtin.include_role:
+        name: sameeralam3127.linux_vitals.vitals_report
+        tasks_from: exports
+      when: not (fixture_full_report | default(false))
+
+    - name: Render reports with the same inherited tags as the production entry point
+      ansible.builtin.include_role:
+        name: sameeralam3127.linux_vitals.vitals_report
+        tasks_from: render
+        apply:
+          tags:
+            - reporting
+      when: fixture_full_report | default(false)
+      tags:
+        - reporting

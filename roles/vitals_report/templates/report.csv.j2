@@ -1,0 +1,33 @@
+{# Quote every field. Prefix spreadsheet formulas in text cells with an
+   apostrophe; numbers remain numbers. The JSON report preserves original
+   strings for consumers that need an exact, unmodified value. #}
+{% macro cell(value) -%}
+{%- set text = '' if value is none else value | string -%}
+{%- if value is string and text[:1] in ['=', '+', '-', '@', '\t', '\r', '\n'] -%}
+{%- set text = "'" ~ text -%}
+{%- endif -%}
+"{{ text | replace('"', '""') }}"
+{%- endmacro %}
+"status","unknown_count","hostname","ip_address","os","os_family","platform_type","phase","ram_used_pct","load_per_cpu_5m","load_status","psi_some_max_pct","psi_status","swap_rate_per_sec","swap_status","kernel_status","reboot_required","reboot_detection_supported","boot_space_status","boot_free_pct","failed_login_count","change"
+{% for result in linux_vitals_result_list %}
+{% set pressure = result.pressure | default({}) %}
+{% set comparison = result.comparison %}
+{% set change = ('New' if not comparison.baseline_available else 'Regressed' if comparison.status_regressed else 'Improved' if comparison.status_improved else 'Unchanged') if linux_vitals_phase == 'postcheck' else '' %}
+{% set unknown_reboot = result.findings | selectattr('id', 'equalto', 'reboot_required') | selectattr('status', 'defined') | selectattr('status', 'equalto', 'unknown') | list %}
+{% set row = [
+  result.final_status, result.unknown_count | default(0) | int,
+  result.hostname, result.ip_address, result.os, result.os_family,
+  result.platform_type, linux_vitals_phase, result.ram_used_pct,
+  (pressure.load_per_cpu | default({}) or {}).get('5m'),
+  pressure.load_status | default(''),
+  ([pressure.psi.cpu_some, pressure.psi.memory_some, pressure.psi.io_some] | max) if pressure.psi | default({}) else none,
+  pressure.psi_status | default(''), pressure.swap_rate_per_sec | default(none),
+  pressure.swap_status | default(''),
+  'Current' if result.latest_kernel_selected else 'Outdated',
+  'Unknown' if unknown_reboot | length > 0 or result.reboot_required is none else 'Required' if result.reboot_required else 'No',
+  'true' if result.reboot_detection_supported | default(true) else 'false',
+  result.boot_space_status, result.boot_free_pct, result.failed_login_count, change
+] %}
+{% for value in row %}{{ cell(value) }}{% if not loop.last %},{% endif %}{% endfor %}
+{{ '\n' -}}
+{% endfor %}

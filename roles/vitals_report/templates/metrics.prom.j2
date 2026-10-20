@@ -1,0 +1,54 @@
+{# Prometheus text 0.0.4, not OpenMetrics: node_exporter's textfile reader
+   expects this format. Samples have no timestamps. Keep each family together. #}
+{% macro label(value) -%}
+{{ value | string | replace('\\', '\\\\') | replace('\n', '\\n') | replace('"', '\\"') }}
+{%- endmacro %}
+{% macro labels(result) -%}
+host="{{ label(result.hostname) }}",ip_address="{{ label(result.ip_address) }}",os_family="{{ label(result.os_family) }}",phase="{{ label(linux_vitals_phase) }}"
+{%- endmacro %}
+# HELP linux_vitals_host_status 1 when the host passes and every check could run, otherwise 0.
+# TYPE linux_vitals_host_status gauge
+{% for result in linux_vitals_result_list %}
+linux_vitals_host_status{ {{- labels(result) -}} } {{ 1 if result.final_status == 'Pass' and result.unknown_count | default(0) | int == 0 else 0 }}
+{% endfor %}
+# HELP linux_vitals_unknown_count Checks that could not run in this host's current report.
+# TYPE linux_vitals_unknown_count gauge
+{% for result in linux_vitals_result_list %}
+linux_vitals_unknown_count{ {{- labels(result) -}} } {{ result.unknown_count | default(0) | int }}
+{% endfor %}
+# HELP linux_vitals_findings_total Findings in the current report, not a cumulative counter.
+# TYPE linux_vitals_findings_total gauge
+{% for result in linux_vitals_result_list %}
+{% for severity in ['info', 'warning', 'critical'] %}
+{% for status in ['fail', 'unknown'] %}
+{% set matches = [] %}
+{% for finding in result.findings %}
+{% if finding.severity == severity and finding.status | default('fail') == status %}
+{% set _ = matches.append(finding) %}
+{% endif %}
+{% endfor %}
+linux_vitals_findings_total{ {{- labels(result) -}},severity="{{ severity }}",status="{{ status }}"} {{ matches | length }}
+{% endfor %}
+{% endfor %}
+{% endfor %}
+# HELP linux_vitals_ram_used_pct RAM used as a percentage, or NaN when unavailable.
+# TYPE linux_vitals_ram_used_pct gauge
+{% for result in linux_vitals_result_list %}
+{% set ram_used_pct = result.ram_used_pct | float(default=none) %}
+linux_vitals_ram_used_pct{ {{- labels(result) -}} } {{ ram_used_pct if ram_used_pct is not none else 'NaN' }}
+{% endfor %}
+# HELP linux_vitals_reboot_required 1 when a reboot is required, 0 when not, or NaN when the check could not run.
+# TYPE linux_vitals_reboot_required gauge
+{% for result in linux_vitals_result_list %}
+{% set unknown = result.findings | selectattr('id', 'equalto', 'reboot_required') | selectattr('status', 'defined') | selectattr('status', 'equalto', 'unknown') | list %}
+linux_vitals_reboot_required{ {{- labels(result) -}} } {{ 'NaN' if unknown | length > 0 or result.reboot_required is none else (1 if result.reboot_required else 0) }}
+{% endfor %}
+# HELP linux_vitals_health_score_pct Percentage of hosts that pass with no unknown checks in this report.
+# TYPE linux_vitals_health_score_pct gauge
+{% set healthy = [] %}
+{% for result in linux_vitals_result_list %}
+{% if result.final_status == 'Pass' and result.unknown_count | default(0) | int == 0 %}
+{% set _ = healthy.append(result) %}
+{% endif %}
+{% endfor %}
+linux_vitals_health_score_pct{phase="{{ label(linux_vitals_phase) }}"} {{ ((healthy | length) / (linux_vitals_result_list | length) * 100) | round(1) if linux_vitals_result_list | length > 0 else 0 }}
