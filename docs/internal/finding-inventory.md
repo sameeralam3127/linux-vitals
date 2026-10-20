@@ -71,12 +71,12 @@ All 15 are map-classified; none computes its own severity.
 | `time_sync_absent` | map: warning | `service_status.time_sync.service_name == 'absent'` | R2 | `discovery.yml:26` (candidates), `:40` (resolve), `services.yml:45`, `result.yml:22` | **4 places, 3 files** |
 | `time_sync_inactive` | map: warning | `elif` state not running/active | R2 | same four as above | **4 places, 3 files** |
 | `reboot_required` | map: warning | `linux_vitals_reboot_required` | R8/R9/R10, falls back to R6+R1 `kernel` | `discovery.yml:812` (select probe), `reboot_facts.yml:4` (parse), `:58` (decide + fallback), `result.yml:27` | **4 places, 3 files** |
-| `kernel_not_latest` | map: warning | `not latest_kernel_selected` | R6 `latest=`, R1 `kernel` | `discovery.yml:757`, `result.yml:30` | **2 files** |
-| `bootloader_mismatch` | map: warning | `bootloader_default_status == 'resolved' and not ..._matches_latest` | R7, R6 | `discovery.yml:804` (status), `:879` (match), `result.yml:33` | **3 places, 2 files** |
+| `kernel_not_latest` | map: warning | `not latest_kernel_selected`, or `unknown` when the latest-kernel probe answered nothing (#150) | R6 `latest=`, R1 `kernel` | `kernel.yml` (probe), `extended_facts.yml` (parse), `result.yml` | **3 files** |
+| `bootloader_mismatch` | map: warning | `bootloader_default_status == 'resolved' and not ..._matches_latest` (plain fail), or `unknown` when the boot environment is present but unreadable / the latest-kernel probe answered nothing (#150) | R7, R6 | `bootloader.yml` (probe), `extended_facts.yml` (status), `bootloader_facts.yml` (match), `result.yml` | **4 files** |
 | `boot_space_low` | map: warning | `boot_space_status == 'Low'` | R1 `mounts[]` | `discovery.yml:907` (pick mount), `:955` (threshold), `result.yml:36` | **3 places, 2 files** |
 | `kernel_install_failures` | map: warning | `kernel_install_failures \| int > 0` | R14 | `discovery.yml:686` (regex), `:860` (count), `result.yml:39` | **3 places, 2 files** |
 | `failed_logins` | map: info | `failed_login_attempts \| length > 0` | R4 | `discovery.yml:835` (filter), `result.yml:42` | **2 files** |
-| `selinux_disabled` | map: warning | `selinux_status not in ['Enforcing','Permissive'] and os_family == 'RedHat'` | R11, R1 `os_family` | `discovery.yml:822`, `result.yml:45` | **2 files** |
+| `selinux_disabled` | map: warning | `selinux_status not in ['Enforcing','Permissive'] and os_family == 'RedHat'` (plain fail), or `unknown` when `getenforce` could not answer on a RedHat-family host (#150) | R11, R1 `os_family` | `security.yml` (probe), `extended_facts.yml` (parse), `result.yml` | **3 files** |
 | `apparmor_disabled` | map: warning | `os_family == 'Debian' and apparmor_status != 'enabled'` | R12 (rc), R1 `os_family` | `discovery.yml:829`, `result.yml:48` | **2 files** |
 | `service_manual_followup` | map: critical | per `healing_results` entry where `result != 'Fixed'` | R2, R16, R17 | `vitals_heal/tasks/main.yml:77`, `result.yml:51` | **2 roles** |
 

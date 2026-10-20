@@ -75,6 +75,10 @@ PROBE_FOR_REGISTER = {
 # The key=value blocks the shell probes print, in the order they print them.
 # The schema stores these parsed; the adapter prints them back so the real
 # regex_findall parsing in extended_facts.yml and reboot_facts.yml still runs.
+# The bootloader's `reason=` line is not in the fixed block: the probe only
+# prints it when a boot environment is present but unreadable (#150), and a
+# fixture models that by carrying a reason; one for a container or an
+# EFI-stub boot (no boot configuration) must keep printing none.
 KEY_VALUE_PROBES = {
     "installed_kernels": ["latest", "updated_at", "filtered"],
     "bootloader": ["supported", "source", "default_entry", "default_kernel", "status"],
@@ -146,8 +150,11 @@ def _registered(probe_name: str, probe: dict) -> dict:
     if not probe["ran"]:
         return dict(SKIPPED)
     if probe_name in KEY_VALUE_PROBES:
+        keys = KEY_VALUE_PROBES[probe_name]
+        if probe_name == "bootloader" and probe.get("reason"):
+            keys = [*keys, "reason"]
         stdout = "\n".join(
-            f"{key}={_print_value(probe[key])}" for key in KEY_VALUE_PROBES[probe_name]
+            f"{key}={_print_value(probe[key])}" for key in keys
         )
         stdout_lines = stdout.splitlines()
     elif probe_name in LINE_PROBES:
@@ -430,3 +437,43 @@ def test_readable_journals_keep_their_original_verdicts(scan_output: dict) -> No
         assert int(result["unknown_count"]) == 0
         assert not any(item.get("status") == "unknown" for item in result["findings"])
     assert scan_output["ubuntu_healthy"]["result"]["final_status"] == "Pass"
+
+
+@pytest.mark.parametrize("name", [
+    "fedora_bootloader_unreadable",
+    "rocky_kernel_unanswered",
+    "rocky_selinux_unanswered",
+])
+def test_probes_that_could_not_run_raise_their_unknown_finding(
+    scan_output: dict, name: str
+) -> None:
+    # (#150) Each new fixture exists to pin one of the audit outcomes the
+    # comment above REVIEWED_PROBES_THAT_IGNORE_FAILURE records: the finding
+    # the silent path used to swallow now raises as `unknown` with its reason.
+    findings = scan_output[name]["result"]["findings"]
+    unknown = {item["id"]: item for item in findings if item.get("status") == "unknown"}
+    assert int(scan_output[name]["result"]["unknown_count"]) == 1
+    assert unknown, f"{name}: no unknown finding was raised"
+    for item in unknown.values():
+        assert item["reason"]
+    expected = {
+        "fedora_bootloader_unreadable": "bootloader_mismatch",
+        "rocky_kernel_unanswered": "kernel_not_latest",
+        "rocky_selinux_unanswered": "selinux_disabled",
+    }
+    assert expected[name] in unknown
+
+
+def test_a_host_reboot_verdict_without_both_answers_stays_unknown_on_the_probe(
+    scan_output: dict,
+) -> None:
+    # (#150) rocky_kernel_unanswered: with needs-restarting missing and
+    # /lib/modules unreadable, neither reboot source can answer -- the host
+    # must NOT be reported as needing (or not needing) a reboot from data
+    # nobody could read, and the kernel comparison must stay out of both the
+    # verdict and its source.
+    result = scan_output["rocky_kernel_unanswered"]["result"]
+    assert result["reboot_required"] is False
+    assert result["reboot_required_source"] == "unavailable"
+    assert "and the latest-kernel comparison could not run here" in result["reboot_reason"]
+    assert "-- needs-restarting is not installed" in result["reboot_reason"]

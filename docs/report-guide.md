@@ -276,11 +276,11 @@ at its highest level, so the numbers partition the fleet) and
 | `time_sync_absent` | warning | No `chronyd`/`ntp` service is installed |
 | `time_sync_inactive` | warning | The resolved time-sync service is not running |
 | `reboot_required` | warning | Per-distro reboot detection fired -- see [kernel-reboot-detection.md](kernel-reboot-detection.md) |
-| `kernel_not_latest` | warning | The running kernel is not the latest installed one |
-| `bootloader_mismatch` | warning | The default boot entry does not select the latest installed kernel |
+| `kernel_not_latest` | warning | The running kernel is not the latest installed one. `unknown` when the latest-kernel probe produced no answer (`/lib/modules` unreadable or empty); then no reboot is inferred from the comparison either (#150) |
+| `bootloader_mismatch` | warning | The default boot entry does not select the latest installed kernel. `unknown` when the boot environment is present but unreadable (e.g. no privileges to read it), with the tools' stderr as the reason; nothing on a host with no boot configuration at all (#150) |
 | `boot_space_low` | warning | Boot partition free space below `linux_vitals_boot_warning_threshold` |
 | `kernel_install_failures` | warning | Kernel/bootloader failures in the audit log window |
-| `selinux_disabled` | warning | SELinux disabled/unavailable on a RedHat-family host |
+| `selinux_disabled` | warning | SELinux disabled/unavailable on a RedHat-family host. `unknown` when `getenforce` is missing or failed to report a mode (#150) |
 | `apparmor_disabled` | warning | AppArmor disabled/unavailable on a Debian-family host |
 | `cpu_load_high` | warning or critical | 5-minute load average per online CPU at or above `linux_vitals_load_warning_threshold` (warning) or `linux_vitals_load_critical_threshold` (critical). `unknown` when the load or CPU count could not be read |
 | `pressure_stall_high` | warning or critical | One per resource (`subject`: `cpu`, `memory` or `io`) whose PSI `some avg60` is at or above `linux_vitals_psi_warning_threshold` / `linux_vitals_psi_critical_threshold`. Nothing on a kernel without PSI; `unknown` when the probe could not run |
@@ -457,3 +457,23 @@ expect unknown findings. Unknown findings contribute to `unknown_count` and are
 excluded from the healthy-host score even when a raised severity threshold lets
 the host pass. Legacy log-count fields count matched lines only; zero is not a
 successful check when the corresponding finding is unknown.
+
+## Unreadable boot environment and SELinux probes
+
+Three more probes tell "could not run" from "ran and found nothing" (#150):
+
+- `bootloader_mismatch` is `unknown` when a boot environment exists but
+  `grubby`/`grub2-editenv` cannot read it -- the usual unprivileged-scan case.
+  The finding's `reason` is the tools' own stderr. A host with no boot
+  configuration at all (container, EFI-stub, cloud boot) still raises nothing:
+  there is nothing to check, and that is expected there.
+- `kernel_not_latest` is `unknown` when the latest-kernel probe printed no
+  `latest=` at all (`/lib/modules` unreadable or empty). While that probe is
+  unanswered, no reboot is inferred from the kernel comparison either; the
+  `reboot_reason` on such a host carries both the distro probe's detail (the
+  `needs-restarting` error, if any) and a note that the comparison could not
+  run.
+- `selinux_disabled` is `unknown` on a RedHat-family host whose `getenforce` is
+  missing or fails to report a mode (e.g. `libselinux-utils` trimmed from the
+  image). A `getenforce` that ran and said `Disabled` is still a plain failure:
+  the check ran and found the control off.

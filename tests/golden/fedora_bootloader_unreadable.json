@@ -1,0 +1,107 @@
+{
+  "apparmor_status": "disabled",
+  "asset_serial": "PF3KX9R1",
+  "boot_free_mb": 672.0,
+  "boot_free_pct": 69.0,
+  "boot_mount": "/boot",
+  "boot_space_status": "Healthy",
+  "boot_total_mb": 973.4,
+  "bootloader_default_entry": "",
+  "bootloader_default_kernel": "",
+  "bootloader_default_matches_latest": false,
+  "bootloader_default_source": "unavailable",
+  "bootloader_default_status": "unavailable",
+  "bootloader_supported": false,
+  "bootloader_validation_message": "Bootloader default kernel validation is not available on this host",
+  "comparison": {
+    "baseline_available": false
+  },
+  "failed_login_count": 0,
+  "final_status": "Fail",
+  "findings": [
+    {
+      "id": "bootloader_mismatch",
+      "message": "Default boot entry could not be read",
+      "reason": "grubby exited 2: grubby: cannot find default kernel: Permission denied; grub2-editenv exited 1: grub2-editenv: error: cannot open /boot/grub2/grubenv: Permission denied.",
+      "severity": "warning",
+      "status": "unknown"
+    }
+  ],
+  "healing_results": [],
+  "hostname": "ws-08",
+  "ip_address": "10.0.5.38",
+  "kernel_install_failure_excerpt": [],
+  "kernel_install_failures": 0,
+  "last_failed_login": "No failed login attempts found",
+  "last_reboot": "2026-09-26 02:01",
+  "latest_installed_kernel": "6.10.10-200.fc40.x86_64",
+  "latest_kernel_selected": true,
+  "latest_kernel_updated_at": "2026-09-22 18:03:55.000000000 +0000",
+  "log_errors": 0,
+  "log_excerpt": [],
+  "log_source": "journald",
+  "os": "Fedora 40",
+  "os_family": "RedHat",
+  "package_manager": "dnf",
+  "platform_type": "Physical",
+  "pressure": {
+    "cpu_count": 8,
+    "load": {
+      "15m": 0.44,
+      "1m": 0.55,
+      "5m": 0.5
+    },
+    "load_per_cpu": {
+      "15m": 0.06,
+      "1m": 0.07,
+      "5m": 0.06
+    },
+    "load_reason": "",
+    "load_status": "OK",
+    "psi": {
+      "cpu_some": 0.85,
+      "io_full": 0.11,
+      "io_some": 0.42,
+      "memory_full": 0.0,
+      "memory_some": 0.0
+    },
+    "psi_reason": "",
+    "psi_status": "OK",
+    "psi_supported": true,
+    "stalled": [],
+    "swap_in_per_sec": 0,
+    "swap_out_per_sec": 0,
+    "swap_rate_per_sec": 0,
+    "swap_reason": "",
+    "swap_sample_seconds": 2,
+    "swap_status": "OK",
+    "swap_total_mb": 2048.0,
+    "swap_used_mb": 0.0,
+    "swap_used_pct": 0.0
+  },
+  "ram_status": "OK",
+  "ram_total_mb": 31845.0,
+  "ram_used_mb": 10035.0,
+  "ram_used_pct": 31.5,
+  "reboot_detection_supported": true,
+  "reboot_reason": "No reboot required (dnf-needs-restarting)",
+  "reboot_required": false,
+  "reboot_required_packages": [],
+  "reboot_required_source": "dnf-needs-restarting",
+  "rescue_image_available": true,
+  "rescue_image_paths": [
+    "/boot/initramfs-0-rescue-8f2c1d4e5a6b7c8d9e0f1a2b3c4d5e6f.img"
+  ],
+  "running_kernel": "6.10.10-200.fc40.x86_64",
+  "selinux_status": "Enforcing",
+  "services_healed": [],
+  "severity": "warning",
+  "severity_counts": {
+    "critical": 0,
+    "info": 0,
+    "warning": 1
+  },
+  "unknown_count": 1,
+  "uptime": "0d 12h 33m",
+  "virtualization_type": "NA"
+}

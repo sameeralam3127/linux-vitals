@@ -74,9 +74,9 @@ What degrades without escalation, rather than failing:
 | --- | --- |
 | `journalctl` | Explicit system-journal read; denied access reports `unknown`, not a clean zero |
 | `lastb` | Fails; reported as unavailable, **not** as zero failed logins (see [#39](https://github.com/sameeralam3127/linux-vitals/issues/39)) |
-| `needs-restarting`, `zypper needs-rebooting` | Usually fails; falls back to kernel comparison |
-| `getenforce`, `aa-status` | Usually readable unprivileged |
-| Bootloader default entry | `grubby`/`grub2-editenv` typically needs root |
+| `needs-restarting`, `zypper needs-rebooting` | Usually fails; falls back to kernel comparison, and the tool's error stays in the `reboot_reason` ([#150](https://github.com/sameeralam3127/linux-vitals/issues/150)) |
+| `getenforce`, `aa-status` | Usually readable unprivileged; a missing `getenforce` on a RedHat-family host reports `unknown` (#150) |
+| Bootloader default entry | `grubby`/`grub2-editenv` typically needs root; a config present but unreadable reports `bootloader_mismatch` `unknown` with the tools' stderr, not a silent pass (#150) |
 | `service_facts` | Unit list is readable; some states are not |
 
 **Recommendation:** grant `become` narrowly. The scan needs to *read*

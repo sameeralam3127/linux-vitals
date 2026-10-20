@@ -108,7 +108,7 @@
   "ram_used_mb": 13373.0,
   "ram_used_pct": 85.0,
   "reboot_detection_supported": false,
-  "reboot_reason": "Reboot required: running kernel is not the latest installed kernel (no distro reboot check available on this host)",
+  "reboot_reason": "Reboot required: running kernel is not the latest installed kernel (no distro reboot check available on this host) -- needs-restarting is not installed (dnf-utils/yum-utils)",
   "reboot_required": true,
   "reboot_required_packages": [],
   "reboot_required_source": "kernel-comparison",

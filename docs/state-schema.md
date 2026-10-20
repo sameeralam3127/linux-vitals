@@ -175,9 +175,9 @@ Then per probe:
 | `failed_logins` | `stdout_lines` | `failed_logins` |
 | `last_reboot` | `stdout` | report only |
 | `installed_kernels` | `latest`, `updated_at`, `filtered` | `kernel_not_latest`, `bootloader_mismatch`, `reboot_required` fallback |
-| `bootloader` | `supported`, `source`, `default_entry`, `default_kernel`, `status` | `bootloader_mismatch` |
+| `bootloader` | `supported`, `source`, `default_entry`, `default_kernel`, `status`, `reason` (only when the boot environment is present but unreadable, #150) | `bootloader_mismatch` |
 | `reboot_required` | `supported`, `detected`, `source`, `detail`, `packages[]` | `reboot_required` |
-| `selinux` | `stdout` | `selinux_disabled` |
+| `selinux` | `stdout` | `selinux_disabled` (`unknown` with a reason when `getenforce` could not answer on a RedHat-family host, #150) |
 | `apparmor` | `rc` only — the probe has no output, the exit code *is* the answer | `apparmor_disabled` |
 | `rescue_images` | `stdout_lines` | report only |
 | `pressure` | `load`, `cpus`, `psi`, `psi_reason`, `psi_cpu_some`, `psi_memory_some`, `psi_memory_full`, `psi_io_some`, `psi_io_full`, `swap_total_kb`, `swap_free_kb`, `swap_sample_seconds`, `swap_in_per_sec`, `swap_out_per_sec` | `cpu_load_high`, `pressure_stall_high`, `swap_paging_high` |

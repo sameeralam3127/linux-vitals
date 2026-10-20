@@ -55,17 +55,28 @@
 
 - name: Finalize reboot requirement facts
   ansible.builtin.set_fact:
+    # When no distro check is supported, the kernel comparison answers only
+    # if the latest-kernel probe produced one; where it could not read
+    # /lib/modules (#150), neither source is usable, so no reboot is claimed
+    # from an answer we do not have. kernel_not_latest is raised as unknown
+    # separately.
     linux_vitals_reboot_required: >-
       {{
         linux_vitals_reboot_detected
         if linux_vitals_reboot_detection_supported
-        else not linux_vitals_latest_kernel_selected
+        else (
+          not linux_vitals_latest_kernel_selected
+          if linux_vitals_latest_kernel_probe_answered
+          else false
+        )
       }}
     linux_vitals_reboot_required_source: >-
       {{
         linux_vitals_reboot_detection_source
         if linux_vitals_reboot_detection_supported
         else 'kernel-comparison'
+        if linux_vitals_latest_kernel_probe_answered
+        else 'unavailable'
       }}
   tags:
     - discovery
@@ -73,6 +84,11 @@
 
 - name: Finalize reboot requirement message
   ansible.builtin.set_fact:
+    # A distro probe that could not run still says why (#150): its detail
+    # (`needs-restarting exited 2: ...` on RedHat) reaches the reason in both
+    # unsupported branches, instead of the reason claiming no check is
+    # available while holding no clue about what the tool said. The same
+    # wording is kept when the check is supported and answered.
     linux_vitals_reboot_reason: >-
       {{
         (
@@ -88,12 +104,31 @@
             else ''
           )
         ) if linux_vitals_reboot_required and linux_vitals_reboot_detection_supported
-        else 'Reboot required: running kernel is not the latest installed kernel '
-             ~ '(no distro reboot check available on this host)'
+        else (
+          'Reboot required: running kernel is not the latest installed kernel '
+          ~ '(no distro reboot check available on this host)'
+          ~ (
+            ' -- ' ~ linux_vitals_reboot_detection_detail
+            if linux_vitals_reboot_detection_detail
+            else ''
+          )
+        )
         if linux_vitals_reboot_required
         else 'No reboot required (' ~ linux_vitals_reboot_required_source ~ ')'
         if linux_vitals_reboot_detection_supported
-        else 'No reboot indicated, but no distro reboot check is available on this host'
+        else (
+          'No reboot indicated, but no distro reboot check is available on this host'
+          ~ (
+            ' -- ' ~ linux_vitals_reboot_detection_detail
+            if linux_vitals_reboot_detection_detail
+            else ''
+          )
+          ~ (
+            ' (and the latest-kernel comparison could not run here)'
+            if not linux_vitals_latest_kernel_probe_answered
+            else ''
+          )
+        )
       }}
   tags:
     - discovery

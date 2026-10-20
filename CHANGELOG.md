@@ -32,6 +32,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **Probes that could not run no longer read as clean on the boot, kernel and
+  SELinux checks** ([#150](https://github.com/sameeralam3127/linux-vitals/issues/150)).
+  Four silent paths are now reported honestly, in the same way [#118] already
+  handled the journals:
+
+  - A bootloader whose boot environment is **present but unreadable**
+    (`grubby`/`grub2-editenv` failing without privileges) raises
+    `bootloader_mismatch` as `unknown`, with the tools' own stderr as the
+    `reason`. A host with no boot configuration at all (container, EFI-stub,
+    cloud boot) still raises nothing -- there is nothing to check. The probe
+    prints an extra `reason=` line only in the second case, and the state
+    schema gained an optional `bootloader.reason` (schema stays `1`).
+  - A latest-kernel probe that produced **no answer** (`/lib/modules` unreadable
+    or empty) raises `kernel_not_latest` as `unknown` instead of a plain
+    "not on the latest kernel", and while it is unanswered the reboot fallback
+    no longer claims anything from the kernel comparison either —
+    `reboot_required_source` stays `unavailable`.
+  - A **missing or failing `getenforce`** on a RedHat-family host (e.g. an
+    image without `libselinux-utils`) raises `selinux_disabled` as `unknown`
+    with a reason; a `getenforce` that ran and said `Disabled` is still a plain
+    failure. (A missing `aa-status` on Debian-family hosts remains tracked by
+    [#39](https://github.com/sameeralam3127/linux-vitals/issues/39).)
+  - A **failing `needs-restarting`** on RedHat family no longer drops the
+    tool's error: `reboot_reason` carries the probe's `detail`
+    (`needs-restarting exited 2: ...`, `needs-restarting is not installed ...`)
+    in both unsupported branches, instead of the reason saying no check is
+    available while holding no clue about what the tool said.
+
+  Three new golden fixtures pin each new unknown path
+  (`fedora_bootloader_unreadable`, `rocky_kernel_unanswered`,
+  `rocky_selinux_unanswered`), and `rocky_degraded`'s golden gains the
+  `needs-restarting is not installed` detail in its `reboot_reason`.
+  Documented in
+  [kernel-reboot-detection.md](docs/kernel-reboot-detection.md#known-edge-cases)
+  and [report-guide.md](docs/report-guide.md#unreadable-boot-environment-and-selinux-probes).
+
 - **Self-healing no longer reports a service `Fixed` before the restart has
   held** ([#24](https://github.com/sameeralam3127/linux-vitals/issues/24)).
   `vitals_heal` read each unit's state once, straight after restarting it. A

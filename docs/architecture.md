@@ -292,6 +292,13 @@ missing `lastb` reports a host with no failed logins.
 `failed_when: false`, and fails when a new one appears, so the rule is
 checked in review rather than remembered. The probes on that list predate
 the contract and are audited against it one at a time, starting with #39.
+The journals [#118] and, via
+[#150](https://github.com/sameeralam3127/linux-vitals/issues/150), the
+latest-kernel, bootloader and RedHat reboot probes and `getenforce` have been
+through it: an unanswered probe raises its finding as `unknown` with a reason,
+and no downstream verdict (the reboot fallback in particular) is inferred from
+an answer nobody could give. Failed logins and `aa-status` remain open under
+[#39](https://github.com/sameeralam3127/linux-vitals/issues/39).
 
 ## Why paths resolve from `inventory_dir`, not `playbook_dir`
 

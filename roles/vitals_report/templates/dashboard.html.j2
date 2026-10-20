@@ -630,7 +630,11 @@
             {% endif %}
           </td>
           <td>
-            {% if result.latest_kernel_selected %}
+            {% if result.latest_installed_kernel == 'unknown' %}
+            {# (#150) the latest-kernel probe answered nothing: unsure, not
+               provably outdated #}
+            <span class="pill pill--warning"><span class="dot"></span>Unknown</span>
+            {% elif result.latest_kernel_selected %}
             <span class="pill pill--good"><span class="dot"></span>Current</span>
             {% else %}
             <span class="pill pill--warning"><span class="dot"></span>Outdated</span>
