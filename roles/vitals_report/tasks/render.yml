@@ -196,6 +196,25 @@
         {{ hosts | length }}
       fail_on_severity: "{{ linux_vitals_fail_on_severity | default('info') }}"
       comparison_active: "{{ linux_vitals_phase == 'postcheck' }}"
+      baseline_max_age_hours: "{{ linux_vitals_baseline_max_age_hours | int }}"
+      stale_baseline_count: >-
+        {{
+          linux_vitals_result_list
+          | map(attribute='comparison')
+          | selectattr('baseline_age_warning', 'defined')
+          | selectattr('baseline_age_warning')
+          | list
+          | length
+        }}
+      unknown_baseline_age_count: >-
+        {{
+          linux_vitals_result_list
+          | map(attribute='comparison')
+          | selectattr('baseline_age_unknown', 'defined')
+          | selectattr('baseline_age_unknown')
+          | list
+          | length
+        }}
       regressed_count: >-
         {{
           linux_vitals_result_list

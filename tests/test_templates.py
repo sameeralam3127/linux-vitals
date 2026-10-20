@@ -161,6 +161,101 @@ def test_templates_render_with_representative_health_data(tmp_path: Path) -> Non
     _assert_block_kit_within_slack_limits(slack_blocks)
 
 
+def test_dashboard_discloses_stale_and_undated_baseline_ages(tmp_path: Path) -> None:
+    def render(name: str, fixture: dict) -> tuple[str, dict]:
+        output_dir = tmp_path / name
+        result = subprocess.run(
+            [
+                _ansible_playbook_bin(),
+                str(PLAYBOOK),
+                "-e",
+                json.dumps(fixture),
+            ],
+            check=False,
+            cwd=REPO_ROOT,
+            env=_base_env(output_dir),
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        return (
+            (output_dir / "report.html").read_text(encoding="utf-8"),
+            json.loads((output_dir / "report.json").read_text(encoding="utf-8")),
+        )
+
+    stale_html, stale_json = render(
+        "stale",
+        {
+            "fixture_phase": "postcheck",
+            "fixture_comparison_active": True,
+            "fixture_baseline_max_age_hours": 72,
+            "fixture_stale_baseline_count": 1,
+            "fixture_unknown_baseline_age_count": 0,
+            "fixture_baseline_available": True,
+            "fixture_baseline_captured_at": "2000-01-01T00:00:00Z",
+            "fixture_baseline_age_hours": 234000.0,
+            "fixture_baseline_age_unknown": False,
+            "fixture_baseline_age_warning": True,
+        },
+    )
+    assert "Baseline age limit: 72 hours; 1 older, 0 unknown." in stale_html
+    assert "Warning: 1 baseline(s) exceed 72 hours." in stale_html
+    assert "Baseline age: 234000.0 hours (captured 2000-01-01T00:00:00Z)" in stale_html
+    assert "Older than 72 hours" in stale_html
+    assert stale_json["summary"]["stale_baseline_count"] == 1
+    assert stale_json["hosts"][0]["comparison"]["baseline_age_warning"] is True
+
+    unknown_html, unknown_json = render(
+        "unknown",
+        {
+            "fixture_phase": "postcheck",
+            "fixture_comparison_active": True,
+            "fixture_baseline_max_age_hours": 72,
+            "fixture_stale_baseline_count": 0,
+            "fixture_unknown_baseline_age_count": 1,
+            "fixture_baseline_available": True,
+            "fixture_baseline_captured_at": None,
+            "fixture_baseline_age_hours": None,
+            "fixture_baseline_age_unknown": True,
+            "fixture_baseline_age_warning": False,
+        },
+    )
+    assert "Warning: 1 baseline age(s) unknown." in unknown_html
+    assert "Baseline age unknown" in unknown_html
+    assert unknown_json["summary"]["unknown_baseline_age_count"] == 1
+    assert unknown_json["hosts"][0]["comparison"]["baseline_age_unknown"] is True
+
+
+def test_baseline_age_warning_can_be_disabled(tmp_path: Path) -> None:
+    result = subprocess.run(
+        [
+            _ansible_playbook_bin(),
+            str(COMPARE_PLAYBOOK),
+            "-e",
+            json.dumps(
+                {
+                    "linux_vitals_maintenance_id": "test-window",
+                    "linux_vitals_baseline_max_age_hours": 0,
+                }
+            ),
+        ],
+        check=True,
+        cwd=REPO_ROOT,
+        env=_base_env(tmp_path),
+        capture_output=True,
+        text=True,
+    )
+
+    comparisons = json.loads((tmp_path / "comparisons.json").read_text(encoding="utf-8"))
+    assert comparisons["host-b"]["baseline_age_hours"] > 72
+    assert comparisons["host-b"]["baseline_age_warning"] is False
+    assert "WARNING: baseline for host-b" not in result.stdout
+    # Disabling the age threshold doesn't turn an undated legacy snapshot into
+    # a fresh one.
+    assert comparisons["host-d"]["baseline_age_unknown"] is True
+    assert "WARNING: baseline for host-d" in result.stdout
+
+
 def test_reporting_archives_timestamped_outputs_and_prunes_old_reports(tmp_path: Path) -> None:
     env = _base_env(tmp_path)
 
@@ -195,7 +290,7 @@ def test_reporting_archives_timestamped_outputs_and_prunes_old_reports(tmp_path:
 def test_baseline_postcheck_comparison_detects_improvement_and_regression(tmp_path: Path) -> None:
     env = _base_env(tmp_path)
 
-    subprocess.run(
+    subprocess_result = subprocess.run(
         [
             _ansible_playbook_bin(),
             str(COMPARE_PLAYBOOK),
@@ -203,6 +298,8 @@ def test_baseline_postcheck_comparison_detects_improvement_and_regression(tmp_pa
         check=True,
         cwd=REPO_ROOT,
         env=env,
+        capture_output=True,
+        text=True,
     )
 
     comparisons = json.loads((tmp_path / "comparisons.json").read_text(encoding="utf-8"))
@@ -211,6 +308,10 @@ def test_baseline_postcheck_comparison_detects_improvement_and_regression(tmp_pa
     assert comparisons["host-a"]["status_improved"] is True
     assert comparisons["host-a"]["status_regressed"] is False
     assert comparisons["host-a"]["kernel_changed"] is True
+    assert comparisons["host-a"]["baseline_captured_at"].endswith("Z")
+    assert comparisons["host-a"]["baseline_age_hours"] < 72
+    assert comparisons["host-a"]["baseline_age_unknown"] is False
+    assert comparisons["host-a"]["baseline_age_warning"] is False
     assert comparisons["host-a"]["ram_used_pct_delta"] == -36.0
     # Numbers, not numeric strings, on every core. On ansible-core 2.16 a
     # set_fact that renders a numeric scalar stores a string, so these reached
@@ -231,6 +332,8 @@ def test_baseline_postcheck_comparison_detects_improvement_and_regression(tmp_pa
     assert comparisons["host-b"]["baseline_available"] is True
     assert comparisons["host-b"]["status_regressed"] is True
     assert comparisons["host-b"]["status_improved"] is False
+    assert comparisons["host-b"]["baseline_age_hours"] > 72
+    assert comparisons["host-b"]["baseline_age_warning"] is True
     assert [f["id"] for f in comparisons["host-b"]["new_findings"]] == ["ram_critical"]
 
     assert comparisons["host-c"]["baseline_available"] is False
@@ -241,6 +344,9 @@ def test_baseline_postcheck_comparison_detects_improvement_and_regression(tmp_pa
     # whole-object difference() would report it as both.
     host_d = comparisons["host-d"]
     assert host_d["baseline_available"] is True
+    assert host_d["baseline_captured_at"] is None
+    assert host_d["baseline_age_hours"] is None
+    assert host_d["baseline_age_unknown"] is True
     assert [f["id"] for f in host_d["new_findings"]] == ["boot_space_low"]
     assert [f["id"] for f in host_d["resolved_findings"]] == ["log_errors"]
     assert host_d["resolved_findings"][0]["status"] == "fail"
@@ -248,6 +354,8 @@ def test_baseline_postcheck_comparison_detects_improvement_and_regression(tmp_pa
     # current wording and current severity rather than the baseline's.
     assert host_d["severity_before"] == "warning"
     assert host_d["severity_after"] == "critical"
+    assert "WARNING: baseline for host-b" in subprocess_result.stdout
+    assert "WARNING: baseline for host-d" in subprocess_result.stdout
 
     # host-e is a window spanning the upgrade: a 1.x string baseline against
     # a 2.x postcheck. The two findings that persisted -- one per-host, one

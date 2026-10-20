@@ -169,6 +169,14 @@ and a status for each of the three checks:
 it's `{"baseline_available": false}` and the rest of the comparison fields
 are absent.
 
+On a postcheck with a baseline, `comparison.baseline_captured_at` is its UTC
+capture time, `baseline_age_hours` is its age rounded to one decimal place,
+`baseline_age_unknown` marks snapshots created before capture times were
+recorded, and `baseline_age_warning` marks ages over
+`linux_vitals_baseline_max_age_hours` (72 by default). An age warning appears
+in run output and in the dashboard; setting the limit to `0` disables warnings
+for dated baselines, while undated baselines remain explicitly unknown.
+
 ## Self-healing outcomes
 
 When `vitals_heal` is enabled, each restart it attempts is one entry in
@@ -432,8 +440,9 @@ and a URL resolves:
 `reports/snapshots/<maintenance_id>/<phase>/<hostname>.json` -- one file
 per host per phase, written whenever `linux_vitals_phase` is `baseline` or
 `postcheck`. Each file is exactly that host's `linux_vitals_result` object
-at snapshot time (schema matches a single entry in the JSON report's
-`hosts` array, minus the top-level `comparison` enrichment). These aren't
+at snapshot time, with an additive `captured_at` UTC ISO 8601 timestamp
+(schema matches a single entry in the JSON report's `hosts` array, minus the
+top-level `comparison` enrichment). These aren't
 pruned automatically -- clean them up per your own retention policy if you
 run many maintenance windows.
 
