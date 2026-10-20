@@ -130,7 +130,7 @@ def test_templates_render_with_representative_health_data(tmp_path: Path) -> Non
     # Slack renders the top-level `text` ABOVE the attachment, so it must be
     # one short line. Putting the full plain-text summary there printed the
     # entire old-style message above the new card, duplicated.
-    assert slack_blocks["text"] == "LinuxVitals: PASS — 1 host(s) checked, 0 critical, 1 auto-fixed"
+    assert slack_blocks["text"] == "LinuxVitals: PASS — 1 host(s) checked, 0 failing hosts, 1 auto-fixed"
     assert "\n" not in slack_blocks["text"]
     assert len(slack_blocks["text"]) < 200
     # The plain-text message itself is unchanged and still carried by the
@@ -147,7 +147,7 @@ def test_templates_render_with_representative_health_data(tmp_path: Path) -> Non
     counters = {f["text"].split("\n")[0]: f["text"].split("\n")[1] for f in blocks[2]["fields"]}
     assert counters["*Servers checked*"] == "1"
     assert counters["*Auto-fixed*"] == "1"
-    assert counters["*Critical errors*"] == "0"
+    assert counters["*Failing hosts*"] == "0"
     table = _host_table(blocks)
     # The whole point of the issue: this was one `|`-joined run-on line.
     assert table[0].split() == ["HOST", "STATUS", "SEV", "KERNEL", "BOOTLDR", "REBOOT", "/BOOT", "LOGINS"]
@@ -159,6 +159,53 @@ def test_templates_render_with_representative_health_data(tmp_path: Path) -> Non
     context = " ".join(e["text"] for b in blocks if b["type"] == "context" for e in b["elements"])
     assert "LinuxVitals" in context
     _assert_block_kit_within_slack_limits(slack_blocks)
+
+
+def test_warning_only_failures_are_labeled_as_failing_hosts(tmp_path: Path) -> None:
+    subprocess.run(
+        [
+            _ansible_playbook_bin(),
+            str(PLAYBOOK),
+            "-e",
+            json.dumps(
+                {
+                    "fixture_failing_host_count": 1,
+                    "fixture_final_status": "Fail",
+                    "fixture_snippet": "1 Servers Checked, 0 Auto-Fixed, 1 Failing Host",
+                }
+            ),
+        ],
+        check=True,
+        cwd=REPO_ROOT,
+        env=_base_env(tmp_path),
+    )
+
+    html = (tmp_path / "report.html").read_text(encoding="utf-8")
+    slack = (tmp_path / "slack.txt").read_text(encoding="utf-8")
+    slack_blocks = json.loads((tmp_path / "slack.json").read_text(encoding="utf-8"))
+    webhook = json.loads((tmp_path / "generic_webhook.json").read_text(encoding="utf-8"))
+    report = json.loads((tmp_path / "report.json").read_text(encoding="utf-8"))
+
+    assert "Failing Hosts: 1" in slack
+    assert "Critical Errors" not in slack
+    assert "Critical Errors" not in html
+    assert "Critical errors" not in slack_blocks["text"]
+    assert slack_blocks["text"].endswith("1 failing host, 1 auto-fixed")
+    counters = {
+        field["text"].split("\n")[0]: field["text"].split("\n")[1]
+        for block in slack_blocks["attachments"][0]["blocks"]
+        if block["type"] == "section" and "fields" in block
+        for field in block["fields"]
+    }
+    assert counters["*Failing hosts*"] == "1"
+    assert webhook["summary"]["overall_status"] == "FAIL"
+    assert webhook["summary"]["critical_error_count"] == 1
+    assert webhook["summary"]["failing_host_count"] == 1
+    assert webhook["summary"]["findings_by_severity"]["critical"] == 0
+    assert "Critical Errors" not in webhook["message"]
+    assert report["summary"]["critical_error_count"] == 1
+    assert report["summary"]["failing_host_count"] == 1
+    assert report["summary"]["findings_by_severity"]["critical"] == 0
 
 
 def test_reporting_archives_timestamped_outputs_and_prunes_old_reports(tmp_path: Path) -> None:
@@ -339,7 +386,7 @@ def test_slack_block_kit_caps_hosts_and_orders_worst_first(tmp_path: Path) -> No
 
     attachment = payload["attachments"][0]
     blocks = attachment["blocks"]
-    assert attachment["color"] == "#e01e5a"  # critical errors present
+    assert attachment["color"] == "#e01e5a"  # failing hosts present
 
     table = _host_table(blocks)
     rows = table[2:]  # heading, rule, then one line per host

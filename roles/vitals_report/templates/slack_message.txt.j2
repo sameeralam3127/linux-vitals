@@ -1,6 +1,6 @@
 {{ linux_vitals_slack_message_header }}
 Overall Status: {{ 'PASS' if linux_vitals_summary.critical_error_count | int == 0 else 'FAIL' }}
-Servers Checked: {{ linux_vitals_summary.servers_checked }} | Auto-Fixed: {{ linux_vitals_summary.auto_fixed_count }} | Critical Errors: {{ linux_vitals_summary.critical_error_count }}
+Servers Checked: {{ linux_vitals_summary.servers_checked }} | Auto-Fixed: {{ linux_vitals_summary.auto_fixed_count }} | Failing Hosts: {{ linux_vitals_summary.failing_host_count | default(linux_vitals_summary.critical_error_count) }}
 Summary: {{ linux_vitals_summary.snippet }}
 {% set fbs = linux_vitals_summary.findings_by_severity | default({}) %}{% set hbs = linux_vitals_summary.hosts_by_severity | default({}) %}Severity: {{ fbs.get('critical', 0) }} critical | {{ fbs.get('warning', 0) }} warning | {{ fbs.get('info', 0) }} info (across {{ hbs.get('critical', 0) }} critical / {{ hbs.get('warning', 0) }} warning host(s))
 {% set critical_hosts = [] %}

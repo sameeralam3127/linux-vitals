@@ -46,7 +46,7 @@
       regressed_count: 0
       improved_count: 0
       new_hosts_count: 0
-      snippet: "1 Servers Checked, 0 Auto-Fixed, 0 Critical Errors"
+      snippet: "1 Servers Checked, 0 Auto-Fixed, 0 Failing Hosts"
   tasks:
     - name: Seed the per-host result the notification templates read
       ansible.builtin.set_fact:

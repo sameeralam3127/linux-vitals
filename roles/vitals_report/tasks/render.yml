@@ -133,6 +133,18 @@
   delegate_to: localhost
   run_once: true
 
+- name: Count hosts with a failing final status
+  ansible.builtin.set_fact:
+    linux_vitals_failing_host_count: >-
+      {{
+        linux_vitals_result_list
+        | selectattr('final_status', 'equalto', 'Fail')
+        | list
+        | length
+      }}
+  delegate_to: localhost
+  run_once: true
+
 - name: Build consolidated maintenance summary
   ansible.builtin.set_fact:
     linux_vitals_summary:
@@ -145,13 +157,10 @@
           | map('int')
           | sum
         }}
-      critical_error_count: >-
-        {{
-          linux_vitals_result_list
-          | selectattr('final_status', 'equalto', 'Fail')
-          | list
-          | length
-        }}
+      # Retain critical_error_count for compatibility; it has always counted
+      # hosts with final_status=Fail, regardless of finding severity.
+      critical_error_count: "{{ linux_vitals_failing_host_count | int }}"
+      failing_host_count: "{{ linux_vitals_failing_host_count | int }}"
       health_score_pct: "{{ linux_vitals_pass_ratio_pct }}"
       health_score_band: >-
         {{
@@ -235,23 +244,9 @@
             | sum
             | string
           ) ~ ' Auto-Fixed, '
-          ~ (
-            linux_vitals_reporting_hosts
-            | map('extract', hostvars, 'linux_vitals_result')
-            | selectattr('final_status', 'equalto', 'Fail')
-            | list
-            | length
-            | string
-          ) ~ ' Critical '
-          ~ (
-            'Errors' if (
-              linux_vitals_reporting_hosts
-              | map('extract', hostvars, 'linux_vitals_result')
-              | selectattr('final_status', 'equalto', 'Fail')
-              | list
-              | length
-            ) != 1 else 'Error'
-          )
+          ~ (linux_vitals_failing_host_count | int | string)
+          ~ ' Failing Host'
+          ~ ('s' if linux_vitals_failing_host_count | int != 1 else '')
         }}
   delegate_to: localhost
   run_once: true
