@@ -2,7 +2,7 @@
 - name: Determine baseline snapshot path for comparison
   ansible.builtin.set_fact:
     linux_vitals_baseline_snapshot_path: >-
-      {{ linux_vitals_snapshot_dir }}/{{ linux_vitals_maintenance_id }}/baseline/{{ inventory_hostname }}.json
+      {{ linux_vitals_snapshot_dir }}/{{ linux_vitals_maintenance_id_normalized }}/baseline/{{ inventory_hostname }}.json
   when: linux_vitals_phase == 'postcheck'
   tags:
     - reporting
