@@ -308,6 +308,44 @@ timedatectl status
 already. For time sync, check drift before restarting -- a host that is hours
 out may need `chronyc makestep` rather than a restart.
 
+### `required_service_inactive` -- an operator-declared required service is not active
+
+**Means:** a unit named in `linux_vitals_required_services` -- a fleet's own
+must-run service, such as `nginx`, `postgresql`, or `docker` -- is not
+running. Same check as `sssd_inactive`/`time_sync_inactive`, just for a name
+the operator added rather than one this collection ships.
+
+**Confirm:**
+```bash
+systemctl status <unit>
+journalctl -u <unit> --since "1 hour ago"
+```
+
+**Do:** treat it like any other required-service finding -- check why it
+stopped before restarting it, since a service that keeps failing on restart
+usually has a configuration or dependency problem, not a transient one.
+
+### `failed_units_present` -- enabled units are in a failed state
+
+**Means:** `systemctl --failed` would show at least one unit that
+`service_facts` reports as enabled, beyond the handful of required services
+this collection checks by name. The finding's count is only the units this
+collection could confirm are enabled; disabled and masked units that are
+intentionally stopped are excluded, and a crashed unit whose enabled state
+could not be read counts toward `failed_unit_count` in the report but not
+toward this finding -- see `docs/report-guide.md` for the full field.
+
+**Confirm:**
+```bash
+systemctl --failed
+systemctl is-enabled <unit>
+```
+
+**Do:** check each listed unit the same way you would investigate any failed
+service -- `journalctl -u <unit>` for why it stopped, then decide whether to
+restart it, disable it if it is no longer needed, or leave it for
+`vitals_heal` if it is enabled for self-healing.
+
 ### `selinux_disabled` / `apparmor_disabled`
 
 **Means:** the host's mandatory access control is off or unavailable.

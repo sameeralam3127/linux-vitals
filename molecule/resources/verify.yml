@@ -231,6 +231,17 @@
       changed_when: false
       failed_when: flaky_state.stdout | trim != 'active'
 
+    - name: Assert the planted broken unit appears in the failed-unit inventory
+      # #32: every failed unit is reported, not just the three this
+      # collection names by default. molecule-broken.service is enabled and
+      # never recovers (prepare.yml), so it is in this list throughout the
+      # run, heal attempt included.
+      ansible.builtin.assert:
+        that:
+          - "'molecule-broken.service' in (host_report.failed_units.units | map(attribute='name') | list)"
+          - host_report.failed_units.count | int >= 1
+        fail_msg: "Failed units: {{ host_report.failed_units }}"
+
     - name: Assert the unfixable unit is still failed on the host
       ansible.builtin.command:
         argv:
@@ -263,6 +274,7 @@
           - "'LinuxVitals Molecule Dashboard' in dashboard"
           - inventory_hostname in dashboard
           - "'molecule-flaky.service' in dashboard"
+          - "'molecule-broken.service' in dashboard"
 
     - name: Assert the run was archived
       # Snapshots are only written for the baseline/postcheck phases, so an

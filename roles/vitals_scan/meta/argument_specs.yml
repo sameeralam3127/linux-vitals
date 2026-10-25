@@ -218,6 +218,19 @@ argument_specs:
             usually a remount after an I/O error, so this is empty by
             default; name a mount here only when it is deliberately
             read-only, such as a locked-down read-only root image.
+      linux_vitals_required_services:
+        type: list
+        elements: str
+        default: []
+        description:
+          - Extra systemd units checked exactly like the three this
+            collection already names (C(sssd), C(systemd-journald), the
+            resolved time-sync unit) -- exact unit name, a
+            C(required_service_inactive) finding when it is not running.
+          - Additive, not a replacement -- the three built-in checks always
+            run regardless of this list, which is why the empty default
+            reproduces every earlier release's behaviour exactly.
+          - 'Example: C([nginx.service, postgresql.service, docker.service]).'
       linux_vitals_severity_order:
         type: list
         elements: str
@@ -257,6 +270,8 @@ argument_specs:
           filesystem_read_only: critical
           filesystem_unavailable: warning
           filesystem_probe_degraded: warning
+          required_service_inactive: warning
+          failed_units_present: warning
           log_errors: info
           failed_logins: info
         description:

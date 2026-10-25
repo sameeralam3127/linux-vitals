@@ -129,6 +129,10 @@
         "services_healed": {{ result.services_healed | to_json }},
         "healing_results": {{ result.healing_results | to_json }}
       },
+      "failed_units": {
+        "count": {{ result.failed_unit_count | default(0) | int }},
+        "units": {{ result.failed_units | default([]) | to_json }}
+      },
       {# Only present when vitals_certs ran; omitted entirely otherwise, so a
          consumer can tell "no certificate scan" from "scanned, found none". #}
       {% if result.certificates is defined %}
