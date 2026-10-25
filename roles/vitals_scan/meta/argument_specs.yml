@@ -169,6 +169,12 @@ argument_specs:
           cpu_load_high: warning
           pressure_stall_high: warning
           swap_paging_high: warning
+          firewall_inactive: critical
+          ssh_permit_root_login_insecure: warning
+          ssh_password_authentication_enabled: warning
+          ssh_permit_empty_passwords_enabled: critical
+          kernel_tainted: warning
+          reboot_blocking_deleted_libs: warning
           log_errors: info
           failed_logins: info
         description:

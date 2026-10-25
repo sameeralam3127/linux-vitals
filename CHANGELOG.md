@@ -134,6 +134,49 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Security posture: firewall state, SSH daemon hardening, kernel taint,
+  and reboot-blocking deleted libraries**
+  ([#36](https://github.com/sameeralam3127/linux-vitals/issues/36)). The
+  security section previously stopped at SELinux/AppArmor mode and failed
+  logins. Four new read-only, distro-aware checks, each reporting the
+  tool/source that answered so a missing checker is never mistaken for a
+  clean result (the same `detection_supported`/`source` contract
+  `reboot_required_source` already uses):
+
+  - `firewall_inactive` (**critical**): tries `firewall-cmd --state`, then
+    `ufw status verbose`, then a raw `nft list ruleset` / `iptables -S`
+    check, in that order. "No firewall tool answered" is itself a confident,
+    reportable finding, not an unknown one -- `unknown` is reserved for a
+    tool that was present but could not be asked (a permission error, say).
+  - `ssh_permit_root_login_insecure`, `ssh_password_authentication_enabled`
+    (both **warning**, since a shop may run password auth intentionally --
+    a conversation starter for [#8](https://github.com/sameeralam3127/linux-vitals/issues/8)'s
+    severity pass) and `ssh_permit_empty_passwords_enabled` (**critical**):
+    read from `sshd -T`, the *effective* configuration, never a guess at
+    parsing `/etc/ssh/sshd_config`. Needs `become` on most hosts (see
+    [docs/threat-model.md](docs/threat-model.md)); without it, or without
+    `sshd` installed, the check is `unknown` with a reason rather than
+    guessed at.
+  - `kernel_tainted` (**warning**): one read of
+    `/proc/sys/kernel/tainted`, always unprivileged. A non-zero value is
+    decoded into the common taint bits (proprietary module, force-loaded
+    module, out-of-tree module, and so on) rather than left as a bare
+    number.
+  - `reboot_blocking_deleted_libs` (**warning**): an `lsof +L1`-style scan
+    for processes still holding a deleted shared library open after a
+    patch -- distinct from `reboot_required`, since a process can hold a
+    deleted library open for reasons unrelated to a pending kernel update.
+    Reports PID and process name only, never full command lines. `lsof` is
+    often not installed by default; its absence is `unknown`, not a clean
+    result.
+
+  Each host's report gains `firewall`, `ssh_hardening`, `kernel_taint`, and
+  `reboot_blocking_processes` objects, and the dashboard's Security Controls
+  card shows all four alongside SELinux/AppArmor. No new variables: like
+  SELinux/AppArmor, every check always runs; retune severity per finding
+  with `linux_vitals_finding_severity_overrides`. TLS/certificate posture
+  remains out of scope here (already [#15](https://github.com/sameeralam3127/linux-vitals/issues/15)).
+
 - **CPU saturation, pressure stall and swap activity checks** ([#34](https://github.com/sameeralam3127/linux-vitals/issues/34)).
   Memory used to be the only pressure signal, so a host pinned at load 40
   with a thrashing swap device reported `Pass` as long as it had free RAM.

@@ -1,0 +1,52 @@
+---
+# Probe: the effective sshd configuration (#36), via `sshd -T` rather than
+# parsing /etc/ssh/sshd_config -- the effective config reflects every Match
+# block and distro default, which a file parse would miss or get wrong.
+#
+# `sshd -T` typically needs root to read the host key material it touches,
+# so this task sets `become: true` -- the one probe in vitals_scan that does
+# (see docs/threat-model.md). Without escalation the command fails and the
+# whole check is reported unsupported, never guessed at.
+- name: Collect effective SSH daemon configuration
+  become: true
+  ansible.builtin.command:
+    argv:
+      - sh
+      - -c
+      - |
+          sshd_bin=""
+          for candidate in /usr/sbin/sshd /usr/local/sbin/sshd /sbin/sshd; do
+            if [ -x "$candidate" ]; then
+              sshd_bin="$candidate"
+              break
+            fi
+          done
+          if [ -z "$sshd_bin" ] && command -v sshd >/dev/null 2>&1; then
+            sshd_bin="$(command -v sshd)"
+          fi
+
+          if [ -z "$sshd_bin" ]; then
+            printf 'supported=false\nsource=sshd-missing\ndetail=sshd binary not found\n'
+            printf 'permitrootlogin=\npasswordauthentication=\npermitemptypasswords=\n'
+            exit 0
+          fi
+
+          out="$("$sshd_bin" -T 2>&1)"
+          rc=$?
+          if [ "$rc" -ne 0 ]; then
+            printf 'supported=false\nsource=sshd-T\ndetail=%s\n' "$(printf '%s\n' "$out" | head -n 1)"
+            printf 'permitrootlogin=\npasswordauthentication=\npermitemptypasswords=\n'
+            exit 0
+          fi
+
+          printf 'supported=true\nsource=sshd-T\ndetail=\n'
+          for key in permitrootlogin passwordauthentication permitemptypasswords; do
+            value="$(printf '%s\n' "$out" | awk -v k="$key" 'tolower($1) == k { print $2; exit }')"
+            printf '%s=%s\n' "$key" "$value"
+          done
+  register: linux_vitals_ssh_hardening_cmd
+  changed_when: false
+  failed_when: false
+  tags:
+    - discovery
+    - security

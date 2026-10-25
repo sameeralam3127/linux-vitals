@@ -1,7 +1,7 @@
 # Saturation probe could not run: the Rocky host is otherwise healthy, and every load, pressure and swap check must be unknown, never clean.
 state:
   state_schema: 1
-  collected_at: "2026-09-26T14:02:11Z"
+  collected_at: '2026-09-26T14:02:11Z'
   host:
     inventory_hostname: pressure-unavailable
     hostname: db-01
@@ -10,7 +10,7 @@ state:
   platform:
     os_family: RedHat
     distribution: Rocky
-    distribution_version: "9.4"
+    distribution_version: '9.4'
     kernel: 5.14.0-427.13.1.el9_4.x86_64
     service_mgr: systemd
     uptime_seconds: 518460
@@ -21,18 +21,27 @@ state:
     available_mb: 11210
     free_mb: 9044
   mounts:
-    - {mount: /boot, size_available: 701546496, size_total: 1063256064}
+  - mount: /boot
+    size_available: 701546496
+    size_total: 1063256064
   services:
-    systemd-journald.service: {state: running, status: static}
-    sssd.service: {state: running, status: enabled}
-    chronyd.service: {state: running, status: enabled}
-    sshd.service: {state: running, status: enabled}
+    systemd-journald.service:
+      state: running
+      status: static
+    sssd.service:
+      state: running
+      status: enabled
+    chronyd.service:
+      state: running
+      status: enabled
+    sshd.service:
+      state: running
+      status: enabled
   probes:
     pressure:
-      # the probe could not run (no sh): cpu_load_high, pressure_stall_high and swap_paging_high are unknown
       ran: true
       rc: 2
-      stderr: "[Errno 2] No such file or directory: b'sh'"
+      stderr: '[Errno 2] No such file or directory: b''sh'''
       load: null
       cpus: null
       psi: null
@@ -51,27 +60,27 @@ state:
       ran: true
       rc: 0
       window: 30 minutes ago
-      stdout: ""
+      stdout: ''
     audit_logs:
       ran: true
       rc: 0
       window: 7 days ago
-      stdout: ""
+      stdout: ''
     failed_logins:
       ran: true
       rc: 0
       stdout_lines:
-        - ""
-        - "btmp begins Tue Sep  1 00:00:05 2026"
+      - ''
+      - btmp begins Tue Sep  1 00:00:05 2026
     last_reboot:
       ran: true
       rc: 0
-      stdout: "         system boot  2026-09-20 06:12"
+      stdout: '         system boot  2026-09-20 06:12'
     installed_kernels:
       ran: true
       rc: 0
       latest: 5.14.0-427.13.1.el9_4.x86_64
-      updated_at: "2026-09-19 22:40:31.000000000 +0000"
+      updated_at: 2026-09-19 22:40:31.000000000 +0000
       filtered: true
     bootloader:
       ran: true
@@ -101,5 +110,32 @@ state:
       ran: true
       rc: 0
       stdout_lines:
-        - /boot/initramfs-0-rescue-3f2a9c1e5b7d4e8a9c217d4e5f6a8b90.img
-        - /boot/vmlinuz-0-rescue-3f2a9c1e5b7d4e8a9c217d4e5f6a8b90
+      - /boot/initramfs-0-rescue-3f2a9c1e5b7d4e8a9c217d4e5f6a8b90.img
+      - /boot/vmlinuz-0-rescue-3f2a9c1e5b7d4e8a9c217d4e5f6a8b90
+    firewall:
+      ran: true
+      rc: 0
+      supported: true
+      active: true
+      source: firewalld
+      detail: running
+    ssh_hardening:
+      ran: true
+      rc: 0
+      supported: true
+      source: sshd-T
+      detail: ''
+      permitrootlogin: 'no'
+      passwordauthentication: 'no'
+      permitemptypasswords: 'no'
+    kernel_taint:
+      ran: true
+      rc: 0
+      stdout: '0'
+    deleted_libs:
+      ran: true
+      rc: 0
+      supported: true
+      source: lsof
+      detail: ''
+      processes: []

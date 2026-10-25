@@ -19,11 +19,22 @@
   "failed_login_count": 0,
   "final_status": "Pass",
   "findings": [],
+  "firewall": {
+    "active": true,
+    "detail": "running",
+    "detection_supported": true,
+    "source": "firewalld"
+  },
   "healing_results": [],
   "hostname": "db-01",
   "ip_address": "10.0.4.21",
   "kernel_install_failure_excerpt": [],
   "kernel_install_failures": 0,
+  "kernel_taint": {
+    "reasons": [],
+    "supported": true,
+    "value": 0
+  },
   "last_failed_login": "No failed login attempts found",
   "last_reboot": "2026-09-20 06:12",
   "latest_installed_kernel": "5.14.0-427.13.1.el9_4.x86_64",
@@ -75,6 +86,11 @@
   "ram_total_mb": 15732.0,
   "ram_used_mb": 4522.0,
   "ram_used_pct": 28.7,
+  "reboot_blocking_processes": {
+    "processes": [],
+    "source": "lsof",
+    "supported": true
+  },
   "reboot_detection_supported": true,
   "reboot_reason": "No reboot required (needs-restarting)",
   "reboot_required": false,
@@ -93,6 +109,13 @@
     "critical": 0,
     "info": 0,
     "warning": 0
+  },
+  "ssh_hardening": {
+    "detection_supported": true,
+    "password_authentication": "no",
+    "permit_empty_passwords": "no",
+    "permit_root_login": "no",
+    "source": "sshd-T"
   },
   "unknown_count": 0,
   "uptime": "6d 0h 1m",

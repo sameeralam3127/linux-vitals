@@ -34,11 +34,22 @@
       "status": "unknown"
     }
   ],
+  "firewall": {
+    "active": true,
+    "detail": "running",
+    "detection_supported": true,
+    "source": "firewalld"
+  },
   "healing_results": [],
   "hostname": "web-01",
   "ip_address": "10.0.3.11",
   "kernel_install_failure_excerpt": [],
   "kernel_install_failures": 0,
+  "kernel_taint": {
+    "reasons": [],
+    "supported": true,
+    "value": 0
+  },
   "last_failed_login": "No failed login attempts found",
   "last_reboot": "2026-09-24 10:55",
   "latest_installed_kernel": "6.8.0-45-generic",
@@ -90,6 +101,11 @@
   "ram_total_mb": 7938.0,
   "ram_used_mb": 2818.0,
   "ram_used_pct": 35.5,
+  "reboot_blocking_processes": {
+    "processes": [],
+    "source": "lsof",
+    "supported": true
+  },
   "reboot_detection_supported": true,
   "reboot_reason": "No reboot required (reboot-required-file)",
   "reboot_required": false,
@@ -105,6 +121,13 @@
     "critical": 0,
     "info": 1,
     "warning": 1
+  },
+  "ssh_hardening": {
+    "detection_supported": true,
+    "password_authentication": "no",
+    "permit_empty_passwords": "no",
+    "permit_root_login": "no",
+    "source": "sshd-T"
   },
   "unknown_count": 2,
   "uptime": "2d 3h 7m",

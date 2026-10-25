@@ -97,14 +97,16 @@ treat LinuxVitals as read-only.
 
 ## Command injection
 
-**No task uses the `shell` module.** All 13 command tasks in `vitals_scan` use
+**No task uses the `shell` module.** All 17 command tasks in `vitals_scan` use
 `ansible.builtin.command` with `argv:` lists, so arguments are passed to
 `execve` without a shell parsing them.
 
-Five probes do run `sh -c` with an inline script -- kernel enumeration,
-bootloader inspection, and the three per-family reboot checks -- and the
-kernel-install-failure scan runs `bash -c`, for `pipefail`, to filter the
-journal with `grep` on the host. **None of those scripts interpolate a Jinja
+Eleven probes do run `sh -c` with an inline script -- kernel enumeration,
+bootloader inspection, the three per-family reboot checks, login records,
+rescue-image discovery, pressure/PSI/swap sampling, and, since #36, firewall
+detection and the deleted-shared-library scan -- and the kernel-install-
+failure scan runs `bash -c`, for `pipefail`, to filter the journal with
+`grep` on the host. **None of those scripts interpolate a Jinja
 variable.** They are static text. The templated values near a command --
 `linux_vitals_log_window`, `linux_vitals_audit_log_window`,
 `linux_vitals_log_priority` and `linux_vitals_log_max_lines` -- are each a

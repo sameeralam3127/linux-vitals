@@ -1,0 +1,100 @@
+---
+# Findings for the security posture checks added in #36: firewall state, SSH
+# daemon hardening, kernel taint, and processes holding deleted shared
+# libraries open. Split out of result.yml to stay under its line ratchet
+# (tests/test_scan_task_size.py); result.yml extends linux_vitals_raw_findings
+# with this list.
+#
+# Every fact read here is wrapped in `| default(...)`. Each is set by a
+# discovery task tagged `security` only; under a narrower tag selection
+# (`--tags boot,reporting`, say -- see tests/test_tagged_scan.py) that task
+# never ran and the fact is genuinely undefined. The default keeps this file
+# from crashing a focused run outright; it reads as "could not check" rather
+# than a clean result, same as every other `unknown` path here.
+- name: Build security posture findings
+  ansible.builtin.set_fact:
+    linux_vitals_security_posture_findings: >-
+      {%- set findings = [] -%}
+      {%- set fw_supported = linux_vitals_firewall_supported | default(false, true) -%}
+      {%- set fw_reason = linux_vitals_firewall_reason | default('', true) -%}
+      {%- if not fw_supported or fw_reason -%}
+      {%- set _ = findings.append({
+        'id': 'firewall_inactive', 'message': 'Firewall state could not be determined',
+        'status': 'unknown',
+        'reason': fw_reason or linux_vitals_firewall_detail | default('', true)
+                  or 'the firewall probe did not run'}) -%}
+      {%- elif not (linux_vitals_firewall_active | default(false, true)) -%}
+      {%- set _ = findings.append({
+        'id': 'firewall_inactive',
+        'message': 'No active firewall was detected ('
+                   ~ (linux_vitals_firewall_source | default('unavailable', true)) ~ ')'}) -%}
+      {%- endif -%}
+      {%- set ssh_ok_root_values = ['no', 'prohibit-password', 'without-password'] -%}
+      {%- set ssh_supported = linux_vitals_ssh_detection_supported | default(false, true) -%}
+      {%- set ssh_reason = linux_vitals_ssh_reason | default('SSH hardening could not be checked', true) -%}
+      {%- if not ssh_supported -%}
+      {%- set _ = findings.append({
+        'id': 'ssh_permit_root_login_insecure', 'message': 'SSH root-login setting could not be checked',
+        'status': 'unknown', 'reason': ssh_reason}) -%}
+      {%- set _ = findings.append({
+        'id': 'ssh_password_authentication_enabled',
+        'message': 'SSH password-authentication setting could not be checked',
+        'status': 'unknown', 'reason': ssh_reason}) -%}
+      {%- set _ = findings.append({
+        'id': 'ssh_permit_empty_passwords_enabled',
+        'message': 'SSH empty-password setting could not be checked',
+        'status': 'unknown', 'reason': ssh_reason}) -%}
+      {%- else -%}
+      {%- set ssh_root = linux_vitals_ssh_permit_root_login | default('', true) -%}
+      {%- set ssh_pwauth = linux_vitals_ssh_password_authentication | default('', true) -%}
+      {%- set ssh_empty = linux_vitals_ssh_permit_empty_passwords | default('', true) -%}
+      {%- if ssh_root and ssh_root not in ssh_ok_root_values -%}
+      {%- set _ = findings.append({
+        'id': 'ssh_permit_root_login_insecure',
+        'message': 'sshd allows root login (PermitRootLogin ' ~ ssh_root ~ ')'}) -%}
+      {%- endif -%}
+      {%- if ssh_pwauth == 'yes' -%}
+      {%- set _ = findings.append({
+        'id': 'ssh_password_authentication_enabled', 'message': 'sshd allows password authentication'}) -%}
+      {%- endif -%}
+      {%- if ssh_empty == 'yes' -%}
+      {%- set _ = findings.append({
+        'id': 'ssh_permit_empty_passwords_enabled',
+        'message': 'sshd allows empty passwords (PermitEmptyPasswords yes)'}) -%}
+      {%- endif -%}
+      {%- endif -%}
+      {%- set taint_supported = linux_vitals_kernel_tainted_supported | default(false, true) -%}
+      {%- set taint_value = linux_vitals_kernel_tainted | default(0, true) | int -%}
+      {%- if not taint_supported -%}
+      {%- set _ = findings.append({
+        'id': 'kernel_tainted', 'message': 'Kernel taint state could not be read',
+        'status': 'unknown',
+        'reason': linux_vitals_kernel_taint_reason | default('', true)
+                  or 'the kernel taint probe did not run'}) -%}
+      {%- elif taint_value > 0 -%}
+      {%- set taint_reasons = linux_vitals_kernel_taint_reasons | default([], true) -%}
+      {%- set _ = findings.append({
+        'id': 'kernel_tainted',
+        'message': 'Kernel is tainted (value ' ~ taint_value ~ '): '
+                   ~ (taint_reasons | join(', ') if taint_reasons else 'unrecognised taint bits set')}) -%}
+      {%- endif -%}
+      {%- set libs_supported = linux_vitals_deleted_libs_supported | default(false, true) -%}
+      {%- set libs_processes = linux_vitals_deleted_libs_processes | default([], true) -%}
+      {%- if not libs_supported -%}
+      {%- set _ = findings.append({
+        'id': 'reboot_blocking_deleted_libs',
+        'message': 'Processes holding deleted libraries could not be checked',
+        'status': 'unknown',
+        'reason': linux_vitals_deleted_libs_reason | default('', true)
+                  or linux_vitals_deleted_libs_detail | default('', true)
+                  or 'the deleted-library probe did not run'}) -%}
+      {%- elif libs_processes | length > 0 -%}
+      {%- set _ = findings.append({
+        'id': 'reboot_blocking_deleted_libs',
+        'message': (libs_processes | length | string)
+                   ~ ' process(es) are holding a deleted shared library open'}) -%}
+      {%- endif -%}
+      {{ findings }}
+  tags:
+    - result
+    - reporting

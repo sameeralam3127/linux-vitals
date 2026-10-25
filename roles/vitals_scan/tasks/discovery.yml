@@ -38,6 +38,18 @@
 - name: Probe SELinux and AppArmor
   ansible.builtin.import_tasks: security.yml
 
+- name: Probe firewall state
+  ansible.builtin.import_tasks: firewall.yml
+
+- name: Probe the effective SSH daemon configuration
+  ansible.builtin.import_tasks: ssh_hardening.yml
+
+- name: Probe kernel taint flags
+  ansible.builtin.import_tasks: kernel_taint.yml
+
+- name: Probe processes holding deleted shared libraries open
+  ansible.builtin.import_tasks: deleted_libs.yml
+
 - name: Probe /boot for rescue images
   ansible.builtin.import_tasks: rescue_image.yml
 
@@ -56,6 +68,18 @@
 
 - name: Evaluate CPU load, pressure stalls and swap activity
   ansible.builtin.import_tasks: pressure_facts.yml
+
+- name: Evaluate firewall state
+  ansible.builtin.import_tasks: firewall_facts.yml
+
+- name: Evaluate the effective SSH daemon configuration
+  ansible.builtin.import_tasks: ssh_hardening_facts.yml
+
+- name: Evaluate kernel taint flags
+  ansible.builtin.import_tasks: kernel_taint_facts.yml
+
+- name: Evaluate processes holding deleted shared libraries open
+  ansible.builtin.import_tasks: deleted_libs_facts.yml
 
 - name: Parse the probes into discovery facts
   ansible.builtin.import_tasks: extended_facts.yml

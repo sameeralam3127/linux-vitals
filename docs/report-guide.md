@@ -282,6 +282,12 @@ at its highest level, so the numbers partition the fleet) and
 | `kernel_install_failures` | warning | Kernel/bootloader failures in the audit log window |
 | `selinux_disabled` | warning | SELinux disabled/unavailable on a RedHat-family host |
 | `apparmor_disabled` | warning | AppArmor disabled/unavailable on a Debian-family host |
+| `firewall_inactive` | critical | No active firewall was detected (`firewalld`, `ufw`, or a non-empty `nft`/`iptables` ruleset). `unknown` when a firewall tool was present but could not be asked, e.g. a permission error |
+| `ssh_permit_root_login_insecure` | warning | `sshd -T` reports `PermitRootLogin` is not `no`/`prohibit-password`/`without-password`. `unknown` when the effective config could not be read |
+| `ssh_password_authentication_enabled` | warning | `sshd -T` reports `PasswordAuthentication yes`. A shop may run this intentionally -- see [#8](https://github.com/sameeralam3127/linux-vitals/issues/8) |
+| `ssh_permit_empty_passwords_enabled` | critical | `sshd -T` reports `PermitEmptyPasswords yes` |
+| `kernel_tainted` | warning | `/proc/sys/kernel/tainted` is non-zero; the message decodes the common taint bits |
+| `reboot_blocking_deleted_libs` | warning | A process is still holding a deleted shared library open (`lsof +L1`-style). `unknown` when `lsof` is not installed |
 | `cpu_load_high` | warning or critical | 5-minute load average per online CPU at or above `linux_vitals_load_warning_threshold` (warning) or `linux_vitals_load_critical_threshold` (critical). `unknown` when the load or CPU count could not be read |
 | `pressure_stall_high` | warning or critical | One per resource (`subject`: `cpu`, `memory` or `io`) whose PSI `some avg60` is at or above `linux_vitals_psi_warning_threshold` / `linux_vitals_psi_critical_threshold`. Nothing on a kernel without PSI; `unknown` when the probe could not run |
 | `swap_paging_high` | warning or critical | Pages swapped in plus out per second, over `linux_vitals_swap_sample_seconds`, at or above `linux_vitals_swap_rate_warning_threshold` / `linux_vitals_swap_rate_critical_threshold`. `unknown` when the counters could not be read |

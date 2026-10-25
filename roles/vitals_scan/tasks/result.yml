@@ -1,4 +1,10 @@
 ---
+- name: Evaluate security posture findings
+  # Split out of this file to stay under the task-file line ratchet
+  # (tests/test_scan_task_size.py); see the comment in "Build host health
+  # findings" below for how its output is consumed.
+  ansible.builtin.import_tasks: security_posture_facts.yml
+
 - name: Build host health findings
   # Each finding is {id, message}: the id is stable and is what severity is
   # keyed on, what the baseline/postcheck comparison diffs on, and what a
@@ -100,6 +106,12 @@
       {%- if ansible_facts['os_family'] == 'Debian' and linux_vitals_apparmor_status != 'enabled' -%}
       {%- set _ = findings.append({'id': 'apparmor_disabled', 'message': 'AppArmor is disabled or unavailable'}) -%}
       {%- endif -%}
+      {#- Security posture (#36): firewall, SSH hardening, kernel taint and
+          deleted-library checks. Built in their own file -- security_posture_facts.yml,
+          imported above -- to stay under the task-file line ratchet; each
+          reports its own source and tells "could not check" from "checked
+          and found a problem" the same way reboot_required_source does. -#}
+      {%- set _ = findings.extend(linux_vitals_security_posture_findings) -%}
       {#- A restart vitals_heal could not verify (#24: outcome `unknown`) is
           an unknown finding with the reason it could not, not a plain failure
           and never a pass. -#}
@@ -159,6 +171,39 @@
       reboot_reason: "{{ linux_vitals_reboot_reason }}"
       selinux_status: "{{ linux_vitals_selinux_status }}"
       apparmor_status: "{{ linux_vitals_apparmor_status }}"
+      # Security posture (#36): each check reports the tool/source that
+      # answered, so a missing checker is never mistaken for a clean result
+      # (the same contract reboot_required_source gives reboot detection).
+      # Each `| default(...)` guards against a focused `--tags` run that
+      # skipped the probe behind it (tagged `security` only); see the same
+      # comment in security_posture_facts.yml.
+      firewall: >-
+        {{ {
+          'active': linux_vitals_firewall_active | default(false, true),
+          'detection_supported': linux_vitals_firewall_supported | default(false, true),
+          'source': linux_vitals_firewall_source | default('unavailable', true),
+          'detail': linux_vitals_firewall_detail | default('', true),
+        } }}
+      ssh_hardening: >-
+        {{ {
+          'detection_supported': linux_vitals_ssh_detection_supported | default(false, true),
+          'source': linux_vitals_ssh_detection_source | default('unavailable', true),
+          'permit_root_login': linux_vitals_ssh_permit_root_login | default('', true),
+          'password_authentication': linux_vitals_ssh_password_authentication | default('', true),
+          'permit_empty_passwords': linux_vitals_ssh_permit_empty_passwords | default('', true),
+        } }}
+      kernel_taint: >-
+        {{ {
+          'value': linux_vitals_kernel_tainted | default(0, true) | int,
+          'supported': linux_vitals_kernel_tainted_supported | default(false, true),
+          'reasons': linux_vitals_kernel_taint_reasons | default([], true),
+        } }}
+      reboot_blocking_processes: >-
+        {{ {
+          'supported': linux_vitals_deleted_libs_supported | default(false, true),
+          'source': linux_vitals_deleted_libs_source | default('unavailable', true),
+          'processes': linux_vitals_deleted_libs_processes | default([], true),
+        } }}
       boot_mount: "{{ linux_vitals_boot_mount_point }}"
       boot_free_mb: "{{ linux_vitals_boot_free_mb }}"
       boot_total_mb: "{{ linux_vitals_boot_total_mb }}"

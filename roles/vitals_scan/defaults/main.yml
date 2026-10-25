@@ -72,6 +72,17 @@ linux_vitals_finding_severities:
   cpu_load_high: warning
   pressure_stall_high: warning
   swap_paging_high: warning
+  # Security posture (#36). A host with no active firewall, or sshd
+  # accepting empty passwords, is broken now, not just drifting -- critical.
+  # A permissive root-login setting or password auth being on is common
+  # enough to be intentional, so it is a warning pending #8's classification
+  # pass; override per-fleet with linux_vitals_finding_severity_overrides.
+  firewall_inactive: critical
+  ssh_permit_root_login_insecure: warning
+  ssh_password_authentication_enabled: warning
+  ssh_permit_empty_passwords_enabled: critical
+  kernel_tainted: warning
+  reboot_blocking_deleted_libs: warning
   # Worth seeing, too noisy to page on. Both are counts of things that occur
   # on healthy hosts as a matter of course.
   log_errors: info

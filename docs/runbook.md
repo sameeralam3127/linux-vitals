@@ -119,6 +119,49 @@ it is slow to start, and `linux_vitals_heal_settle_retries` /
 
 See [Certificate findings](#certificate-findings).
 
+### `firewall_inactive` -- no active firewall was detected
+
+**Means:** none of `firewalld`, `ufw`, `nftables` or `iptables` reported an
+active, non-empty ruleset. `firewall.source` says which tool answered (or
+`none`); `firewall.detail` has the raw answer. `status: unknown` means a
+tool was present but could not be asked -- usually a permission error, not
+"no firewall" -- check `firewall.detail` for the reason before assuming the
+host is exposed.
+
+**Confirm:**
+```bash
+firewall-cmd --state                  # RHEL family
+ufw status verbose                    # Debian family
+nft list ruleset; iptables -S         # generic fallback
+```
+
+**Do:** if the host is genuinely behind a cloud security group or an
+upstream firewall and runs none locally by design, record that rather than
+living with a permanent finding:
+```yaml
+linux_vitals_finding_severity_overrides:
+  firewall_inactive: info
+```
+Otherwise enable and configure the distro's firewall tool before the next
+scan.
+
+### `ssh_permit_empty_passwords_enabled` -- sshd allows empty passwords
+
+**Means:** `sshd -T` reports `PermitEmptyPasswords yes` -- an account with no
+password set can log in over SSH. There is no legitimate reason for this on
+a reachable host.
+
+**Confirm:**
+```bash
+sshd -T | grep -i permitemptypasswords
+awk -F: '($2 == "") {print $1}' /etc/shadow
+```
+
+**Do:** set `PermitEmptyPasswords no` (the OpenSSH default) and reload
+`sshd`. Then fix any account the second command lists -- a password-less
+account is the actual exposure; the setting only controls whether SSH will
+use it.
+
 ## Warning findings
 
 ### `reboot_required` -- system reboot is required
@@ -215,6 +258,98 @@ linux_vitals_finding_severity_overrides:
   selinux_disabled: info
 ```
 A permanent warning that everyone ignores is worse than no warning.
+
+### `ssh_permit_root_login_insecure` -- sshd allows root login
+
+**Means:** `sshd -T` reports `PermitRootLogin` is something other than `no`,
+`prohibit-password`, or `without-password`. `status: unknown` when the
+effective config could not be read -- see [SSH below](#sshd--t-could-not-run).
+
+**Confirm:**
+```bash
+sshd -T | grep -i permitrootlogin
+```
+
+**Do:** set `PermitRootLogin prohibit-password` (key-based root login,
+no password) or `no`, and reload `sshd`. If a host genuinely needs
+password-based root login (a rescue console, say), record the decision:
+```yaml
+linux_vitals_finding_severity_overrides:
+  ssh_permit_root_login_insecure: info
+```
+
+### `ssh_password_authentication_enabled` -- sshd allows password authentication
+
+**Means:** `sshd -T` reports `PasswordAuthentication yes`. Many fleets run
+this intentionally (break-glass access, non-key-based onboarding), so it is
+a `warning`, not an assumed misconfiguration -- see
+[#8](https://github.com/sameeralam3127/linux-vitals/issues/8).
+
+**Confirm:**
+```bash
+sshd -T | grep -i passwordauthentication
+```
+
+**Do:** if key-based auth is the intended posture, set
+`PasswordAuthentication no` and reload `sshd`. If password auth is
+deliberate, override the severity rather than living with a permanent
+warning:
+```yaml
+linux_vitals_finding_severity_overrides:
+  ssh_password_authentication_enabled: info
+```
+
+#### `sshd -T` could not run
+
+Both SSH findings go `unknown` together when `sshd -T` could not be read:
+`sshd` is not installed (the host may be managed over something other than
+OpenSSH), or the command failed -- most commonly because `become` is not
+available. `sshd -T` typically needs root to read the host key material it
+touches; see [docs/threat-model.md](threat-model.md#become--what-actually-needs-it).
+`ssh_hardening.detection_supported` is `false` and `source` says which case
+it was.
+
+### `kernel_tainted` -- the kernel is tainted
+
+**Means:** `/proc/sys/kernel/tainted` is non-zero. `kernel_taint.reasons`
+decodes the bits the collection recognises (proprietary module loaded, a
+module force-loaded or force-unloaded, an out-of-tree module, a live patch,
+a prior OOPS/BUG, and others); an empty list with a non-zero value means a
+bit this collection does not yet decode is set.
+
+**Confirm:**
+```bash
+cat /proc/sys/kernel/tainted
+dmesg | grep -i taint
+lsmod | grep -v '^Module'   # look for out-of-tree / unsigned modules
+```
+
+**Do:** a proprietary or out-of-tree module (GPU, RAID, or virtualization
+drivers are common culprits) is often expected on a given host class --
+record that rather than living with a permanent finding. A taint from a
+live OOPS, BUG, or soft lockup is worth investigating: check `dmesg` and the
+journal around the time it was set. A reboot clears the flag; it does not
+address whatever set it.
+
+### `reboot_blocking_deleted_libs` -- a process is holding a deleted library open
+
+**Means:** after a package update, a running process still has a file
+handle open on a shared library (`.so`) that has since been deleted from
+disk -- the classic "needs a restart, not just a reboot" state. Distinct
+from `reboot_required`: this can fire without a pending kernel update, and
+clears as soon as the process restarts. `reboot_blocking_processes.processes`
+lists each as `{pid, name}` (never the full command line). `status: unknown`
+means `lsof` is not installed.
+
+**Confirm:**
+```bash
+lsof +L1 | awk 'NR==1 || $NF ~ /\.so(\.[0-9]+)*$/'
+```
+
+**Do:** restart the named process (a service restart is usually enough; a
+full host reboot is not required just for this). If the list includes a
+core system daemon, treat it with the same care as any other service
+restart -- check what depends on it first.
 
 ### `kernel_install_failures`
 

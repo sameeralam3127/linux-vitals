@@ -168,6 +168,15 @@ REVIEWED_PROBES_THAT_IGNORE_FAILURE = {
     # Handles its own failure: a probe that could not run, and any value it
     # could not read, become `unknown` findings in pressure_facts.yml (#34).
     "Collect CPU load, pressure stalls and swap activity",
+    # Security posture (#36). Each handles its own failure the same way:
+    # firewall_facts.yml, ssh_hardening_facts.yml, kernel_taint_facts.yml and
+    # deleted_libs_facts.yml all check rc (and, for SSH, a become failure)
+    # and raise an `unknown` finding with a reason rather than reading a
+    # failed probe as clean.
+    "Collect firewall state",
+    "Collect effective SSH daemon configuration",
+    "Collect kernel taint flags",
+    "Collect processes holding deleted shared libraries open",
 }
 
 

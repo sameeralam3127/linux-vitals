@@ -181,6 +181,10 @@ Then per probe:
 | `apparmor` | `rc` only — the probe has no output, the exit code *is* the answer | `apparmor_disabled` |
 | `rescue_images` | `stdout_lines` | report only |
 | `pressure` | `load`, `cpus`, `psi`, `psi_reason`, `psi_cpu_some`, `psi_memory_some`, `psi_memory_full`, `psi_io_some`, `psi_io_full`, `swap_total_kb`, `swap_free_kb`, `swap_sample_seconds`, `swap_in_per_sec`, `swap_out_per_sec` | `cpu_load_high`, `pressure_stall_high`, `swap_paging_high` |
+| `firewall` | `supported`, `active`, `source`, `detail` | `firewall_inactive` |
+| `ssh_hardening` | `supported`, `source`, `detail`, `permitrootlogin`, `passwordauthentication`, `permitemptypasswords` | `ssh_permit_root_login_insecure`, `ssh_password_authentication_enabled`, `ssh_permit_empty_passwords_enabled` |
+| `kernel_taint` | `stdout` (the raw `/proc/sys/kernel/tainted` value) | `kernel_tainted` |
+| `deleted_libs` | `supported`, `source`, `detail`, `processes[]` (`pid:name`) | `reboot_blocking_deleted_libs` |
 
 Two deliberate choices:
 
@@ -202,6 +206,16 @@ added fields, so `state_schema` stays `1` (see [Versioning](#versioning)).
 
 `reboot_required.packages` is a list here; the probe prints it
 comma-separated and `reboot_facts.yml:41` splits it. Same reasoning as above.
+
+`firewall.supported` is `true` even when no firewall tool answered at all --
+"nothing is filtering traffic" is a confident, reportable observation
+(`firewall_inactive`), not an unknown one. `supported` is `false` only when a
+tool was present but could not be asked (for example, a permission error),
+which is the genuinely unknown case. `ssh_hardening.supported` is `false`
+when `sshd` is missing or `sshd -T` could not run (including a `become`
+failure); `deleted_libs.supported` is `false` only when `lsof` itself is
+missing or errors outright. `deleted_libs.processes` is a list of `pid:name`
+strings, same reasoning as `reboot_required.packages` above.
 
 `logs.stdout` and `audit_logs.stdout` are what those probes print, and since
 [#23](https://github.com/sameeralam3127/linux-vitals/issues/23) both filter

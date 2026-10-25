@@ -4,7 +4,7 @@ role_vars:
     sssd_inactive: critcal
 state:
   state_schema: 1
-  collected_at: "2026-09-26T14:02:11Z"
+  collected_at: '2026-09-26T14:02:11Z'
   host:
     inventory_hostname: known-bug-override-typo
     hostname: web-03
@@ -13,7 +13,7 @@ state:
   platform:
     os_family: Debian
     distribution: Ubuntu
-    distribution_version: "24.04"
+    distribution_version: '24.04'
     kernel: 6.8.0-45-generic
     service_mgr: systemd
     uptime_seconds: 184020
@@ -24,23 +24,30 @@ state:
     available_mb: 5120
     free_mb: 3011
   mounts:
-    - {mount: /boot, size_available: 1612709888, size_total: 1918672896}
+  - mount: /boot
+    size_available: 1612709888
+    size_total: 1918672896
   services:
-    # sssd is not installed, so sssd_inactive is the one finding.
-    systemd-journald.service: {state: running, status: static}
-    systemd-timesyncd.service: {state: running, status: enabled}
-    ssh.service: {state: running, status: enabled}
+    systemd-journald.service:
+      state: running
+      status: static
+    systemd-timesyncd.service:
+      state: running
+      status: enabled
+    ssh.service:
+      state: running
+      status: enabled
   probes:
     pressure:
       ran: true
       rc: 0
-      load: "0.42 0.37 0.30"
+      load: 0.42 0.37 0.30
       cpus: 4
       psi: supported
-      psi_reason: ""
+      psi_reason: ''
       psi_cpu_some: 0.85
-      psi_memory_some: 0.00
-      psi_memory_full: 0.00
+      psi_memory_some: 0.0
+      psi_memory_full: 0.0
       psi_io_some: 0.42
       psi_io_full: 0.11
       swap_total_kb: 2097148
@@ -52,34 +59,34 @@ state:
       ran: true
       rc: 0
       window: 30 minutes ago
-      stdout: ""
+      stdout: ''
     audit_logs:
       ran: true
       rc: 0
       window: 7 days ago
-      stdout: ""
+      stdout: ''
     failed_logins:
       ran: true
       rc: 0
       stdout_lines:
-        - ""
-        - "btmp begins Tue Sep  1 00:00:02 2026"
+      - ''
+      - btmp begins Tue Sep  1 00:00:02 2026
     last_reboot:
       ran: true
       rc: 0
-      stdout: "         system boot  2026-09-24 10:55"
+      stdout: '         system boot  2026-09-24 10:55'
     installed_kernels:
       ran: true
       rc: 0
       latest: 6.8.0-45-generic
-      updated_at: "2026-09-01 04:11:07.000000000 +0000"
+      updated_at: 2026-09-01 04:11:07.000000000 +0000
       filtered: true
     bootloader:
       ran: true
       rc: 0
       supported: true
       source: grub_default
-      default_entry: "0"
+      default_entry: '0'
       default_kernel: 6.8.0-45-generic
       status: resolved
     reboot_required:
@@ -88,12 +95,12 @@ state:
       supported: true
       detected: false
       source: reboot-required-file
-      detail: ""
+      detail: ''
       packages: []
     selinux:
       ran: true
       rc: 2
-      stdout: ""
+      stdout: ''
       unsupported_reason: getenforce not found
     apparmor:
       ran: true
@@ -102,3 +109,30 @@ state:
       ran: true
       rc: 0
       stdout_lines: []
+    firewall:
+      ran: true
+      rc: 0
+      supported: true
+      active: true
+      source: ufw
+      detail: 'Status: active'
+    ssh_hardening:
+      ran: true
+      rc: 0
+      supported: true
+      source: sshd-T
+      detail: ''
+      permitrootlogin: 'no'
+      passwordauthentication: 'no'
+      permitemptypasswords: 'no'
+    kernel_taint:
+      ran: true
+      rc: 0
+      stdout: '0'
+    deleted_libs:
+      ran: true
+      rc: 0
+      supported: true
+      source: lsof
+      detail: ''
+      processes: []

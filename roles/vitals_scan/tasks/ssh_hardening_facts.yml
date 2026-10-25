@@ -1,0 +1,53 @@
+---
+# Evaluate the SSH hardening probe (ssh_hardening.yml) (#36). Two tasks
+# because a set_fact cannot read a fact it sets itself: parse, then decide
+# whether the probe answered at all.
+- name: Parse the SSH hardening probe
+  ansible.builtin.set_fact:
+    linux_vitals_ssh_probe: >-
+      {%- set ns = namespace(kv={}) -%}
+      {%- for line in linux_vitals_ssh_hardening_cmd.stdout_lines | default([]) -%}
+      {%- set parts = line.split('=', 1) -%}
+      {%- if parts | length == 2 -%}
+      {%- set ns.kv = ns.kv | combine({parts[0] | trim: parts[1] | trim}) -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{ ns.kv }}
+    linux_vitals_ssh_command_reason: >-
+      {%- if linux_vitals_ssh_hardening_cmd.skipped | default(false) -%}
+      the SSH configuration probe did not run
+      {%- elif linux_vitals_ssh_hardening_cmd.rc | default(1) | int != 0 -%}
+      the SSH configuration probe exited {{ linux_vitals_ssh_hardening_cmd.rc | default('unknown') }}:
+      {{ (linux_vitals_ssh_hardening_cmd.stderr | default('', true)
+          or linux_vitals_ssh_hardening_cmd.msg | default('no output', true)) | trim | truncate(200) }}
+      {%- endif -%}
+  tags:
+    - discovery
+    - security
+
+- name: Decide whether the SSH hardening probe answered
+  ansible.builtin.set_fact:
+    linux_vitals_ssh_detection_supported: >-
+      {{
+        not linux_vitals_ssh_command_reason
+        and (linux_vitals_ssh_probe.supported | default('false', true)) == 'true'
+      }}
+    linux_vitals_ssh_detection_source: "{{ linux_vitals_ssh_probe.source | default('unavailable', true) }}"
+    linux_vitals_ssh_permit_root_login: "{{ linux_vitals_ssh_probe.permitrootlogin | default('', true) }}"
+    linux_vitals_ssh_password_authentication: "{{ linux_vitals_ssh_probe.passwordauthentication | default('', true) }}"
+    linux_vitals_ssh_permit_empty_passwords: "{{ linux_vitals_ssh_probe.permitemptypasswords | default('', true) }}"
+  tags:
+    - discovery
+    - security
+
+- name: Build the SSH hardening unknown reason
+  ansible.builtin.set_fact:
+    linux_vitals_ssh_reason: >-
+      {{
+        linux_vitals_ssh_command_reason
+        or (linux_vitals_ssh_probe.detail | default('', true))
+        or ('SSH hardening could not be checked' if not linux_vitals_ssh_detection_supported else '')
+      }}
+  tags:
+    - discovery
+    - security

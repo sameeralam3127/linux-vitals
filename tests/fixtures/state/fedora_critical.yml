@@ -1,7 +1,7 @@
 # Fedora 40 KVM guest in trouble: RAM exactly at the 95% line, journald stopped, ntpd stopped, SELinux disabled, systemd-boot entry unresolvable.
 state:
   state_schema: 1
-  collected_at: "2026-09-26T14:02:11Z"
+  collected_at: '2026-09-26T14:02:11Z'
   host:
     inventory_hostname: fedora-critical
     hostname: build-04
@@ -10,36 +10,44 @@ state:
   platform:
     os_family: RedHat
     distribution: Fedora
-    distribution_version: "40"
+    distribution_version: '40'
     kernel: 6.10.10-200.fc40.x86_64
     service_mgr: systemd
     uptime_seconds: 7200
     virtualization_type: kvm
     virtualization_role: guest
   memory:
-    # Exactly 95.0% used: the critical threshold is inclusive.
     total_mb: 8000
     available_mb: 400
     free_mb: 212
   mounts:
-    - {mount: /boot/efi, size_available: 609222656, size_total: 627900416}
+  - mount: /boot/efi
+    size_available: 609222656
+    size_total: 627900416
   services:
-    systemd-journald.service: {state: stopped, status: static}
-    sssd.service: {state: running, status: enabled}
-    ntpd.service: {state: stopped, status: disabled}
-    sshd.service: {state: running, status: enabled}
+    systemd-journald.service:
+      state: stopped
+      status: static
+    sssd.service:
+      state: running
+      status: enabled
+    ntpd.service:
+      state: stopped
+      status: disabled
+    sshd.service:
+      state: running
+      status: enabled
   probes:
     pressure:
-      # memory stalled 33% of the last minute: pressure_stall_high memory (warning)
       ran: true
       rc: 0
-      load: "2.20 2.05 1.70"
+      load: 2.20 2.05 1.70
       cpus: 4
       psi: supported
-      psi_reason: ""
+      psi_reason: ''
       psi_cpu_some: 0.85
-      psi_memory_some: 33.00
-      psi_memory_full: 14.20
+      psi_memory_some: 33.0
+      psi_memory_full: 14.2
       psi_io_some: 0.42
       psi_io_full: 0.11
       swap_total_kb: 2097148
@@ -51,37 +59,35 @@ state:
       ran: true
       rc: 0
       window: 30 minutes ago
-      stdout: ""
+      stdout: ''
     audit_logs:
       ran: true
       rc: 0
       window: 7 days ago
-      stdout: ""
+      stdout: ''
     failed_logins:
       ran: true
       rc: 0
       stdout_lines:
-        - ""
-        - "btmp begins Tue Sep  1 00:00:09 2026"
+      - ''
+      - btmp begins Tue Sep  1 00:00:09 2026
     last_reboot:
       ran: true
       rc: 0
-      stdout: "         system boot  2026-09-26 12:02"
+      stdout: '         system boot  2026-09-26 12:02'
     installed_kernels:
       ran: true
       rc: 0
       latest: 6.10.10-200.fc40.x86_64
-      updated_at: "2026-09-22 18:03:55.000000000 +0000"
+      updated_at: 2026-09-22 18:03:55.000000000 +0000
       filtered: true
     bootloader:
-      # systemd-boot names a default entry but no kernel could be resolved
-      # from it, so bootloader_mismatch cannot fire (finding-inventory NOTES 1).
       ran: true
       rc: 0
       supported: true
       source: systemd-boot
-      default_entry: ""
-      default_kernel: ""
+      default_entry: ''
+      default_kernel: ''
       status: entry-only
     reboot_required:
       ran: true
@@ -103,3 +109,31 @@ state:
       ran: true
       rc: 0
       stdout_lines: []
+    firewall:
+      ran: true
+      rc: 0
+      supported: true
+      active: true
+      source: firewalld
+      detail: running
+    ssh_hardening:
+      ran: true
+      rc: 0
+      supported: true
+      source: sshd-T
+      detail: ''
+      permitrootlogin: 'no'
+      passwordauthentication: 'no'
+      permitemptypasswords: 'no'
+    kernel_taint:
+      ran: true
+      rc: 0
+      stdout: '0'
+    deleted_libs:
+      ran: true
+      rc: 0
+      supported: true
+      source: lsof
+      detail: ''
+      processes:
+      - 4821:httpd

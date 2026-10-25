@@ -1,7 +1,7 @@
 # openSUSE Leap 15.6 KVM guest in trouble: RAM exhausted, no sssd or time sync installed, grub2-mkconfig errors, no readable bootloader default.
 state:
   state_schema: 1
-  collected_at: "2026-09-26T14:02:11Z"
+  collected_at: '2026-09-26T14:02:11Z'
   host:
     inventory_hostname: opensuse-critical
     hostname: app-04
@@ -10,31 +10,35 @@ state:
   platform:
     os_family: Suse
     distribution: openSUSE Leap
-    distribution_version: "15.6"
+    distribution_version: '15.6'
     kernel: 6.4.0-150600.23.22-default
     service_mgr: systemd
     uptime_seconds: 259200
     virtualization_type: kvm
     virtualization_role: guest
   memory:
-    # 97.0% used.
     total_mb: 3931
     available_mb: 118
     free_mb: 52
   mounts:
-    - {mount: /boot/efi, size_available: 529240064, size_total: 535805952}
+  - mount: /boot/efi
+    size_available: 529240064
+    size_total: 535805952
   services:
-    systemd-journald.service: {state: running, status: static}
-    sshd.service: {state: running, status: enabled}
+    systemd-journald.service:
+      state: running
+      status: static
+    sshd.service:
+      state: running
+      status: enabled
   probes:
     pressure:
-      # openSUSE kernels ship PSI disabled (CONFIG_PSI_DEFAULT_DISABLED): unsupported, not zero
       ran: true
       rc: 0
-      load: "1.20 1.10 0.90"
+      load: 1.20 1.10 0.90
       cpus: 2
       psi: unsupported
-      psi_reason: "reading /proc/pressure/cpu failed: Operation not supported"
+      psi_reason: 'reading /proc/pressure/cpu failed: Operation not supported'
       psi_cpu_some: null
       psi_memory_some: null
       psi_memory_full: null
@@ -49,37 +53,36 @@ state:
       ran: true
       rc: 0
       window: 30 minutes ago
-      stdout: |-
-        2026-09-26T13:30:00+0000 app-04 zypper[4412]: error: Download (curl) error for 'https://download.opensuse.org/update/leap/15.6/oss/repodata/repomd.xml'
+      stdout: '2026-09-26T13:30:00+0000 app-04 zypper[4412]: error: Download (curl) error for ''https://download.opensuse.org/update/leap/15.6/oss/repodata/repomd.xml'''
     audit_logs:
       ran: true
       rc: 0
       window: 7 days ago
-      stdout: |-
-        2026-09-24T07:18:10+0000 app-04 grub2-mkconfig[5102]: /etc/grub.d/40_custom: line 7: syntax error near unexpected token
+      stdout: '2026-09-24T07:18:10+0000 app-04 grub2-mkconfig[5102]: /etc/grub.d/40_custom: line 7: syntax
+        error near unexpected token'
     failed_logins:
       ran: true
       rc: 0
       stdout_lines:
-        - ""
-        - "btmp begins Tue Sep  1 00:00:03 2026"
+      - ''
+      - btmp begins Tue Sep  1 00:00:03 2026
     last_reboot:
       ran: true
       rc: 0
-      stdout: "         system boot  2026-09-23 14:02"
+      stdout: '         system boot  2026-09-23 14:02'
     installed_kernels:
       ran: true
       rc: 0
       latest: 6.4.0-150600.23.22-default
-      updated_at: "2026-09-10 07:18:02.000000000 +0000"
+      updated_at: 2026-09-10 07:18:02.000000000 +0000
       filtered: true
     bootloader:
       ran: true
       rc: 0
       supported: false
       source: unavailable
-      default_entry: ""
-      default_kernel: ""
+      default_entry: ''
+      default_kernel: ''
       status: unavailable
     reboot_required:
       ran: true
@@ -87,12 +90,12 @@ state:
       supported: true
       detected: false
       source: zypper-needs-rebooting
-      detail: ""
+      detail: ''
       packages: []
     selinux:
       ran: true
       rc: 2
-      stdout: ""
+      stdout: ''
       unsupported_reason: getenforce not found
     apparmor:
       ran: true
@@ -101,3 +104,30 @@ state:
       ran: true
       rc: 0
       stdout_lines: []
+    firewall:
+      ran: true
+      rc: 0
+      supported: true
+      active: true
+      source: firewalld
+      detail: running
+    ssh_hardening:
+      ran: true
+      rc: 0
+      supported: false
+      source: sshd-T
+      detail: 'sshd: Connection refused'
+      permitrootlogin: ''
+      passwordauthentication: ''
+      permitemptypasswords: ''
+    kernel_taint:
+      ran: true
+      rc: 0
+      stdout: '0'
+    deleted_libs:
+      ran: true
+      rc: 0
+      supported: true
+      source: lsof
+      detail: ''
+      processes: []
