@@ -53,6 +53,9 @@ could not run.
 - Recent log errors and kernel/bootloader-related failures (with excerpts)
 - Self-healing actions taken this run, with why any restart was not fixed.
   One that could not be verified is marked `unknown`
+- Failed units ([#32](https://github.com/sameeralam3127/linux-vitals/issues/32)): every systemd unit `service_facts` reports as
+  failed, next to self-healing since that is what a self-healing attempt
+  would have acted on
 - Findings -- the specific reasons a host failed, if any. A check that could
   not run is marked `unknown`, followed by why
 - On `postcheck` runs with a baseline available: status/RAM/kernel/reboot
@@ -115,6 +118,7 @@ by log shippers, SIEMs, or your own dashboards.
       "pressure": { "cpu_count": 4, "load": {"1m": 0.4, "5m": 0.36, "15m": 0.3}, "load_per_cpu": {"1m": 0.1, "5m": 0.09, "15m": 0.08}, "load_status": "OK", "psi_supported": true, "psi": {"cpu_some": 0.85, "memory_some": 0.0, "memory_full": 0.0, "io_some": 0.42, "io_full": 0.11}, "psi_status": "OK", "stalled": [], "swap_total_mb": 2048.0, "swap_used_mb": 0.0, "swap_used_pct": 0.0, "swap_sample_seconds": 2, "swap_in_per_sec": 0, "swap_out_per_sec": 0, "swap_rate_per_sec": 0, "swap_status": "OK", "load_reason": "", "psi_reason": "", "swap_reason": "" },
       "logs": { "error_count": 0, "excerpt": [] },
       "self_healing": { "services_healed": ["chronyd.service"], "healing_results": [{ "service": "chronyd.service", "result": "Fixed", "outcome": "fixed", "reason": "stayed_active", "detail": "it stayed active for 5 s after the restart" }] },
+      "failed_units": { "count": 1, "units": [{"name": "payments-api.service", "enabled": true}] },
       "asset_serial": "VMware-56 4d 2a",
       "comparison": {
         "baseline_available": true,
@@ -144,8 +148,9 @@ Schema `2.1` is additive over `2.0`: every finding gains `status` (and
 `reason` when the status is `unknown`), each host gains `unknown_count`, the
 summary gains `unknown_host_count`, and each `healing_results` entry gains
 `outcome`, `reason` and `detail`. Each host also gains `pressure`
-([#34](https://github.com/sameeralam3127/linux-vitals/issues/34)). Nothing was removed or renamed, and no existing field changed
-type or meaning.
+([#34](https://github.com/sameeralam3127/linux-vitals/issues/34)) and
+`failed_units` ([#32](https://github.com/sameeralam3127/linux-vitals/issues/32)).
+Nothing was removed or renamed, and no existing field changed type or meaning.
 
 `pressure` holds the CPU load, pressure stall and swap values the scan read,
 and a status for each of the three checks:
@@ -204,6 +209,28 @@ release; join on `reason`. An entry written before 2.2.0 has only `service`
 and `result`.
 
 `auto_fixed_count` and `services_healed` count `Fixed` entries only.
+
+## Failed units
+
+`failed_units.units` lists every systemd unit `service_facts` reports as
+failed, not just the required services this collection names by default
+([#32](https://github.com/sameeralam3127/linux-vitals/issues/32)). Units
+that are disabled, masked, static, or missing a unit file are excluded --
+those are intentionally not running, so they would otherwise make the count
+"every stopped unit on the host" rather than something operational.
+
+```json
+{"name": "payments-api.service", "enabled": true}
+```
+
+`enabled` is `true` only for a unit `service_facts` could affirmatively
+confirm is enabled, enabled at runtime, or indirectly enabled. A unit that
+crashed into systemd's `failed` state can lose its own unit-file
+enabled/disabled information in `service_facts` -- that is still listed in
+`failed_units.units` and counted in `failed_units.count`, but with
+`enabled: false`, since it could not be confirmed. The `failed_units_present`
+finding fires on the count of entries with `enabled: true`, so a fleet of
+disabled-but-stopped units never drowns out the ones worth paging on.
 
 ## Findings
 
@@ -285,6 +312,8 @@ at its highest level, so the numbers partition the fleet) and
 | `cpu_load_high` | warning or critical | 5-minute load average per online CPU at or above `linux_vitals_load_warning_threshold` (warning) or `linux_vitals_load_critical_threshold` (critical). `unknown` when the load or CPU count could not be read |
 | `pressure_stall_high` | warning or critical | One per resource (`subject`: `cpu`, `memory` or `io`) whose PSI `some avg60` is at or above `linux_vitals_psi_warning_threshold` / `linux_vitals_psi_critical_threshold`. Nothing on a kernel without PSI; `unknown` when the probe could not run |
 | `swap_paging_high` | warning or critical | Pages swapped in plus out per second, over `linux_vitals_swap_sample_seconds`, at or above `linux_vitals_swap_rate_warning_threshold` / `linux_vitals_swap_rate_critical_threshold`. `unknown` when the counters could not be read |
+| `required_service_inactive` | warning | A unit named in `linux_vitals_required_services` is not running (`subject`: the unit name) -- additive to `sssd_inactive`/`time_sync_inactive`, not a replacement for them |
+| `failed_units_present` | warning | At least one unit `failed_units.units` could confirm is enabled is in systemd's failed state -- see [Failed units](#failed-units) |
 | `log_errors` | info | The journal has entries at priority `linux_vitals_log_priority` (default `err`) or worse in the log window |
 | `failed_logins` | info | Recent failed login attempts were detected |
 

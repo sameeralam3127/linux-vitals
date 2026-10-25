@@ -88,6 +88,14 @@ def test_templates_render_with_representative_health_data(tmp_path: Path) -> Non
     assert "localhost" in report
     assert "Default boot entry selects the latest installed kernel" in report
     assert "chronyd.service: Fixed" in report
+    # Failed units (#32), surfaced next to self-healing in the host detail
+    # and in the JSON report.
+    assert "Failed units (1)" in report
+    assert "molecule-broken.service" in report
+    assert json_report["hosts"][0]["failed_units"]["count"] == 1
+    assert json_report["hosts"][0]["failed_units"]["units"] == [
+        {"name": "molecule-broken.service", "enabled": True}
+    ]
     assert "Standard Maintenance Summary" in slack
     assert "Overall Status: PASS" in slack
     assert "Bootloader: 6.8.0-test (latest selected)" in slack

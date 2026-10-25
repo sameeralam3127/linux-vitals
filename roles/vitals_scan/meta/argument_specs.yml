@@ -135,6 +135,19 @@ argument_specs:
             measured over. Every host waits this long once per scan.
           - C(0) skips the measurement, and with it C(swap_paging_high); values
             above 60 are treated as 60.
+      linux_vitals_required_services:
+        type: list
+        elements: str
+        default: []
+        description:
+          - Extra systemd units checked exactly like the three this
+            collection already names (C(sssd), C(systemd-journald), the
+            resolved time-sync unit) -- exact unit name, a
+            C(required_service_inactive) finding when it is not running.
+          - Additive, not a replacement -- the three built-in checks always
+            run regardless of this list, which is why the empty default
+            reproduces every earlier release's behaviour exactly.
+          - 'Example: C([nginx.service, postgresql.service, docker.service]).'
       linux_vitals_severity_order:
         type: list
         elements: str
@@ -169,6 +182,8 @@ argument_specs:
           cpu_load_high: warning
           pressure_stall_high: warning
           swap_paging_high: warning
+          required_service_inactive: warning
+          failed_units_present: warning
           log_errors: info
           failed_logins: info
         description:

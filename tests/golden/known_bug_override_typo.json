@@ -17,6 +17,8 @@
     "baseline_available": false
   },
   "failed_login_count": 0,
+  "failed_unit_count": 0,
+  "failed_units": [],
   "final_status": "Pass",
   "findings": [
     {

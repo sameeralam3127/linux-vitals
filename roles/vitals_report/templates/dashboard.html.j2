@@ -754,6 +754,18 @@
                 {% endif %}
               </div>
               <div class="detail-item">
+                {# Failed systemd units (#32), next to self-healing since
+                   they are what a self-healing attempt would have acted
+                   on -- including the ones vitals_heal never attempts
+                   because they are disabled or were never required. #}
+                <strong>Failed units ({{ result.failed_unit_count | default(0) }})</strong>
+                {% if result.failed_units | default([]) %}
+                <ul class="list">{% for unit in result.failed_units | default([]) %}<li>{{ unit.name | e }}{{ ' (enabled)' if unit.enabled else ' (not confirmed enabled)' }}</li>{% endfor %}</ul>
+                {% else %}
+                <span class="muted">No failed units.</span>
+                {% endif %}
+              </div>
+              <div class="detail-item">
                 <strong>Findings ({{ result.findings | length }})</strong>
                 {% if result.findings %}
                 {# Most severe first, so triage reads top-down. Grouped by an

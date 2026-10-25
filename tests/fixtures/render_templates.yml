@@ -99,6 +99,10 @@
       log_errors: 0
       log_excerpt: []
       asset_serial: "TEST-SERIAL-0001"
+      failed_units:
+        - name: "molecule-broken.service"
+          enabled: true
+      failed_unit_count: 1
       services_healed:
         - "chronyd.service"
       healing_results:

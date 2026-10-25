@@ -134,6 +134,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Every failed systemd unit is now reported, and the required-service
+  list is configurable**
+  ([#32](https://github.com/sameeralam3127/linux-vitals/issues/32)).
+  `vitals_scan` used to check exactly three services by name (`sssd`,
+  `systemd-journald`, the resolved time-sync unit), so a host with eight
+  failed units still reported `Pass` as long as those three were running.
+  Each host now gains `failed_units` (unit name and whether it is confirmed
+  enabled) and `failed_unit_count` in the JSON report, read from the
+  `service_facts` the scan already gathers -- no new command. Disabled,
+  masked, static, and missing units are excluded, so the count is not
+  "every stopped unit on the host." A new `failed_units_present` finding
+  (`warning`) fires on the count of units confirmed enabled; a crashed unit
+  whose enabled state service_facts could not preserve is still listed, but
+  counted conservatively rather than guessed. A new list variable,
+  `linux_vitals_required_services` (default `[]`), lets a fleet declare its
+  own must-run units (`nginx`, `postgresql`, `docker`, ...) per group or
+  host; each is checked the same way as the built-in three via a new
+  `required_service_inactive` finding. The empty default is additive on top
+  of the built-in three, which always run regardless -- so leaving the
+  variable unset reproduces every earlier release's behaviour exactly. The
+  dashboard shows failed units in the host detail next to self-healing
+  outcomes.
+
 - **CPU saturation, pressure stall and swap activity checks** ([#34](https://github.com/sameeralam3127/linux-vitals/issues/34)).
   Memory used to be the only pressure signal, so a host pinned at load 40
   with a thrashing swap device reported `Pass` as long as it had free RAM.

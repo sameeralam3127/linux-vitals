@@ -72,6 +72,26 @@
       {%- elif linux_vitals_service_status.time_sync.state not in ['running', 'active'] -%}
       {%- set _ = findings.append({'id': 'time_sync_inactive', 'message': 'Time synchronization service is not active'}) -%}
       {%- endif -%}
+      {#- Operator-declared required services (#32), additive on top of the
+          three above: one finding per inactive name, same shape as
+          sssd_inactive/time_sync_inactive. -#}
+      {%- for name, status in (linux_vitals_required_service_status | default({})).items() -%}
+      {%- if status.state not in ['running', 'active'] -%}
+      {%- set _ = findings.append({
+        'id': 'required_service_inactive', 'subject': name,
+        'message': name ~ ' is not active'}) -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {#- Fleet-wide failed-unit visibility (#32): fires on the count of
+          units service_facts affirmatively reports as enabled, not the
+          total -- see services.yml for why a failed unit's enablement can
+          be unreadable, and why that is counted as not-enabled rather than
+          guessed. -#}
+      {%- if linux_vitals_enabled_failed_unit_count | default(0) | int > 0 -%}
+      {%- set _ = findings.append({
+        'id': 'failed_units_present',
+        'message': linux_vitals_enabled_failed_unit_count | string ~ ' enabled unit(s) in a failed state'}) -%}
+      {%- endif -%}
       {%- if linux_vitals_reboot_required -%}
       {%- set _ = findings.append({'id': 'reboot_required', 'message': 'System reboot is required'}) -%}
       {%- endif -%}
@@ -190,6 +210,8 @@
       log_errors: "{{ linux_vitals_log_errors }}"
       log_excerpt: "{{ linux_vitals_log_excerpt }}"
       asset_serial: "{{ ansible_facts['product_serial'] | default('unavailable') }}"
+      failed_units: "{{ linux_vitals_failed_units | default([]) }}"
+      failed_unit_count: "{{ linux_vitals_failed_unit_count | default(0) }}"
       services_healed: "{{ linux_vitals_services_healed | default([]) }}"
       healing_results: "{{ linux_vitals_healing_results | default([]) }}"
       final_status: "{{ linux_vitals_final_status }}"

@@ -29,6 +29,19 @@ linux_vitals_swap_rate_critical_threshold: 1000
 # host waits this long once per scan; 0 skips the rate and its finding.
 linux_vitals_swap_sample_seconds: 2
 
+# Extra must-run systemd units checked the same way sssd, systemd-journald
+# and the resolved time-sync unit always are (#32): exact unit name, state
+# not running/active raises a finding. This is additive, never a
+# replacement -- the three above are always checked regardless of this
+# list, which is how an empty default (every release before this one)
+# keeps working unmodified. Add your own per group or host:
+#
+#   linux_vitals_required_services:
+#     - nginx.service
+#     - postgresql.service
+#     - docker.service
+linux_vitals_required_services: []
+
 # --------------------------------------------------------------------------
 # Finding severity
 # --------------------------------------------------------------------------
@@ -72,6 +85,14 @@ linux_vitals_finding_severities:
   cpu_load_high: warning
   pressure_stall_high: warning
   swap_paging_high: warning
+  # Any operator-declared required service (#32) that is not running, by
+  # name, just like sssd_inactive/time_sync_inactive above.
+  required_service_inactive: warning
+  # Fleet-wide failed-unit visibility (#32): every enabled unit systemd
+  # reports as failed, not just the handful of required services this
+  # collection already names. New visibility rather than a targeted check,
+  # so it defaults a notch under the critical findings above.
+  failed_units_present: warning
   # Worth seeing, too noisy to page on. Both are counts of things that occur
   # on healthy hosts as a matter of course.
   log_errors: info
