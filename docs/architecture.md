@@ -199,7 +199,8 @@ The files run in three phases, in this order:
 | 15 | `reboot_facts.yml` (include) | whether a reboot is required, and why | `kernel` |
 | 16 | `bootloader_facts.yml` | whether the default entry boots the latest kernel | `kernel` |
 | 17 | `boot_space.yml` | the `/boot` mount and its free space | `boot` |
-| 18 | `services.yml` (include) | the required-service status map | -- |
+| 18 | `filesystems.yml` | capacity, inodes and read-only state across every scoped mount; the findings each raises | `boot` |
+| 19 | `services.yml` (include) | the required-service status map | -- |
 
 Where a file holds tasks with different tags, they are separated by `;` in
 the order of the tasks. Every task also carries `discovery`, applied by
@@ -214,10 +215,14 @@ the order of the tasks. Every task also carries `discovery`, applied by
   derive nothing. They read only `ansible_facts` and role variables, never
   another probe's result, so their relative order is not a dependency; it is
   kept as it was before the split.
-- **Derived facts (11-18)** each read facts set above them:
+- **Derived facts (11-19)** each read facts set above them:
   - `journal_facts.yml` reads both journal probes (2 and 9).
   - `pressure_facts.yml` reads the pressure probe (10), in three tasks:
     parse, values, then statuses.
+  - `filesystems.yml` reads `ansible_facts.mounts` directly -- it needs no
+    probe of its own, since the facts are already gathered -- and raises its
+    own findings in a dedicated task rather than in `result.yml`, to stay
+    under the per-file size ratchet (see below).
   - `extended_facts.yml` reads `linux_vitals_ram_used_pct` from
     `memory.yml` and the output of probes 3 to 8.
   - `reboot_facts.yml` reads `linux_vitals_reboot_probe_output` and

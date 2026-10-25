@@ -17,6 +17,10 @@
     "baseline_available": false
   },
   "failed_login_count": 1,
+  "filesystem_degraded_count": 0,
+  "filesystem_worst_mount": null,
+  "filesystem_worst_status": "None",
+  "filesystems": [],
   "final_status": "Fail",
   "findings": [
     {

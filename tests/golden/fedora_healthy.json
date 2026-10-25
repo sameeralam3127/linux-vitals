@@ -17,6 +17,39 @@
     "baseline_available": false
   },
   "failed_login_count": 0,
+  "filesystem_degraded_count": 0,
+  "filesystem_worst_mount": "/boot",
+  "filesystem_worst_status": "OK",
+  "filesystems": [
+    {
+      "expected_readonly": false,
+      "fstype": null,
+      "inode_available": null,
+      "inode_total": null,
+      "inode_used_pct": null,
+      "mount": "/boot",
+      "read_only": false,
+      "reason": null,
+      "size_total_mb": 973.4,
+      "size_used_mb": 301.4,
+      "size_used_pct": 31.0,
+      "status": "OK"
+    },
+    {
+      "expected_readonly": false,
+      "fstype": null,
+      "inode_available": null,
+      "inode_total": null,
+      "inode_used_pct": null,
+      "mount": "/boot/efi",
+      "read_only": false,
+      "reason": null,
+      "size_total_mb": 598.8,
+      "size_used_mb": 17.8,
+      "size_used_pct": 3.0,
+      "status": "OK"
+    }
+  ],
   "final_status": "Pass",
   "findings": [],
   "healing_results": [],

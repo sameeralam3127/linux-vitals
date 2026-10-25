@@ -28,6 +28,45 @@ linux_vitals_swap_rate_critical_threshold: 1000
 # Seconds between the two /proc/vmstat reads the swap rate comes from. Every
 # host waits this long once per scan; 0 skips the rate and its finding.
 linux_vitals_swap_sample_seconds: 2
+# Filesystem capacity and inode checks, across every real mount (#30).
+linux_vitals_disk_warning_threshold: 80
+linux_vitals_disk_critical_threshold: 95
+linux_vitals_disk_inode_warning_threshold: 80
+linux_vitals_disk_inode_critical_threshold: 95
+# Pseudo-filesystems, snap loopbacks (squashfs) and network filesystems are
+# excluded by fstype so they are not noise by default. A mount excluded by
+# fstype can still be checked by naming it in _include_mounts; a mount with
+# no excluded fstype can be dropped by naming it in _exclude_mounts. Either
+# list wins over the fstype default for the mounts it names.
+linux_vitals_disk_exclude_fstypes:
+  - tmpfs
+  - devtmpfs
+  - proc
+  - sysfs
+  - squashfs
+  - overlay
+  - cgroup
+  - cgroup2
+  - devpts
+  - mqueue
+  - debugfs
+  - tracefs
+  - pstore
+  - bpf
+  - securityfs
+  - configfs
+  - fusectl
+  - binfmt_misc
+  - autofs
+  - nfs
+  - nfs3
+  - nfs4
+  - cifs
+linux_vitals_disk_include_mounts: []
+linux_vitals_disk_exclude_mounts: []
+# A mount expected to be read-only (a read-only root image, a deliberately
+# locked-down data volume) does not raise filesystem_read_only.
+linux_vitals_disk_expected_readonly_mounts: []
 
 # --------------------------------------------------------------------------
 # Finding severity
@@ -72,6 +111,16 @@ linux_vitals_finding_severities:
   cpu_load_high: warning
   pressure_stall_high: warning
   swap_paging_high: warning
+  # Filesystem capacity and inodes (#30). Each of filesystem_space_low and
+  # filesystem_inodes_low carries its own severity, warning or critical by
+  # threshold; this entry is what an unknown one gets. filesystem_read_only
+  # is always critical: an unexpectedly read-only filesystem is a silent,
+  # usually total, failure.
+  filesystem_space_low: warning
+  filesystem_inodes_low: warning
+  filesystem_read_only: critical
+  filesystem_unavailable: warning
+  filesystem_probe_degraded: warning
   # Worth seeing, too noisy to page on. Both are counts of things that occur
   # on healthy hosts as a matter of course.
   log_errors: info

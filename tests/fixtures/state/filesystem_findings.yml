@@ -1,0 +1,175 @@
+# Filesystem capacity, inode and read-only checks across every mount (#30).
+# Otherwise a healthy Ubuntu host (copied from ubuntu_healthy), so every
+# finding below comes from the mounts list, not from anything else on the
+# host. /boot itself is the no-size-data case this issue also fixes: it
+# must read as filesystem_unavailable, never boot_space_low (the bug), and
+# boot_space_status must read as 'Not Available', not 'Low'.
+role_vars:
+  linux_vitals_disk_expected_readonly_mounts:
+    - /mnt/expected-ro
+state:
+  state_schema: 1
+  collected_at: "2026-09-26T14:02:11Z"
+  host:
+    inventory_hostname: filesystem-findings
+    hostname: fs-01
+    ip_address: 10.0.3.12
+    product_serial: VMware-42 1a 7c 3f
+  platform:
+    os_family: Debian
+    distribution: Ubuntu
+    distribution_version: "24.04"
+    kernel: 6.8.0-45-generic
+    service_mgr: systemd
+    uptime_seconds: 184020
+    virtualization_type: VMware
+    virtualization_role: guest
+  memory:
+    total_mb: 7938
+    available_mb: 5120
+    free_mb: 3011
+  mounts:
+    # /boot: present, but the probe timed out, so no size fields at all --
+    # the bug this issue fixes. Must become filesystem_unavailable
+    # (status: unknown), never boot_space_low.
+    - mount: /boot
+      note: "Could not get extra information due to timeout"
+    # /: healthy, plenty of room.
+    - mount: /
+      fstype: ext4
+      options: "rw,relatime"
+      size_available: 42000000000
+      size_total: 53687091200
+      inode_available: 3000000
+      inode_total: 3276800
+    # /var: 97% full and 98% of inodes used -- both findings fire together
+    # on the same mount, both critical.
+    - mount: /var
+      fstype: ext4
+      options: "rw,relatime"
+      size_available: 322122547
+      size_total: 10737418240
+      inode_available: 13107
+      inode_total: 655360
+    # /var/log: 85% full, under the 95% critical line -- warning only.
+    - mount: /var/log
+      fstype: ext4
+      options: "rw,relatime"
+      size_available: 322122547
+      size_total: 2147483648
+      inode_available: 50000
+      inode_total: 131072
+    # An unexpectedly read-only data mount -- low usage, so only
+    # filesystem_read_only fires, proving the checks are independent.
+    - mount: /data
+      fstype: ext4
+      options: "ro,relatime"
+      size_available: 90000000000
+      size_total: 107374182400
+      inode_available: 6000000
+      inode_total: 6553600
+    # A deliberately read-only mount, named in
+    # linux_vitals_disk_expected_readonly_mounts: no finding.
+    - mount: /mnt/expected-ro
+      fstype: ext4
+      options: "ro,relatime"
+      size_available: 9000000000
+      size_total: 10737418240
+      inode_available: 600000
+      inode_total: 655360
+    # Excluded by fstype default: 99% full but never checked.
+    - mount: /snap/core22/1612
+      fstype: squashfs
+      options: "ro,nodev,relatime"
+      size_available: 1048576
+      size_total: 107374182
+      inode_available: 0
+      inode_total: 0
+    - mount: /run
+      fstype: tmpfs
+      options: "rw,nosuid,nodev"
+      size_available: 10485760
+      size_total: 1073741824
+      inode_available: 100
+      inode_total: 262144
+    # A probe error with no mount name at all: folds into one host-level
+    # filesystem_probe_degraded finding, counting both of these.
+    - "N/A"
+    - "N/A"
+  services:
+    systemd-journald.service: {state: running, status: static}
+    sssd.service: {state: running, status: enabled}
+    systemd-timesyncd.service: {state: running, status: enabled}
+    ssh.service: {state: running, status: enabled}
+  probes:
+    pressure:
+      ran: true
+      rc: 0
+      load: "0.42 0.37 0.30"
+      cpus: 4
+      psi: supported
+      psi_reason: ""
+      psi_cpu_some: 0.85
+      psi_memory_some: 0.00
+      psi_memory_full: 0.00
+      psi_io_some: 0.42
+      psi_io_full: 0.11
+      swap_total_kb: 2097148
+      swap_free_kb: 2097148
+      swap_sample_seconds: 2
+      swap_in_per_sec: 0
+      swap_out_per_sec: 0
+    logs:
+      ran: true
+      rc: 0
+      window: 30 minutes ago
+      stdout: ""
+    audit_logs:
+      ran: true
+      rc: 0
+      window: 7 days ago
+      stdout: ""
+    failed_logins:
+      ran: true
+      rc: 0
+      stdout_lines:
+        - ""
+        - "btmp begins Tue Sep  1 00:00:02 2026"
+    last_reboot:
+      ran: true
+      rc: 0
+      stdout: "         system boot  2026-09-24 10:55"
+    installed_kernels:
+      ran: true
+      rc: 0
+      latest: 6.8.0-45-generic
+      updated_at: "2026-09-01 04:11:07.000000000 +0000"
+      filtered: true
+    bootloader:
+      ran: true
+      rc: 0
+      supported: true
+      source: grub_default
+      default_entry: "0"
+      default_kernel: 6.8.0-45-generic
+      status: resolved
+    reboot_required:
+      ran: true
+      rc: 0
+      supported: true
+      detected: false
+      source: reboot-required-file
+      detail: ""
+      packages: []
+    selinux:
+      ran: true
+      rc: 2
+      stdout: ""
+      unsupported_reason: getenforce not found
+    apparmor:
+      ran: true
+      rc: 0
+    rescue_images:
+      ran: true
+      rc: 0
+      stdout_lines: []

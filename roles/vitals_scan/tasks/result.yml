@@ -113,7 +113,7 @@
       {%- set _ = findings.append({'id': 'service_manual_followup', 'message': item.service ~ ' requires manual follow-up', 'subject': item.service}) -%}
       {%- endif -%}
       {%- endfor -%}
-      {{ findings }}
+      {{ findings + (linux_vitals_filesystem_findings | default([])) }}
   tags:
     - result
     - reporting
@@ -164,6 +164,14 @@
       boot_total_mb: "{{ linux_vitals_boot_total_mb }}"
       boot_free_pct: "{{ linux_vitals_boot_free_pct }}"
       boot_space_status: "{{ linux_vitals_boot_space_status }}"
+      # Filesystem capacity, inodes and read-only state across every scoped
+      # mount (#30). filesystem_worst_mount/_worst_status are what the
+      # dashboard host row surfaces; filesystems is the full per-mount
+      # breakdown for the expandable detail.
+      filesystems: "{{ linux_vitals_filesystems | default([]) }}"
+      filesystem_worst_status: "{{ linux_vitals_filesystem_worst_status | default('None') }}"
+      filesystem_worst_mount: "{{ linux_vitals_filesystem_worst_mount | default(none) }}"
+      filesystem_degraded_count: "{{ linux_vitals_filesystem_degraded_count | default(0) | int }}"
       rescue_image_available: "{{ linux_vitals_rescue_image_available }}"
       rescue_image_paths: "{{ linux_vitals_rescue_image_paths }}"
       last_failed_login: "{{ linux_vitals_last_failed_login }}"

@@ -17,6 +17,25 @@
     "baseline_available": false
   },
   "failed_login_count": 0,
+  "filesystem_degraded_count": 0,
+  "filesystem_worst_mount": "/boot",
+  "filesystem_worst_status": "Warning",
+  "filesystems": [
+    {
+      "expected_readonly": false,
+      "fstype": null,
+      "inode_available": null,
+      "inode_total": null,
+      "inode_used_pct": null,
+      "mount": "/boot",
+      "read_only": false,
+      "reason": null,
+      "size_total_mb": 1014.0,
+      "size_used_mb": 892.0,
+      "size_used_pct": 88.0,
+      "status": "Warning"
+    }
+  ],
   "final_status": "Fail",
   "findings": [
     {
@@ -86,6 +105,13 @@
       "message": "SELinux is disabled or unavailable",
       "severity": "warning",
       "status": "fail"
+    },
+    {
+      "id": "filesystem_space_low",
+      "message": "/boot is 88.0% full",
+      "severity": "warning",
+      "status": "fail",
+      "subject": "/boot"
     }
   ],
   "healing_results": [],
@@ -172,7 +198,7 @@
   "severity_counts": {
     "critical": 3,
     "info": 0,
-    "warning": 8
+    "warning": 9
   },
   "unknown_count": 0,
   "uptime": "7d 0h 0m",
