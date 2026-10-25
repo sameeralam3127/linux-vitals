@@ -112,6 +112,10 @@ by log shippers, SIEMs, or your own dashboards.
       "security": { "selinux_status": "not-installed", "apparmor_status": "enabled", "failed_login_count": 0, "last_failed_login": "No failed login attempts found" },
       "boot_space": { "mount": "/boot", "free_pct": 65.3, "status": "Healthy", "rescue_image_available": true, "rescue_image_paths": ["..."] },
       "memory": { "status": "OK", "used_pct": 42.5, "used_mb": 3480.0, "total_mb": 8192.0 },
+      "filesystems": { "worst_status": "Warning", "worst_mount": "/var", "mounts": [
+        { "mount": "/", "fstype": "ext4", "size_used_pct": 42.5, "size_used_mb": 8500.0, "size_total_mb": 20000.0, "inode_used_pct": 12.0, "inode_total": 1310720, "inode_available": 1153433, "read_only": false, "expected_readonly": false, "status": "OK", "reason": null },
+        { "mount": "/var", "fstype": "ext4", "size_used_pct": 88.1, "size_used_mb": 8810.0, "size_total_mb": 10000.0, "inode_used_pct": 15.0, "inode_total": 655360, "inode_available": 557056, "read_only": false, "expected_readonly": false, "status": "Warning", "reason": null }
+      ] },
       "pressure": { "cpu_count": 4, "load": {"1m": 0.4, "5m": 0.36, "15m": 0.3}, "load_per_cpu": {"1m": 0.1, "5m": 0.09, "15m": 0.08}, "load_status": "OK", "psi_supported": true, "psi": {"cpu_some": 0.85, "memory_some": 0.0, "memory_full": 0.0, "io_some": 0.42, "io_full": 0.11}, "psi_status": "OK", "stalled": [], "swap_total_mb": 2048.0, "swap_used_mb": 0.0, "swap_used_pct": 0.0, "swap_sample_seconds": 2, "swap_in_per_sec": 0, "swap_out_per_sec": 0, "swap_rate_per_sec": 0, "swap_status": "OK", "load_reason": "", "psi_reason": "", "swap_reason": "" },
       "logs": { "error_count": 0, "excerpt": [] },
       "self_healing": { "services_healed": ["chronyd.service"], "healing_results": [{ "service": "chronyd.service", "result": "Fixed", "outcome": "fixed", "reason": "stayed_active", "detail": "it stayed active for 5 s after the restart" }] },
@@ -144,7 +148,8 @@ Schema `2.1` is additive over `2.0`: every finding gains `status` (and
 `reason` when the status is `unknown`), each host gains `unknown_count`, the
 summary gains `unknown_host_count`, and each `healing_results` entry gains
 `outcome`, `reason` and `detail`. Each host also gains `pressure`
-([#34](https://github.com/sameeralam3127/linux-vitals/issues/34)). Nothing was removed or renamed, and no existing field changed
+([#34](https://github.com/sameeralam3127/linux-vitals/issues/34)) and
+`filesystems` ([#30](https://github.com/sameeralam3127/linux-vitals/issues/30)). Nothing was removed or renamed, and no existing field changed
 type or meaning.
 
 `pressure` holds the CPU load, pressure stall and swap values the scan read,
@@ -163,6 +168,26 @@ and a status for each of the three checks:
   - `Not sampled` (swap): `linux_vitals_swap_sample_seconds` is `0`.
 
   A value that could not be measured is `null`, never `0`.
+
+`filesystems` ([#30](https://github.com/sameeralam3127/linux-vitals/issues/30))
+holds one entry per in-scope mount -- every real filesystem except the
+pseudo/network ones listed in `linux_vitals_disk_exclude_fstypes` (`tmpfs`,
+`proc`, `nfs`, and the like), plus/minus anything named in
+`linux_vitals_disk_include_mounts` / `_exclude_mounts`:
+
+- `worst_status`, `worst_mount`: the single worst entry below, for a
+  dashboard or alert that only wants one number per host. `worst_status` is
+  `None` only when `mounts` is empty.
+- `mounts[]`: `mount`, `fstype`, `size_used_pct`/`size_used_mb`/`size_total_mb`,
+  `inode_used_pct`/`inode_total`/`inode_available`, `read_only`,
+  `expected_readonly`, a per-mount `status` (`OK`, `Warning`, `Critical` or
+  `Unknown`), and `reason` when `status` is `Unknown`.
+- As with `pressure`, a value that could not be read is `null`, never `0`.
+
+A `/boot` entry with no size data used to compute 0% free and wrongly raise
+`boot_space_low`; that case now resolves `boot_space.status` to the existing
+`Not Available` value instead, and the `filesystems` entry for `/boot` raises
+`filesystem_unavailable` so the gap is still visible.
 
 `comparison` is always present with at least `baseline_available`; on
 `adhoc`/`baseline` runs, or for a host with no matching baseline snapshot,
@@ -279,6 +304,11 @@ at its highest level, so the numbers partition the fleet) and
 | `kernel_not_latest` | warning | The running kernel is not the latest installed one |
 | `bootloader_mismatch` | warning | The default boot entry does not select the latest installed kernel |
 | `boot_space_low` | warning | Boot partition free space below `linux_vitals_boot_warning_threshold` |
+| `filesystem_space_low` | warning or critical | One per in-scope mount (`subject`: the mount path) whose used space is at or above `linux_vitals_disk_warning_threshold` / `_critical_threshold` |
+| `filesystem_inodes_low` | warning or critical | One per in-scope mount (`subject`: the mount path) whose used inodes are at or above `linux_vitals_disk_inode_warning_threshold` / `_critical_threshold` |
+| `filesystem_read_only` | critical | One per in-scope mount (`subject`: the mount path) that is mounted read-only and not listed in `linux_vitals_disk_expected_readonly_mounts` |
+| `filesystem_unavailable` | warning | One per in-scope mount (`subject`: the mount path) whose capacity could not be read; `status: unknown` with `reason` |
+| `filesystem_probe_degraded` | warning | Host-level, no `subject`, fires at most once: one or more mount entries returned unreadable facts; `status: unknown` with `reason` |
 | `kernel_install_failures` | warning | Kernel/bootloader failures in the audit log window |
 | `selinux_disabled` | warning | SELinux disabled/unavailable on a RedHat-family host |
 | `apparmor_disabled` | warning | AppArmor disabled/unavailable on a Debian-family host |
@@ -291,7 +321,11 @@ at its highest level, so the numbers partition the fleet) and
 The three saturation findings ([#34](https://github.com/sameeralam3127/linux-vitals/issues/34)) also carry their own severity,
 from the threshold the value crossed. The map entry for each (`warning`) is
 only what an `unknown` one gets, and `linux_vitals_finding_severity_overrides`
-still overrides both.
+still overrides both. `filesystem_space_low` and `filesystem_inodes_low`
+([#30](https://github.com/sameeralam3127/linux-vitals/issues/30)) work the
+same way: their severity map entry is only what the `unknown` case gets, and
+the warning/critical case comes from whichever threshold the mount's usage
+crossed.
 
 Certificate findings, from the opt-in `vitals_certs` role. Their severity is
 computed rather than looked up, because it depends on the certificate rather
@@ -422,7 +456,7 @@ and a URL resolves:
   "summary": { "header": "...", "overall_status": "PASS", "servers_checked": 5, "auto_fixed_count": 1, "critical_error_count": 1, "snippet": "..." },
   "message": "<the same text sent to Slack>",
   "hosts": [
-    { "hostname": "web01", "ip_address": "192.0.2.11", "status": "Pass", "platform_type": "Virtual Machine", "uptime": "12d 4h 21m", "running_kernel": "6.8.0-60-generic", "latest_kernel_selected": true, "reboot_required": false, "boot_space_status": "Healthy", "failed_login_count": 0, "unknown_count": 0, "findings": [] }
+    { "hostname": "web01", "ip_address": "192.0.2.11", "status": "Pass", "platform_type": "Virtual Machine", "uptime": "12d 4h 21m", "running_kernel": "6.8.0-60-generic", "latest_kernel_selected": true, "reboot_required": false, "boot_space_status": "Healthy", "filesystem_worst_status": "OK", "failed_login_count": 0, "unknown_count": 0, "findings": [] }
   ]
 }
 ```

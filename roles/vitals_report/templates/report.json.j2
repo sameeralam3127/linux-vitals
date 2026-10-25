@@ -95,6 +95,31 @@
         "used_mb": {{ result.ram_used_mb | float }},
         "total_mb": {{ result.ram_total_mb | float }}
       },
+      {# Filesystem capacity/inode checks (#30): a dict per in-scope mount.
+         Numeric fields are null, never 0, when a mount's status is Unknown --
+         same rule as pressure's swap/PSI fields above. #}
+      "filesystems": {
+        "worst_status": {{ result.filesystem_worst_status | default('None') | to_json }},
+        "worst_mount": {{ result.filesystem_worst_mount | default(None) | to_json }},
+        "mounts": [
+          {% for fs in result.filesystems | default([]) %}
+          {
+            "mount": {{ fs.mount | to_json }},
+            "fstype": {{ fs.fstype | to_json }},
+            "size_used_pct": {{ (fs.size_used_pct | float) if fs.size_used_pct is not none else 'null' }},
+            "size_used_mb": {{ (fs.size_used_mb | float) if fs.size_used_mb is not none else 'null' }},
+            "size_total_mb": {{ (fs.size_total_mb | float) if fs.size_total_mb is not none else 'null' }},
+            "inode_used_pct": {{ (fs.inode_used_pct | float) if fs.inode_used_pct is not none else 'null' }},
+            "inode_total": {{ (fs.inode_total | int) if fs.inode_total is not none else 'null' }},
+            "inode_available": {{ (fs.inode_available | int) if fs.inode_available is not none else 'null' }},
+            "read_only": {{ fs.read_only | default(false) | to_json }},
+            "expected_readonly": {{ fs.expected_readonly | default(false) | to_json }},
+            "status": {{ fs.status | to_json }},
+            "reason": {{ fs.reason | default(None) | to_json }}
+          }{% if not loop.last %},{% endif %}
+          {% endfor %}
+        ]
+      },
       "pressure": {{ result.pressure | default({}) | to_json }},
       "logs": {
         "error_count": {{ result.log_errors | int }},

@@ -127,6 +127,27 @@ def test_templates_render_with_representative_health_data(tmp_path: Path) -> Non
     assert "<strong>CPU, pressure &amp; swap</strong>" in report
     assert "memory 31.2 (all tasks 9.8)" in report
 
+    # Filesystem capacity/inode checks (#30): the JSON carries one entry per
+    # mount, with numeric fields null (never 0) when a mount's status is
+    # Unknown, and the dashboard shows the worst status next to boot space
+    # plus a full per-mount breakdown in the host detail.
+    filesystems = json_report["hosts"][0]["filesystems"]
+    assert filesystems["worst_status"] == "Unknown"
+    assert filesystems["worst_mount"] == "/data"
+    mounts_by_path = {m["mount"]: m for m in filesystems["mounts"]}
+    assert mounts_by_path["/"]["size_used_pct"] == 42.5
+    assert mounts_by_path["/"]["status"] == "OK"
+    assert mounts_by_path["/data"]["status"] == "Unknown"
+    assert mounts_by_path["/data"]["size_used_pct"] is None
+    assert mounts_by_path["/data"]["size_used_mb"] is None
+    assert mounts_by_path["/data"]["inode_total"] is None
+    assert mounts_by_path["/data"]["reason"] == "stat unavailable"
+    assert generic_webhook["hosts"][0]["filesystem_worst_status"] == "Unknown"
+    assert "Disk Unknown" in report
+    assert "<strong>Filesystems</strong>" in report
+    assert "42.5% used" in report
+    assert "stat unavailable" in report
+
     # Slack renders the top-level `text` ABOVE the attachment, so it must be
     # one short line. Putting the full plain-text summary there printed the
     # entire old-style message above the new card, duplicated.

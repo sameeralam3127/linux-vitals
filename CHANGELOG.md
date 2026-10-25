@@ -134,6 +134,47 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Filesystem capacity and inode checks** ([#30](https://github.com/sameeralam3127/linux-vitals/issues/30)).
+  Until now the only disk check was `/boot`, so a host with `/var` or `/data`
+  pinned at 99% full, or a web of small files eating every inode on `/tmp`,
+  reported `Pass`. One new probe-free task, `filesystems.yml`, reads the
+  per-mount facts Ansible already gathers (`ansible_facts.mounts`) -- no new
+  shell-outs or permissions needed. Every real filesystem is in scope except
+  the pseudo/network ones listed in `linux_vitals_disk_exclude_fstypes`
+  (`tmpfs`, `proc`, `nfs`, and the like); add or drop specific mounts with
+  `linux_vitals_disk_include_mounts` / `_exclude_mounts`. Five findings, one
+  per mount except the last:
+
+  - `filesystem_space_low`: used space at or above 80% / 95%
+    (`linux_vitals_disk_warning_threshold`, `_critical_threshold`).
+  - `filesystem_inodes_low`: used inodes at or above 80% / 95%
+    (`linux_vitals_disk_inode_warning_threshold`, `_critical_threshold`).
+  - `filesystem_read_only`: the mount is read-only and not listed in
+    `linux_vitals_disk_expected_readonly_mounts` -- always `critical`, since
+    an unexpectedly read-only filesystem is usually a remount after an I/O
+    error.
+  - `filesystem_unavailable`: a mount's size or inode facts could not be
+    read; `unknown` with a reason.
+  - `filesystem_probe_degraded`: host-level, fires at most once, when one or
+    more mounts returned unreadable facts.
+
+  This also fixes a long-standing bug: a `/boot` entry with no size data
+  used to compute 0% free and wrongly raise `boot_space_low`. That case now
+  resolves `boot_space.status` to the existing `Not Available` value, and
+  `filesystem_unavailable` covers `/boot` like any other mount so the gap is
+  still reported. Each host gains a `filesystems` object in the JSON report
+  (additive, still schema `2.1`) with `worst_status`, `worst_mount`, and the
+  full per-mount list; numeric fields are `null`, never `0`, when a mount's
+  status is `Unknown`. The dashboard shows the worst filesystem status next
+  to boot space, and the full per-mount breakdown in the host detail. On a
+  fresh checkout of a 5-host fleet with nothing wrong, this adds zero new
+  findings; on a host with a full `/var`, it now shows up instead of only
+  reading `Pass` on free RAM and `/boot`.
+
+  Note for whoever merges this with the scan-side branch for #30: this is
+  the only `[Unreleased]` changelog entry for the feature -- keep this one
+  and drop any duplicate the scan-side branch may have added.
+
 - **CPU saturation, pressure stall and swap activity checks** ([#34](https://github.com/sameeralam3127/linux-vitals/issues/34)).
   Memory used to be the only pressure signal, so a host pinned at load 40
   with a thrashing swap device reported `Pass` as long as it had free RAM.

@@ -119,6 +119,34 @@ it is slow to start, and `linux_vitals_heal_settle_retries` /
 
 See [Certificate findings](#certificate-findings).
 
+### `filesystem_read_only` -- a filesystem unexpectedly became read-only
+
+One finding per mount, named in `subject`. Always `critical`.
+
+**Means:** the mount is read-only and is not listed in
+`linux_vitals_disk_expected_readonly_mounts`. This is almost never
+intentional -- the kernel remounts a filesystem read-only after it detects an
+I/O error or metadata corruption, specifically to stop making things worse.
+Treat this as urgent: every write to that mount is silently failing or has
+been failing since the remount, and anything that logs, queues, or persists
+state there is now degraded in a way that may not be visible until something
+downstream notices missing data.
+
+**Confirm:**
+```bash
+mount | grep ' ro,\| ro)'
+dmesg -T | grep -iE 'remount|read-only|ext4-fs error|i/o error' | tail -40
+journalctl -k --since "1 hour ago" | grep -iE 'remount|i/o error'
+```
+
+**Do:** identify the underlying disk/volume problem before remounting
+read-write -- a remount that just papers over a failing device will flip
+back to read-only again. If the mount is *supposed* to be read-only (a
+golden image, a read-only root), add it to
+`linux_vitals_disk_expected_readonly_mounts` so the finding stops firing for
+that mount specifically, rather than overriding the finding's severity for
+every host.
+
 ## Warning findings
 
 ### `reboot_required` -- system reboot is required
@@ -179,6 +207,89 @@ apt autoremove --purge                                     # Debian family
 ```
 Deleting files from `/boot` by hand leaves the package database believing they
 are present, and the next update will not regenerate them.
+
+### `filesystem_space_low` -- a filesystem is running out of space
+
+One finding per mount, named in `subject`; raised as `warning` or `critical`
+by threshold.
+
+**Means:** a mount's used space is at or above
+`linux_vitals_disk_warning_threshold` (default 80%) or
+`_critical_threshold` (default 95%). Every real filesystem is in scope except
+the pseudo/network ones listed in `linux_vitals_disk_exclude_fstypes`
+(`tmpfs`, `proc`, `nfs`, and the like); add or remove mounts with
+`linux_vitals_disk_include_mounts` / `_exclude_mounts`.
+
+**Confirm:**
+```bash
+df -h
+du -sh /path/to/mount/* | sort -rh | head -20
+```
+
+**Do:** find and clear the largest consumer -- logs, core dumps, package
+caches, container layers -- rather than growing the volume as a reflex.
+A mount that is legitimately full by design should get a per-host threshold
+override and a note saying why, the same as a busy CPU host under
+`cpu_load_high`.
+
+### `filesystem_inodes_low` -- a filesystem is running out of inodes
+
+One finding per mount, named in `subject`; raised as `warning` or `critical`
+by threshold.
+
+**Means:** a mount's used inode count is at or above
+`linux_vitals_disk_inode_warning_threshold` / `_critical_threshold`. A
+filesystem can read as having plenty of free space and still fail every
+write with `No space left on device`, because inodes ran out first -- common
+with huge numbers of small files (mail spools, session caches, per-request
+temp files that never got cleaned up).
+
+**Confirm:**
+```bash
+df -i
+find /path/to/mount -xdev -printf '%h\n' | sort | uniq -c | sort -rn | head -20
+```
+
+**Do:** find and remove the directory tree generating the small files, then
+fix whatever is failing to clean up after itself. Reformatting with more
+inodes is a last resort and needs a backup/restore window.
+
+### `filesystem_unavailable` -- a filesystem's capacity could not be read
+
+One finding per mount, named in `subject`. `status: unknown` with `reason`.
+
+**Means:** the mount is present but its size or inode facts could not be
+read -- for example a `/boot` entry with no size data, which used to be
+misread as 0% free and wrongly raise `boot_space_low`; it now surfaces here
+instead, with the actual gap named in `reason`.
+
+**Confirm:**
+```bash
+df -h /path/to/mount
+stat -f /path/to/mount
+```
+
+**Do:** treat `unknown` the same as any other check that could not run --
+under the default `linux_vitals_fail_on_severity`, it still fails the host.
+Fix whatever is preventing the read (a stale mount, a disconnected network
+share, a device that dropped out), then re-run.
+
+### `filesystem_probe_degraded` -- some filesystem facts could not be read
+
+Host-level, no `subject`, fires at most once per host. `status: unknown`
+with `reason` naming how many mounts were affected.
+
+**Means:** one or more mount entries returned unreadable facts during
+discovery (a bare string instead of the expected fields) and were folded
+into this single finding rather than each raising its own
+`filesystem_unavailable`, to avoid flooding a host with near-duplicate
+unknowns when the underlying cause is the same for all of them.
+
+**Confirm:** check `filesystem_degraded_count` in the JSON report and look
+at the mount list for entries with `status: Unknown`.
+
+**Do:** same as `filesystem_unavailable` -- find the mount(s) behind the
+count and fix whatever is blocking the read.
 
 ### `sssd_inactive` / `time_sync_absent` / `time_sync_inactive`
 
