@@ -97,10 +97,20 @@
       None{%- else -%}
       {%- set worst_rank = linux_vitals_filesystems | map(attribute='status') | map('extract', rank) | list | max -%}
       {{ rank | dictsort | selectattr('1', 'equalto', worst_rank) | map(attribute='0') | first }}{%- endif -%}
+    # Empty, not null, when there is no worst mount: ansible-core's default
+    # (non-native) Jinja rendering blanks a *bare* top-level None result to
+    # an empty string -- confirmed on 2.16.19 -- so a standalone leaf fact
+    # (this one, and linux_vitals_result.filesystem_worst_mount after it)
+    # can never safely hold None itself. A None value nested inside a dict
+    # or list literal that is itself the whole rendered result (pressure,
+    # each row in linux_vitals_filesystems) is unaffected -- that goes
+    # through Python's own repr(), not Jinja's string conversion. There is
+    # no such container to nest this one in without breaking the flat
+    # filesystem_worst_mount contract the report templates already read, so
+    # it is empty string when absent, every core, by design -- not null.
     linux_vitals_filesystem_worst_mount: >-
       {%- set rank = {'OK': 0, 'Warning': 1, 'Unknown': 2, 'Critical': 3} -%}
       {%- if linux_vitals_filesystems | length == 0 -%}
-      {{ none }}
       {%- else -%}
       {%- set worst_rank = linux_vitals_filesystems | map(attribute='status') | map('extract', rank) | list | max -%}
       {%- set worst_status = rank | dictsort | selectattr('1', 'equalto', worst_rank) | map(attribute='0') | first -%}

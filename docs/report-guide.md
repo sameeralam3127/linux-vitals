@@ -177,7 +177,11 @@ pseudo/network ones listed in `linux_vitals_disk_exclude_fstypes` (`tmpfs`,
 
 - `worst_status`, `worst_mount`: the single worst entry below, for a
   dashboard or alert that only wants one number per host. `worst_status` is
-  `None` only when `mounts` is empty.
+  `None` only when `mounts` is empty; `worst_mount` is an empty string in
+  that case, by design, never `null` -- a bare top-level `null` leaf is
+  rendered as an empty string on ansible-core 2.16's default templating
+  anyway, so the report standardises on empty string for this one field
+  rather than depending on which core produced the report.
 - `mounts[]`: `mount`, `fstype`, `size_used_pct`/`size_used_mb`/`size_total_mb`,
   `inode_used_pct`/`inode_total`/`inode_available`, `read_only`,
   `expected_readonly`, a per-mount `status` (`OK`, `Warning`, `Critical` or

@@ -170,7 +170,7 @@
       # breakdown for the expandable detail.
       filesystems: "{{ linux_vitals_filesystems | default([]) }}"
       filesystem_worst_status: "{{ linux_vitals_filesystem_worst_status | default('None') }}"
-      filesystem_worst_mount: "{{ linux_vitals_filesystem_worst_mount | default(none) }}"
+      filesystem_worst_mount: "{{ linux_vitals_filesystem_worst_mount | default('', true) }}"
       filesystem_degraded_count: "{{ linux_vitals_filesystem_degraded_count | default(0) | int }}"
       rescue_image_available: "{{ linux_vitals_rescue_image_available }}"
       rescue_image_paths: "{{ linux_vitals_rescue_image_paths }}"
