@@ -132,6 +132,76 @@
           - host_report.boot_space.status in ['Healthy', 'Low', 'Not Available']
           - host_report.security.selinux_status | length > 0
 
+    # ------------------------------------------------------------------
+    # Security posture: firewall, SSH hardening, kernel taint, and
+    # reboot-blocking deleted libraries (#36)
+    # ------------------------------------------------------------------
+    - name: Assert the firewall probe answered on this container
+      # "No firewall tool found" is itself a confident answer (source=none),
+      # so supported is always true here; only a genuine probe error would
+      # make it false, which none of these images should hit.
+      ansible.builtin.assert:
+        that:
+          - host_report.security.firewall.detection_supported in [true, false]
+          - host_report.security.firewall.active in [true, false]
+          - host_report.security.firewall.source | length > 0
+        fail_msg: "Firewall probe: {{ host_report.security.firewall }}"
+
+    - name: Assert the SSH hardening probe reported a consistent shape
+      # These containers are driven over the Docker connection, not SSH, so
+      # sshd and root escalation are not guaranteed to be present -- this
+      # asserts "answered" and "did not answer" are told apart, not a
+      # specific value. detection_supported false must still carry values
+      # that read as absent (empty strings), never guessed at.
+      ansible.builtin.assert:
+        that:
+          - host_report.security.ssh_hardening.detection_supported in [true, false]
+          - >-
+            host_report.security.ssh_hardening.detection_supported
+            or (
+              host_report.security.ssh_hardening.permit_root_login == ''
+              and host_report.security.ssh_hardening.password_authentication == ''
+              and host_report.security.ssh_hardening.permit_empty_passwords == ''
+            )
+          - >-
+            host_report.findings
+            | selectattr('id', 'in', [
+                'ssh_permit_root_login_insecure',
+                'ssh_password_authentication_enabled',
+                'ssh_permit_empty_passwords_enabled',
+              ])
+            | selectattr('status', 'equalto', 'unknown')
+            | map(attribute='reason') | select('equalto', '') | list | length == 0
+        fail_msg: "SSH hardening probe: {{ host_report.security.ssh_hardening }}"
+
+    - name: Assert the kernel taint probe read the always-available file
+      # /proc/sys/kernel/tainted is a plain file read with no privilege or
+      # distro-specific tool involved, so this is the one check in this
+      # group expected to succeed on every container, every family.
+      ansible.builtin.assert:
+        that:
+          - host_report.security.kernel_taint.supported == true
+          - host_report.security.kernel_taint.value | int >= 0
+          - host_report.security.kernel_taint.reasons is sequence
+        fail_msg: "Kernel taint probe: {{ host_report.security.kernel_taint }}"
+
+    - name: Assert the deleted-library probe told absence from a real answer
+      # lsof may or may not be preinstalled in a given image; either way the
+      # shape must distinguish "not installed" from "checked, found none".
+      ansible.builtin.assert:
+        that:
+          - host_report.security.reboot_blocking_processes.supported in [true, false]
+          - host_report.security.reboot_blocking_processes.processes is sequence
+          - >-
+            host_report.security.reboot_blocking_processes.supported
+            or (
+              host_report.findings
+              | selectattr('id', 'equalto', 'reboot_blocking_deleted_libs')
+              | selectattr('status', 'equalto', 'unknown')
+              | list | length == 1
+            )
+        fail_msg: "Deleted-library probe: {{ host_report.security.reboot_blocking_processes }}"
+
     - name: Assert the time synchronization service was resolved
       # Asserted on finding id rather than message text: the id is the stable
       # identity (see issue #8), so rewording a finding no longer silently

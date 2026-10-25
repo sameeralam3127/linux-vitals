@@ -66,9 +66,9 @@ state:
       ran: true
       rc: 0
       stdout_lines:
-      - deploy   ssh:notty    10.0.1.5         Sat Sep 26 09:14 - 09:14  (00:00)
-      - ''
-      - btmp begins Tue Sep  1 00:00:03 2026
+        - deploy   ssh:notty    10.0.1.5         Sat Sep 26 09:14 - 09:14  (00:00)
+        - ''
+        - btmp begins Tue Sep  1 00:00:03 2026
     last_reboot:
       ran: true
       rc: 0

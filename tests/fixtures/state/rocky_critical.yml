@@ -21,9 +21,9 @@ state:
     available_mb: 292
     free_mb: 140
   mounts:
-  - mount: /boot
-    size_available: 127926272
-    size_total: 1063256064
+    - mount: /boot
+      size_available: 127926272
+      size_total: 1063256064
   services:
     systemd-journald.service:
       state: running
@@ -72,8 +72,8 @@ state:
       ran: true
       rc: 0
       stdout_lines:
-      - ''
-      - btmp begins Tue Sep  1 00:00:05 2026
+        - ''
+        - btmp begins Tue Sep  1 00:00:05 2026
     last_reboot:
       ran: true
       rc: 0

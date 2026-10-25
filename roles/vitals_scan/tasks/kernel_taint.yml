@@ -1,7 +1,8 @@
 ---
 # Probe: the kernel taint flags (#36) -- a single always-readable file, no
-# become needed (unlike the other three checks added alongside this one).
-# A non-zero value explains a lot of otherwise mysterious behaviour.
+# escalation needed, unlike `sshd -T` in ssh_hardening.yml (see
+# docs/threat-model.md). A non-zero value explains a lot of otherwise
+# mysterious behaviour.
 # kernel_taint_facts.yml decodes the bitmask.
 - name: Collect kernel taint flags
   ansible.builtin.command:

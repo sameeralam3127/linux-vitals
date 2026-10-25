@@ -21,9 +21,9 @@ state:
     available_mb: 400
     free_mb: 212
   mounts:
-  - mount: /boot/efi
-    size_available: 609222656
-    size_total: 627900416
+    - mount: /boot/efi
+      size_available: 609222656
+      size_total: 627900416
   services:
     systemd-journald.service:
       state: stopped
@@ -69,8 +69,8 @@ state:
       ran: true
       rc: 0
       stdout_lines:
-      - ''
-      - btmp begins Tue Sep  1 00:00:09 2026
+        - ''
+        - btmp begins Tue Sep  1 00:00:09 2026
     last_reboot:
       ran: true
       rc: 0
@@ -136,4 +136,4 @@ state:
       source: lsof
       detail: ''
       processes:
-      - 4821:httpd
+        - 4821:httpd

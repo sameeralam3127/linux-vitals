@@ -78,6 +78,7 @@ What degrades without escalation, rather than failing:
 | `getenforce`, `aa-status` | Usually readable unprivileged |
 | Bootloader default entry | `grubby`/`grub2-editenv` typically needs root |
 | `service_facts` | Unit list is readable; some states are not |
+| `sshd -T` (#36) | Needs root to read host key material; reported `unknown`/unsupported, not guessed at (see [#36](https://github.com/sameeralam3127/linux-vitals/issues/36)) |
 
 **Recommendation:** grant `become` narrowly. The scan needs to *read*
 privileged state, not to write anything. A sudoers rule limited to the probe
@@ -87,7 +88,7 @@ safer than blanket `NOPASSWD: ALL`:
 ```sudoers
 automation ALL=(root) NOPASSWD: /usr/bin/journalctl, /usr/bin/lastb, \
     /usr/bin/needs-restarting, /usr/sbin/getenforce, /usr/sbin/aa-status, \
-    /usr/sbin/grubby, /usr/bin/who
+    /usr/sbin/grubby, /usr/bin/who, /usr/sbin/sshd
 ```
 
 Add `/usr/bin/systemctl restart *` only on hosts where you intend to enable

@@ -21,9 +21,9 @@ state:
     available_mb: 2604
     free_mb: 1822
   mounts:
-  - mount: /boot/efi
-    size_available: 529240064
-    size_total: 535805952
+    - mount: /boot/efi
+      size_available: 529240064
+      size_total: 535805952
   services:
     systemd-journald.service:
       state: running
@@ -69,8 +69,8 @@ state:
       ran: true
       rc: 0
       stdout_lines:
-      - ''
-      - btmp begins Tue Sep  1 00:00:03 2026
+        - ''
+        - btmp begins Tue Sep  1 00:00:03 2026
     last_reboot:
       ran: true
       rc: 0

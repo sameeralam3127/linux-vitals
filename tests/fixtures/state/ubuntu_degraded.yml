@@ -21,12 +21,12 @@ state:
     available_mb: 952
     free_mb: 311
   mounts:
-  - mount: /boot
-    size_available: 249036800
-    size_total: 1918672896
-  - mount: /boot/efi
-    size_available: 1112408064
-    size_total: 1124999168
+    - mount: /boot
+      size_available: 249036800
+      size_total: 1918672896
+    - mount: /boot/efi
+      size_available: 1112408064
+      size_total: 1124999168
   services:
     systemd-journald.service:
       state: running
@@ -75,10 +75,10 @@ state:
       ran: true
       rc: 0
       stdout_lines:
-      - root     ssh:notty    203.0.113.9      Sat Sep 26 13:01 - 13:01  (00:00)
-      - admin    ssh:notty    203.0.113.9      Sat Sep 26 13:00 - 13:00  (00:00)
-      - ''
-      - btmp begins Tue Sep  1 00:00:02 2026
+        - root     ssh:notty    203.0.113.9      Sat Sep 26 13:01 - 13:01  (00:00)
+        - admin    ssh:notty    203.0.113.9      Sat Sep 26 13:00 - 13:00  (00:00)
+        - ''
+        - btmp begins Tue Sep  1 00:00:02 2026
     last_reboot:
       ran: true
       rc: 0
@@ -105,8 +105,8 @@ state:
       source: /run/reboot-required
       detail: '*** System restart required ***'
       packages:
-      - libssl3
-      - linux-image-6.8.0-60-generic
+        - libssl3
+        - linux-image-6.8.0-60-generic
     selinux:
       ran: true
       rc: 2

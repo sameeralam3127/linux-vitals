@@ -21,9 +21,9 @@ state:
     available_mb: 11210
     free_mb: 9044
   mounts:
-  - mount: /boot
-    size_available: 701546496
-    size_total: 1063256064
+    - mount: /boot
+      size_available: 701546496
+      size_total: 1063256064
   services:
     systemd-journald.service:
       state: running

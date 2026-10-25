@@ -21,9 +21,9 @@ state:
     available_mb: 2359
     free_mb: 804
   mounts:
-  - mount: /boot
-    size_available: 520093696
-    size_total: 1063256064
+    - mount: /boot
+      size_available: 520093696
+      size_total: 1063256064
   services:
     systemd-journald.service:
       state: running
@@ -69,11 +69,11 @@ state:
       ran: true
       rc: 0
       stdout_lines:
-      - admin    ssh:notty    198.51.100.23    Sat Sep 26 12:58 - 12:58  (00:00)
-      - admin    ssh:notty    198.51.100.23    Sat Sep 26 12:58 - 12:58  (00:00)
-      - oracle   ssh:notty    198.51.100.23    Sat Sep 26 12:57 - 12:57  (00:00)
-      - ''
-      - btmp begins Tue Sep  1 00:00:05 2026
+        - admin    ssh:notty    198.51.100.23    Sat Sep 26 12:58 - 12:58  (00:00)
+        - admin    ssh:notty    198.51.100.23    Sat Sep 26 12:58 - 12:58  (00:00)
+        - oracle   ssh:notty    198.51.100.23    Sat Sep 26 12:57 - 12:57  (00:00)
+        - ''
+        - btmp begins Tue Sep  1 00:00:05 2026
     last_reboot:
       ran: true
       rc: 0

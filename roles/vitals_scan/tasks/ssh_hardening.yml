@@ -3,12 +3,14 @@
 # parsing /etc/ssh/sshd_config -- the effective config reflects every Match
 # block and distro default, which a file parse would miss or get wrong.
 #
-# `sshd -T` typically needs root to read the host key material it touches,
-# so this task sets `become: true` -- the one probe in vitals_scan that does
-# (see docs/threat-model.md). Without escalation the command fails and the
-# whole check is reported unsupported, never guessed at.
+# `sshd -T` typically needs root to read the host key material it touches.
+# The collection never sets `become` itself (see "become -- what actually
+# needs it" in docs/threat-model.md): escalation is the operator's decision,
+# made in inventory, same as journalctl/lastb/grubby. Without it, `sshd -T`
+# fails and this probe reports the check unsupported, never guessed at --
+# the failure path below handles that the same way a missing sshd binary is
+# handled.
 - name: Collect effective SSH daemon configuration
-  become: true
   ansible.builtin.command:
     argv:
       - sh

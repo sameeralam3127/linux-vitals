@@ -78,7 +78,11 @@
         "selinux_status": {{ result.selinux_status | to_json }},
         "apparmor_status": {{ result.apparmor_status | to_json }},
         "failed_login_count": {{ result.failed_login_count | int }},
-        "last_failed_login": {{ result.last_failed_login | to_json }}
+        "last_failed_login": {{ result.last_failed_login | to_json }},
+        "firewall": {{ result.firewall | default({}) | to_json }},
+        "ssh_hardening": {{ result.ssh_hardening | default({}) | to_json }},
+        "kernel_taint": {{ result.kernel_taint | default({}) | to_json }},
+        "reboot_blocking_processes": {{ result.reboot_blocking_processes | default({}) | to_json }}
       },
       "boot_space": {
         "mount": {{ result.boot_mount | to_json }},

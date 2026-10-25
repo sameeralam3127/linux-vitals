@@ -21,12 +21,12 @@ state:
     available_mb: 22010
     free_mb: 15003
   mounts:
-  - mount: /boot/efi
-    size_available: 609222656
-    size_total: 627900416
-  - mount: /boot
-    size_available: 704643072
-    size_total: 1020702720
+    - mount: /boot/efi
+      size_available: 609222656
+      size_total: 627900416
+    - mount: /boot
+      size_available: 704643072
+      size_total: 1020702720
   services:
     systemd-journald.service:
       state: running
@@ -72,8 +72,8 @@ state:
       ran: true
       rc: 0
       stdout_lines:
-      - ''
-      - btmp begins Tue Sep  1 00:00:09 2026
+        - ''
+        - btmp begins Tue Sep  1 00:00:09 2026
     last_reboot:
       ran: true
       rc: 0
@@ -112,7 +112,7 @@ state:
       ran: true
       rc: 0
       stdout_lines:
-      - /boot/initramfs-0-rescue-8f2c1d4e5a6b7c8d9e0f1a2b3c4d5e6f.img
+        - /boot/initramfs-0-rescue-8f2c1d4e5a6b7c8d9e0f1a2b3c4d5e6f.img
     firewall:
       ran: true
       rc: 0

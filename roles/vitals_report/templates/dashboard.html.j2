@@ -700,7 +700,19 @@
                 <span>SELinux: {{ result.selinux_status | e }}</span><br>
                 <span>AppArmor: {{ result.apparmor_status | e }}</span><br>
                 <span>Failed logins: {{ result.failed_login_count }}</span><br>
-                <span>Last failed login: {{ result.last_failed_login | e }}</span>
+                <span>Last failed login: {{ result.last_failed_login | e }}</span><br>
+                {% set fw = result.firewall | default({}) %}
+                <span>Firewall ({{ fw.source | default('unavailable') | e }}): {% if not fw.detection_supported | default(false) %}unknown{% else %}{{ 'active' if fw.active | default(false) else 'inactive' }}{% endif %}</span><br>
+                {% set ssh = result.ssh_hardening | default({}) %}
+                {% if ssh.detection_supported | default(false) %}
+                <span>SSH ({{ ssh.source | default('') | e }}): PermitRootLogin {{ ssh.permit_root_login | e }}, PasswordAuthentication {{ ssh.password_authentication | e }}, PermitEmptyPasswords {{ ssh.permit_empty_passwords | e }}</span><br>
+                {% else %}
+                <span>SSH hardening: unknown</span><br>
+                {% endif %}
+                {% set taint = result.kernel_taint | default({}) %}
+                <span>Kernel taint: {% if not taint.supported | default(false) %}unknown{% elif taint.value | default(0) | int == 0 %}clean{% else %}{{ taint.value }} ({{ taint.reasons | default([]) | join(', ') }}){% endif %}</span><br>
+                {% set libs = result.reboot_blocking_processes | default({}) %}
+                <span>Deleted-library processes: {% if not libs.supported | default(false) %}unknown{% else %}{{ libs.processes | default([]) | length }}{% endif %}</span>
               </div>
               <div class="detail-item">
                 <strong>Boot partition</strong>

@@ -21,9 +21,9 @@ state:
     available_mb: 11210
     free_mb: 9044
   mounts:
-  - mount: /boot
-    size_available: 701546496
-    size_total: 1063256064
+    - mount: /boot
+      size_available: 701546496
+      size_total: 1063256064
   services:
     systemd-journald.service:
       state: running
@@ -69,8 +69,8 @@ state:
       ran: true
       rc: 0
       stdout_lines:
-      - ''
-      - btmp begins Tue Sep  1 00:00:05 2026
+        - ''
+        - btmp begins Tue Sep  1 00:00:05 2026
     last_reboot:
       ran: true
       rc: 0
@@ -109,8 +109,8 @@ state:
       ran: true
       rc: 0
       stdout_lines:
-      - /boot/initramfs-0-rescue-3f2a9c1e5b7d4e8a9c217d4e5f6a8b90.img
-      - /boot/vmlinuz-0-rescue-3f2a9c1e5b7d4e8a9c217d4e5f6a8b90
+        - /boot/initramfs-0-rescue-3f2a9c1e5b7d4e8a9c217d4e5f6a8b90.img
+        - /boot/vmlinuz-0-rescue-3f2a9c1e5b7d4e8a9c217d4e5f6a8b90
     firewall:
       ran: true
       rc: 0
