@@ -26,6 +26,7 @@
       "reboot_required_source": {{ result.reboot_required_source | default('unavailable') | to_json }},
       "reboot_pending_packages": {{ result.reboot_required_packages | default([]) | to_json }},
       "boot_space_status": {{ result.boot_space_status | to_json }},
+      "filesystem_worst_status": {{ result.filesystem_worst_status | default('None') | to_json }},
       "failed_login_count": {{ result.failed_login_count | int }},
       "severity": {{ result.severity | default('none') | to_json }},
       "severity_counts": {{ result.severity_counts | default({}) | to_json }},
