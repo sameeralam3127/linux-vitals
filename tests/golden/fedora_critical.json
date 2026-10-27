@@ -17,6 +17,8 @@
     "baseline_available": false
   },
   "failed_login_count": 0,
+  "failed_unit_count": 0,
+  "failed_units": [],
   "filesystem_degraded_count": 0,
   "filesystem_worst_mount": "/boot/efi",
   "filesystem_worst_status": "OK",

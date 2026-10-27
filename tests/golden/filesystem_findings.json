@@ -17,6 +17,8 @@
     "baseline_available": false
   },
   "failed_login_count": 0,
+  "failed_unit_count": 0,
+  "failed_units": [],
   "filesystem_degraded_count": 2,
   "filesystem_worst_mount": "/var",
   "filesystem_worst_status": "Critical",
