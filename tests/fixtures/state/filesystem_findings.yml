@@ -34,8 +34,38 @@ state:
     # (status: unknown), never boot_space_low.
     - mount: /boot
       note: "Could not get extra information due to timeout"
-    # /: healthy, plenty of room.
+    # /: healthy, plenty of room. fstype overlay on purpose -- a container
+    # runtime's root is commonly overlay, and overlay is excluded by
+    # default like other pseudo-filesystems. / must stay in scope anyway:
+    # excluding the one mount every host has because of its fstype would
+    # be a bug, caught for real on every distribution Molecule tests on.
     - mount: /
+      fstype: overlay
+      options: "rw,relatime"
+      size_available: 42000000000
+      size_total: 53687091200
+      inode_available: 3000000
+      inode_total: 3276800
+    # Individual host files a container runtime bind-mounts into every
+    # container. Each reports the host disk's own size/inodes, not a
+    # filesystem of its own, and is excluded by default
+    # (linux_vitals_disk_exclude_mounts) -- must not appear in filesystems
+    # or ever become the worst mount.
+    - mount: /etc/hostname
+      fstype: ext4
+      options: "rw,relatime"
+      size_available: 42000000000
+      size_total: 53687091200
+      inode_available: 3000000
+      inode_total: 3276800
+    - mount: /etc/hosts
+      fstype: ext4
+      options: "rw,relatime"
+      size_available: 42000000000
+      size_total: 53687091200
+      inode_available: 3000000
+      inode_total: 3276800
+    - mount: /etc/resolv.conf
       fstype: ext4
       options: "rw,relatime"
       size_available: 42000000000

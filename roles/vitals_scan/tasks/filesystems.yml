@@ -27,10 +27,17 @@
       {%- set rank = {'OK': 0, 'Warning': 1, 'Unknown': 2, 'Critical': 3} -%}
       {%- set ns = namespace(rows=[]) -%}
       {%- for item in ansible_facts['mounts'] | default([]) -%}
+      {#- / is always in scope, regardless of fstype: it is the one mount
+          every host has, and containers commonly report it as overlay --
+          excluding overlay by default (snap, some container runtimes) must
+          not silently also exclude a container's own root filesystem, the
+          most important one to watch. An operator who genuinely wants root
+          out of scope still can, via linux_vitals_disk_exclude_mounts. -#}
       {%- if item is mapping and item.mount is defined
             and item.mount not in linux_vitals_disk_exclude_mounts
             and (
-              item.mount in linux_vitals_disk_include_mounts
+              item.mount == '/'
+              or item.mount in linux_vitals_disk_include_mounts
               or item.fstype | default('') not in linux_vitals_disk_exclude_fstypes
             ) -%}
       {%- set total = item.size_total | default('', true) | string -%}

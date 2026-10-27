@@ -142,8 +142,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   shell-outs or permissions needed. Every real filesystem is in scope except
   the pseudo/network ones listed in `linux_vitals_disk_exclude_fstypes`
   (`tmpfs`, `proc`, `nfs`, and the like); add or drop specific mounts with
-  `linux_vitals_disk_include_mounts` / `_exclude_mounts`. Five findings, one
-  per mount except the last:
+  `linux_vitals_disk_include_mounts` / `_exclude_mounts`. `/` is always in
+  scope regardless of its filesystem type -- a container's root is commonly
+  `overlay`, which is excluded by default like other pseudo-filesystems, and
+  excluding the one mount every host has because of that would defeat the
+  point. `linux_vitals_disk_exclude_mounts` now also excludes
+  `/etc/hostname`, `/etc/hosts` and `/etc/resolv.conf` by default: container
+  runtimes commonly bind-mount individual host files over these exact
+  paths, each reporting the host disk's own size and inodes rather than a
+  filesystem of their own. Five findings, one per mount except the last:
 
   - `filesystem_space_low`: used space at or above 80% / 95%
     (`linux_vitals_disk_warning_threshold`, `_critical_threshold`).

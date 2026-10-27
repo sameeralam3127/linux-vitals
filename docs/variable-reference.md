@@ -22,7 +22,7 @@ Override any of these in inventory, `group_vars`, or `-e` extra vars.
 | `linux_vitals_disk_inode_critical_threshold` | `95` | Inode used % at or above which `filesystem_inodes_low` is raised as `critical`. |
 | `linux_vitals_disk_exclude_fstypes` | pseudo-filesystems, `squashfs`, `nfs`/`nfs3`/`nfs4`/`cifs` -- see [defaults](../roles/vitals_scan/defaults/main.yml) | Filesystem types excluded from capacity and inode checks by default. |
 | `linux_vitals_disk_include_mounts` | `[]` | Mount points checked even though their filesystem type is excluded. |
-| `linux_vitals_disk_exclude_mounts` | `[]` | Mount points never checked. Wins over `linux_vitals_disk_include_mounts` for a mount named in both. |
+| `linux_vitals_disk_exclude_mounts` | `/etc/hostname`, `/etc/hosts`, `/etc/resolv.conf` | Mount points never checked. Wins over `linux_vitals_disk_include_mounts` for a mount named in both. The default excludes the individual files container runtimes commonly bind-mount over these exact paths, which report the underlying host filesystem's size and inodes rather than a filesystem of their own. |
 | `linux_vitals_disk_expected_readonly_mounts` | `[]` | Mount points allowed to be read-only without raising `filesystem_read_only`. |
 | `linux_vitals_load_warning_threshold` | `1.5` | 5-minute load average **per online CPU** at or above which `cpu_load_high` is raised as `warning`. `1.0` means every CPU was busy on average, which a healthy batch host reaches routinely, so the default sits above it. [#34](https://github.com/sameeralam3127/linux-vitals/issues/34) |
 | `linux_vitals_load_critical_threshold` | `3.0` | 5-minute load average per online CPU at or above which `cpu_load_high` is raised as `critical`. |

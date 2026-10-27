@@ -63,7 +63,16 @@ linux_vitals_disk_exclude_fstypes:
   - nfs4
   - cifs
 linux_vitals_disk_include_mounts: []
-linux_vitals_disk_exclude_mounts: []
+# Container runtimes commonly bind-mount individual host files over these
+# exact paths (Docker and most of its alternatives do this for every
+# container). Each one reports the size/inodes of the underlying host
+# filesystem, not a filesystem of its own, so checking it is redundant
+# noise rather than a real mount -- excluded by default like a pseudo
+# filesystem would be, with the same override available.
+linux_vitals_disk_exclude_mounts:
+  - /etc/hostname
+  - /etc/hosts
+  - /etc/resolv.conf
 # A mount expected to be read-only (a read-only root image, a deliberately
 # locked-down data volume) does not raise filesystem_read_only.
 linux_vitals_disk_expected_readonly_mounts: []

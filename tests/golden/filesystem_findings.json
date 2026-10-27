@@ -25,7 +25,7 @@
   "filesystems": [
     {
       "expected_readonly": false,
-      "fstype": "ext4",
+      "fstype": "overlay",
       "inode_available": 3000000,
       "inode_total": 3276800,
       "inode_used_pct": 8.4,

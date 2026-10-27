@@ -203,11 +203,19 @@ argument_specs:
       linux_vitals_disk_exclude_mounts:
         type: list
         elements: str
-        default: []
+        default:
+          - /etc/hostname
+          - /etc/hosts
+          - /etc/resolv.conf
         description:
           - Mount points never checked, regardless of filesystem type. Wins
             over C(linux_vitals_disk_include_mounts) for a mount named in
             both.
+          - The default excludes the individual files container runtimes
+            commonly bind-mount over these exact paths -- each reports the
+            underlying host filesystem's size and inodes, not a filesystem
+            of its own, so checking it is redundant noise rather than a
+            real mount.
       linux_vitals_disk_expected_readonly_mounts:
         type: list
         elements: str
