@@ -459,6 +459,15 @@
         {% endif %}
       </h1>
       <p class="meta">Generated {{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S UTC') }} for {{ linux_vitals_summary.servers_checked }} managed host(s). {{ linux_vitals_summary.snippet }}</p>
+      {% if linux_vitals_summary.comparison_active %}
+      <p class="meta">Baseline age limit: {{ linux_vitals_summary.baseline_max_age_hours | default(72) }} hours; {{ linux_vitals_summary.stale_baseline_count | default(0) }} older, {{ linux_vitals_summary.unknown_baseline_age_count | default(0) }} unknown.</p>
+      {% endif %}
+      {% if linux_vitals_summary.comparison_active and linux_vitals_summary.stale_baseline_count | default(0) | int > 0 %}
+      <p class="meta"><span class="pill pill--warning"><span class="dot"></span>Warning: {{ linux_vitals_summary.stale_baseline_count }} baseline(s) exceed {{ linux_vitals_summary.baseline_max_age_hours | default(72) }} hours.</span></p>
+      {% endif %}
+      {% if linux_vitals_summary.comparison_active and linux_vitals_summary.unknown_baseline_age_count | default(0) | int > 0 %}
+      <p class="meta"><span class="pill pill--warning"><span class="dot"></span>Warning: {{ linux_vitals_summary.unknown_baseline_age_count }} baseline age(s) unknown.</span></p>
+      {% endif %}
     </div>
     <div class="hero-actions">
       <button class="btn" id="expand-all" type="button">Expand all</button>
@@ -794,6 +803,12 @@
               {% if linux_vitals_summary.comparison_active and cmp.baseline_available %}
               <div class="detail-item">
                 <strong>Change vs. baseline</strong>
+                {% if cmp.baseline_age_unknown | default(false) | bool %}
+                <span class="pill pill--warning"><span class="dot"></span>Baseline age unknown</span><br>
+                {% else %}
+                <span>Baseline age: {{ cmp.baseline_age_hours | float | round(1) }} hours (captured {{ cmp.baseline_captured_at | e }})</span><br>
+                {% if cmp.baseline_age_warning | default(false) | bool %}<span class="pill pill--warning"><span class="dot"></span>Older than {{ linux_vitals_summary.baseline_max_age_hours | default(72) }} hours</span><br>{% endif %}
+                {% endif %}
                 <span>Status: {{ cmp.status_before | e }} &#8594; {{ cmp.status_after | e }}</span><br>
                 <span>RAM: {{ cmp.ram_used_pct_before }}% &#8594; {{ cmp.ram_used_pct_after }}% ({{ '+' if cmp.ram_used_pct_delta | float >= 0 else '' }}{{ cmp.ram_used_pct_delta }} pts)</span><br>
                 <span>Kernel: {{ cmp.running_kernel_before | e }} &#8594; {{ cmp.running_kernel_after | e }}</span><br>

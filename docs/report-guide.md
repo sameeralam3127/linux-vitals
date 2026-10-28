@@ -96,6 +96,9 @@ by log shippers, SIEMs, or your own dashboards.
     "health_score_band": "Good",
     "unknown_host_count": 0,
     "comparison_active": true,
+    "baseline_max_age_hours": 72,
+    "stale_baseline_count": 1,
+    "unknown_baseline_age_count": 0,
     "regressed_count": 1,
     "improved_count": 1,
     "new_hosts_count": 2,
@@ -122,6 +125,10 @@ by log shippers, SIEMs, or your own dashboards.
       "asset_serial": "VMware-56 4d 2a",
       "comparison": {
         "baseline_available": true,
+        "baseline_captured_at": "2026-07-11T10:00:00Z",
+        "baseline_age_hours": 26.0,
+        "baseline_age_unknown": false,
+        "baseline_age_warning": false,
         "status_before": "Fail",
         "status_after": "Pass",
         "status_improved": true,
@@ -146,8 +153,11 @@ by log shippers, SIEMs, or your own dashboards.
 
 Schema `2.1` is additive over `2.0`: every finding gains `status` (and
 `reason` when the status is `unknown`), each host gains `unknown_count`, the
-summary gains `unknown_host_count`, and each `healing_results` entry gains
-`outcome`, `reason` and `detail`. Each host also gains `pressure`
+summary gains `unknown_host_count`, `baseline_max_age_hours`,
+`stale_baseline_count` and `unknown_baseline_age_count`, and each
+`healing_results` entry gains `outcome`, `reason` and `detail`. A postcheck
+comparison with a baseline gains its capture timestamp, age and age flags.
+Each host also gains `pressure`
 ([#34](https://github.com/sameeralam3127/linux-vitals/issues/34)) and
 `failed_units` ([#32](https://github.com/sameeralam3127/linux-vitals/issues/32)).
 Nothing was removed or renamed, and no existing field changed type or meaning.
@@ -173,6 +183,19 @@ and a status for each of the three checks:
 `adhoc`/`baseline` runs, or for a host with no matching baseline snapshot,
 it's `{"baseline_available": false}` and the rest of the comparison fields
 are absent.
+
+On a postcheck with a baseline, `comparison.baseline_captured_at` is its UTC
+capture time or `null` when the timestamp is missing or malformed;
+`baseline_age_hours` is its age rounded to one decimal place or `null` when
+unknown; `baseline_age_unknown` marks snapshots without a valid capture time;
+and `baseline_age_warning` marks ages over
+`linux_vitals_baseline_max_age_hours` (72 by default). The summary's
+`baseline_max_age_hours` reports that configured limit,
+`stale_baseline_count` counts baselines over a positive limit, and
+`unknown_baseline_age_count` counts baselines without a valid timestamp. An age
+warning appears in run output and in the dashboard; setting the limit to `0`
+disables warnings for dated baselines, while undated baselines remain explicitly
+unknown.
 
 ## Self-healing outcomes
 
@@ -461,8 +484,9 @@ and a URL resolves:
 `reports/snapshots/<maintenance_id>/<phase>/<hostname>.json` -- one file
 per host per phase, written whenever `linux_vitals_phase` is `baseline` or
 `postcheck`. Each file is exactly that host's `linux_vitals_result` object
-at snapshot time (schema matches a single entry in the JSON report's
-`hosts` array, minus the top-level `comparison` enrichment). These aren't
+at snapshot time, with an additive `captured_at` UTC ISO 8601 timestamp
+(schema matches a single entry in the JSON report's `hosts` array, minus the
+top-level `comparison` enrichment). These aren't
 pruned automatically -- clean them up per your own retention policy if you
 run many maintenance windows.
 

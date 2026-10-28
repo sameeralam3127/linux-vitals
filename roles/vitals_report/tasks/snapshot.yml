@@ -262,7 +262,7 @@
 
 - name: Persist this host's snapshot for the current phase
   ansible.builtin.copy:
-    content: "{{ linux_vitals_result | to_nice_json }}\n"
+    content: "{{ linux_vitals_result | combine({'captured_at': now(utc=true, fmt='%Y-%m-%dT%H:%M:%SZ')}) | to_nice_json }}\n"
     dest: "{{ linux_vitals_snapshot_phase_dir }}/{{ inventory_hostname }}.json"
     mode: "{{ linux_vitals_report_file_mode }}"
   delegate_to: localhost

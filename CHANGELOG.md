@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Postcheck reports show when each baseline was captured**
+  ([#154](https://github.com/sameeralam3127/linux-vitals/issues/154)).
+  Snapshots now record a UTC capture timestamp, and comparisons report its age.
+  Baselines older than `linux_vitals_baseline_max_age_hours` (72 hours by
+  default) are flagged; set the limit to `0` to disable stale-age warnings.
+  Undated or malformed timestamps remain visible as an unknown age. The JSON
+  summary adds the configured limit and counts of stale and unknown-age
+  baselines. Additive within schema `2.1`.
+
 ### Changed
 
 - **`log_errors` now counts journal entries at priority `err` or worse,

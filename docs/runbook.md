@@ -433,6 +433,13 @@ passing and is now failing is the window's fault until proven otherwise. Hosts
 marked **New** had no baseline -- they were added mid-window or were
 unreachable during the baseline run, and both are worth knowing.
 
+The dashboard and run output show each host's baseline capture time. A warning
+marks baselines older than `linux_vitals_baseline_max_age_hours` (72 hours by
+default); an older snapshot may belong to a previous window. Set
+`linux_vitals_baseline_max_age_hours=0` to suppress warnings for dated baselines
+while keeping capture times visible. A snapshot from an older release without
+a capture time remains marked as age unknown.
+
 Keep the snapshot directory until the window is signed off. Snapshots are not
 pruned by `linux_vitals_report_retention_count`; delete the maintenance-id
 directory when you are done.
