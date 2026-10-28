@@ -455,7 +455,7 @@
       <h1>{{ linux_vitals_report_title }}
         {% if linux_vitals_phase != 'adhoc' %}
         <span class="badge">{{ linux_vitals_phase | capitalize }}</span>
-        {% if linux_vitals_maintenance_id %}<span class="badge">ID: {{ linux_vitals_maintenance_id | e }}</span>{% endif %}
+        {% if linux_vitals_maintenance_id | default('', true) | string | trim %}<span class="badge">ID: {{ linux_vitals_maintenance_id | string | trim | e }}</span>{% endif %}
         {% endif %}
       </h1>
       <p class="meta">Generated {{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S UTC') }} for {{ linux_vitals_summary.servers_checked }} managed host(s). {{ linux_vitals_summary.snippet }}</p>

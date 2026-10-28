@@ -7,6 +7,8 @@ import subprocess
 from pathlib import Path
 from shutil import which
 
+import pytest
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PLAYBOOK = REPO_ROOT / "tests" / "fixtures" / "render_templates.yml"
@@ -270,6 +272,35 @@ def test_baseline_postcheck_comparison_detects_improvement_and_regression(tmp_pa
     host_f = comparisons["host-f"]
     assert [f["subject"] for f in host_f["new_findings"]] == ["postgresql.service"]
     assert [f["subject"] for f in host_f["resolved_findings"]] == ["redis.service"]
+
+
+@pytest.mark.parametrize("maintenance_id", [" test-window ", "yes", "true"])
+def test_maintenance_id_is_normalized_for_baseline_comparison(
+    tmp_path: Path, maintenance_id: str
+) -> None:
+    env = _base_env(tmp_path)
+
+    subprocess.run(
+        [
+            _ansible_playbook_bin(),
+            str(COMPARE_PLAYBOOK),
+            "-e",
+            json.dumps({"linux_vitals_maintenance_id": maintenance_id}),
+        ],
+        check=True,
+        cwd=REPO_ROOT,
+        env=env,
+    )
+
+    comparisons = json.loads((tmp_path / "comparisons.json").read_text(encoding="utf-8"))
+    baseline_dir = tmp_path / "snapshots" / maintenance_id.strip() / "baseline"
+    manifest = json.loads(
+        (baseline_dir / ".shards" / "default.json").read_text(encoding="utf-8")
+    )
+
+    assert comparisons["host-a"]["baseline_available"] is True
+    assert (baseline_dir / "host-a.json").is_file()
+    assert manifest["maintenance_id"] == maintenance_id.strip()
 
 
 def _host_table(blocks: list) -> list[str]:

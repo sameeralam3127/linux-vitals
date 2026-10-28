@@ -32,6 +32,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **Maintenance snapshot IDs are validated and trimmed consistently**
+  ([#153](https://github.com/sameeralam3127/linux-vitals/issues/153)). Anyone
+  running a `baseline` or `postcheck` with an ID containing `/`, `\`, a leading
+  `.`, or a control character will now get an error before a snapshot is
+  written. Leading and trailing spaces are trimmed, so padded IDs use the
+  trimmed snapshot directory; an open window whose baseline was written on
+  2.1.0 with a padded ID will not find that baseline at the trimmed path.
+  `report.json`'s `maintenance_id` is also trimmed. Finish any open maintenance
+  windows before upgrading, or rename the snapshot directory to a valid ID.
+
 - **Self-healing no longer reports a service `Fixed` before the restart has
   held** ([#24](https://github.com/sameeralam3127/linux-vitals/issues/24)).
   `vitals_heal` read each unit's state once, straight after restarting it. A
