@@ -33,18 +33,22 @@ linux_vitals_disk_warning_threshold: 80
 linux_vitals_disk_critical_threshold: 95
 linux_vitals_disk_inode_warning_threshold: 80
 linux_vitals_disk_inode_critical_threshold: 95
-# Pseudo-filesystems, snap loopbacks (squashfs) and network filesystems are
-# excluded by fstype so they are not noise by default. A mount excluded by
-# fstype can still be checked by naming it in _include_mounts; a mount with
-# no excluded fstype can be dropped by naming it in _exclude_mounts. Either
+# Kernel pseudo-filesystems with no real capacity to run out of, snap
+# loopbacks (squashfs) and network filesystems are excluded by fstype so
+# they are not noise by default. tmpfs and overlay are deliberately not
+# here: both back real, capacity-constrained mounts in common setups --
+# tmpfs for /tmp or /dev/shm, overlay for a container's own root -- so
+# excluding them by default would silently drop a mount an operator
+# genuinely wants checked, the same way the old default dropped / in every
+# container this collection is tested against. A mount excluded by fstype
+# can still be checked by naming it in _include_mounts; a mount with no
+# excluded fstype can be dropped by naming it in _exclude_mounts. Either
 # list wins over the fstype default for the mounts it names.
 linux_vitals_disk_exclude_fstypes:
-  - tmpfs
   - devtmpfs
   - proc
   - sysfs
   - squashfs
-  - overlay
   - cgroup
   - cgroup2
   - devpts

@@ -115,6 +115,10 @@ state:
       size_total: 107374182
       inode_available: 0
       inode_total: 0
+    # tmpfs is not excluded by fstype (unlike overlay, see / above): a
+    # tmpfs /run genuinely out of space behaves like a full disk to
+    # anything writing to it, so it is checked like any other mount --
+    # critically full here (99%), which is the point.
     - mount: /run
       fstype: tmpfs
       options: "rw,nosuid,nodev"

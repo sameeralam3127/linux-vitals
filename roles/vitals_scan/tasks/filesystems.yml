@@ -27,12 +27,15 @@
       {%- set rank = {'OK': 0, 'Warning': 1, 'Unknown': 2, 'Critical': 3} -%}
       {%- set ns = namespace(rows=[]) -%}
       {%- for item in ansible_facts['mounts'] | default([]) -%}
-      {#- / is always in scope, regardless of fstype: it is the one mount
-          every host has, and containers commonly report it as overlay --
-          excluding overlay by default (snap, some container runtimes) must
-          not silently also exclude a container's own root filesystem, the
-          most important one to watch. An operator who genuinely wants root
-          out of scope still can, via linux_vitals_disk_exclude_mounts. -#}
+      {#- / is always in scope, regardless of fstype -- it is the one mount
+          every host has, and the most important one to never silently
+          drop. The default exclude list does not name overlay (a
+          container's root is commonly overlay) for the same reason, but
+          this rule is the backstop: an operator's own
+          linux_vitals_disk_exclude_fstypes override, or a future default
+          change, still cannot make / disappear by accident. An operator
+          who genuinely wants root out of scope still can, via
+          linux_vitals_disk_exclude_mounts. -#}
       {%- if item is mapping and item.mount is defined
             and item.mount not in linux_vitals_disk_exclude_mounts
             and (

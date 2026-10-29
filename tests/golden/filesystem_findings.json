@@ -20,7 +20,7 @@
   "failed_unit_count": 0,
   "failed_units": [],
   "filesystem_degraded_count": 2,
-  "filesystem_worst_mount": "/var",
+  "filesystem_worst_mount": "/run",
   "filesystem_worst_status": "Critical",
   "filesystems": [
     {
@@ -81,6 +81,20 @@
     },
     {
       "expected_readonly": false,
+      "fstype": "tmpfs",
+      "inode_available": 100,
+      "inode_total": 262144,
+      "inode_used_pct": 100.0,
+      "mount": "/run",
+      "read_only": false,
+      "reason": null,
+      "size_total_mb": 1024.0,
+      "size_used_mb": 1014.0,
+      "size_used_pct": 99.0,
+      "status": "Critical"
+    },
+    {
+      "expected_readonly": false,
       "fstype": "ext4",
       "inode_available": 13107,
       "inode_total": 655360,
@@ -124,6 +138,20 @@
       "severity": "critical",
       "status": "fail",
       "subject": "/data"
+    },
+    {
+      "id": "filesystem_space_low",
+      "message": "/run is 99.0% full",
+      "severity": "critical",
+      "status": "fail",
+      "subject": "/run"
+    },
+    {
+      "id": "filesystem_inodes_low",
+      "message": "/run inode usage is 100.0%",
+      "severity": "critical",
+      "status": "fail",
+      "subject": "/run"
     },
     {
       "id": "filesystem_space_low",
@@ -222,7 +250,7 @@
   "services_healed": [],
   "severity": "critical",
   "severity_counts": {
-    "critical": 3,
+    "critical": 5,
     "info": 0,
     "warning": 3
   },

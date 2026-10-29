@@ -165,12 +165,10 @@ argument_specs:
         type: list
         elements: str
         default:
-          - tmpfs
           - devtmpfs
           - proc
           - sysfs
           - squashfs
-          - overlay
           - cgroup
           - cgroup2
           - devpts
@@ -190,8 +188,12 @@ argument_specs:
           - cifs
         description:
           - Filesystem types excluded by default from capacity and inode
-            checks -- pseudo-filesystems, snap loopbacks (C(squashfs)) and
-            network filesystems. A mount of one of these types is still
+            checks -- kernel pseudo-filesystems with no real capacity to run
+            out of, snap loopbacks (C(squashfs)) and network filesystems.
+            C(tmpfs) and C(overlay) are deliberately not excluded, since both
+            back real, capacity-constrained mounts in common setups, such as
+            C(tmpfs) for C(/tmp) or C(/dev/shm) and C(overlay) for a
+            container's own root. A mount of an excluded type is still
             checked when it is named in C(linux_vitals_disk_include_mounts).
       linux_vitals_disk_include_mounts:
         type: list
