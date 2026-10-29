@@ -88,10 +88,11 @@ by log shippers, SIEMs, or your own dashboards.
   "report": { "title": "...", "html_output_path": "...", "json_output_path": "..." },
   "maintenance": { "phase": "postcheck", "maintenance_id": "2026-07-12-patch-window" },
   "summary": {
-    "overall_status": "PASS",
+    "overall_status": "FAIL",
     "servers_checked": 5,
     "auto_fixed_count": 1,
     "critical_error_count": 1,
+    "failing_host_count": 1,
     "health_score_pct": 80.0,
     "health_score_band": "Good",
     "unknown_host_count": 0,
@@ -99,7 +100,7 @@ by log shippers, SIEMs, or your own dashboards.
     "regressed_count": 1,
     "improved_count": 1,
     "new_hosts_count": 2,
-    "snippet": "5 Servers Checked, 1 Auto-Fixed, 1 Critical Error"
+    "snippet": "5 Servers Checked, 1 Auto-Fixed, 1 Failing Host"
   },
   "hosts": [
     {
@@ -144,9 +145,15 @@ by log shippers, SIEMs, or your own dashboards.
 }
 ```
 
+`critical_error_count` remains for compatibility and continues to count hosts
+whose final status is `Fail`, regardless of finding severity. The clearer
+`failing_host_count` alias reports the same number. Use
+`findings_by_severity.critical` to count critical findings.
+
 Schema `2.1` is additive over `2.0`: every finding gains `status` (and
 `reason` when the status is `unknown`), each host gains `unknown_count`, the
-summary gains `unknown_host_count`, and each `healing_results` entry gains
+summary gains `unknown_host_count` and `failing_host_count` (an alias for the
+existing `critical_error_count`), and each `healing_results` entry gains
 `outcome`, `reason` and `detail`. Each host also gains `pressure`
 ([#34](https://github.com/sameeralam3127/linux-vitals/issues/34)) and
 `failed_units` ([#32](https://github.com/sameeralam3127/linux-vitals/issues/32)).
@@ -391,11 +398,11 @@ URL resolves. The shape, top to bottom:
 
 | Part | Content |
 | --- | --- |
-| Preview line | One short line above the card: `LinuxVitals: FAIL -- 3 host(s) checked, 1 critical, 0 auto-fixed` |
-| Colour bar | Green when everything passed, amber when the worst host severity is `warning`, red when there are critical errors or a critical-severity host |
+| Preview line | One short line above the card: `LinuxVitals: FAIL -- 3 host(s) checked, 1 failing host, 0 auto-fixed` |
+| Colour bar | Green when everything passed, amber when the worst host severity is `warning`, red when any host fails or has a critical-severity finding |
 | Header | `linux_vitals_slack_message_header` (default `LinuxVitals Health Check`) |
 | Verdict | `PASS`/`FAIL` with an emoji, then the one-line snippet |
-| Counters | Servers checked, auto-fixed, critical errors, health score -- laid out in two columns |
+| Counters | Servers checked, auto-fixed, failing hosts, health score -- laid out in two columns |
 | Findings roll-up | Counts by severity, for findings and for hosts |
 | Needs attention first | Up to 5 critical hosts, each with up to 3 of its critical findings |
 | Host breakdown | A fixed-width table: host, status, severity, kernel, bootloader, reboot, `/boot`, failed logins |
@@ -448,7 +455,7 @@ and a URL resolves:
 
 ```json
 {
-  "summary": { "header": "...", "overall_status": "PASS", "servers_checked": 5, "auto_fixed_count": 1, "critical_error_count": 1, "snippet": "..." },
+  "summary": { "header": "...", "overall_status": "FAIL", "servers_checked": 5, "auto_fixed_count": 1, "critical_error_count": 1, "failing_host_count": 1, "snippet": "..." },
   "message": "<the same text sent to Slack>",
   "hosts": [
     { "hostname": "web01", "ip_address": "192.0.2.11", "status": "Pass", "platform_type": "Virtual Machine", "uptime": "12d 4h 21m", "running_kernel": "6.8.0-60-generic", "latest_kernel_selected": true, "reboot_required": false, "boot_space_status": "Healthy", "failed_login_count": 0, "unknown_count": 0, "findings": [] }

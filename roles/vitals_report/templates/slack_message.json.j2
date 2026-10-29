@@ -45,12 +45,12 @@
 {%- set severity_short = {'critical': 'CRIT', 'warning': 'WARN', 'info': 'info', 'none': 'ok'} -%}
 {%- set hbs = linux_vitals_summary.hosts_by_severity | default({}) -%}
 {%- set fbs = linux_vitals_summary.findings_by_severity | default({}) -%}
-{%- set critical_errors = linux_vitals_summary.critical_error_count | int -%}
+{%- set failing_hosts = linux_vitals_summary.critical_error_count | int -%}
 {#- The PASS/FAIL word is derived exactly as slack_message.txt.j2 and
     generic_webhook_payload.json.j2 derive it. Severity only chooses the
     colour bar, so the three consumers can never disagree on the verdict. -#}
-{%- set status_word = 'PASS' if critical_errors == 0 else 'FAIL' -%}
-{%- if critical_errors > 0 or (hbs.get('critical', 0) | int) > 0 -%}
+{%- set status_word = 'PASS' if failing_hosts == 0 else 'FAIL' -%}
+{%- if failing_hosts > 0 or (hbs.get('critical', 0) | int) > 0 -%}
 {%- set colour = '#e01e5a' -%}
 {%- set status_icon = ':rotating_light:' -%}
 {%- elif (hbs.get('warning', 0) | int) > 0 -%}
@@ -107,7 +107,7 @@
   'fields': [
     {'type': 'mrkdwn', 'text': '*Servers checked*\n' ~ (linux_vitals_summary.servers_checked | int)},
     {'type': 'mrkdwn', 'text': '*Auto-fixed*\n' ~ (linux_vitals_summary.auto_fixed_count | int)},
-    {'type': 'mrkdwn', 'text': '*Critical errors*\n' ~ critical_errors},
+    {'type': 'mrkdwn', 'text': '*Failing hosts*\n' ~ failing_hosts},
     {'type': 'mrkdwn', 'text': '*Health score*\n' ~ (linux_vitals_summary.health_score_pct | default(0)) ~ '% (' ~ esc(linux_vitals_summary.health_score_band | default('Unknown'), 40) ~ ')'}
   ]
 }) -%}
@@ -214,5 +214,5 @@
 {#- Slack renders the top-level `text` above the attachment, so it is one
     short line rather than the full plain-text summary. It doubles as the
     push-notification preview, which is why it leads with the verdict. -#}
-{%- set preview = 'LinuxVitals: ' ~ status_word ~ ' — ' ~ (linux_vitals_summary.servers_checked | int) ~ ' host(s) checked, ' ~ critical_errors ~ ' critical, ' ~ (linux_vitals_summary.auto_fixed_count | int) ~ ' auto-fixed' -%}
+{%- set preview = 'LinuxVitals: ' ~ status_word ~ ' — ' ~ (linux_vitals_summary.servers_checked | int) ~ ' host(s) checked, ' ~ failing_hosts ~ ' failing host' ~ ('s' if failing_hosts != 1 else '') ~ ', ' ~ (linux_vitals_summary.auto_fixed_count | int) ~ ' auto-fixed' -%}
 {{ {'text': preview, 'attachments': [{'color': colour, 'fallback': preview, 'blocks': ns.blocks}]} | to_json }}
