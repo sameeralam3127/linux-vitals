@@ -1,0 +1,213 @@
+---
+# Filesystem capacity and inode checks, across every real mount (#30).
+# Pure derived facts from ansible_facts.mounts -- already gathered in
+# facts.yml -- so this needs no probe of its own. Two tasks, because a
+# set_fact cannot read a fact it sets itself: evaluate every scoped mount,
+# then roll the per-mount statuses up to one worst mount for the dashboard
+# row.
+#
+# ansible_facts.mounts normally holds one dict per mount, but two shapes
+# never carry usable size or inode data:
+#   - a dict with a `note` ("Could not get extra information due to
+#     timeout", typically a hung NFS mount) and no size_*/inode_* fields;
+#   - the bare string 'N/A' in place of a dict, when the per-mount probe
+#     itself errored. There is no mount name to attach this one to, so it
+#     is counted and folded into one host-level filesystem_probe_degraded
+#     finding (result.yml) rather than invented a name for.
+# Neither may read as 0% free -- the same bug this issue fixes for /boot,
+# in boot_space.yml -- and neither is silently dropped.
+- name: Evaluate the capacity and inodes of every scoped mount
+  ansible.builtin.set_fact:
+    linux_vitals_filesystems: >-
+      {%- set number = '^[0-9]+$' -%}
+      {%- set space_warn = linux_vitals_disk_warning_threshold | float -%}
+      {%- set space_crit = linux_vitals_disk_critical_threshold | float -%}
+      {%- set inode_warn = linux_vitals_disk_inode_warning_threshold | float -%}
+      {%- set inode_crit = linux_vitals_disk_inode_critical_threshold | float -%}
+      {%- set rank = {'OK': 0, 'Warning': 1, 'Unknown': 2, 'Critical': 3} -%}
+      {%- set ns = namespace(rows=[]) -%}
+      {%- for item in ansible_facts['mounts'] | default([]) -%}
+      {#- / is always in scope, regardless of fstype -- it is the one mount
+          every host has, and the most important one to never silently
+          drop. The default exclude list does not name overlay (a
+          container's root is commonly overlay) for the same reason, but
+          this rule is the backstop: an operator's own
+          linux_vitals_disk_exclude_fstypes override, or a future default
+          change, still cannot make / disappear by accident. An operator
+          who genuinely wants root out of scope still can, via
+          linux_vitals_disk_exclude_mounts. -#}
+      {%- if item is mapping and item.mount is defined
+            and item.mount not in linux_vitals_disk_exclude_mounts
+            and (
+              item.mount == '/'
+              or item.mount in linux_vitals_disk_include_mounts
+              or item.fstype | default('') not in linux_vitals_disk_exclude_fstypes
+            ) -%}
+      {%- set total = item.size_total | default('', true) | string -%}
+      {%- set avail = item.size_available | default('', true) | string -%}
+      {%- set itotal = item.inode_total | default('', true) | string -%}
+      {%- set iavail = item.inode_available | default('', true) | string -%}
+      {%- set has_size = total is match(number) and avail is match(number) and total | int > 0 -%}
+      {%- set has_inodes = itotal is match(number) and iavail is match(number) and itotal | int > 0 -%}
+      {#- ansible_facts.mounts reports options as a comma-separated string
+          ("rw,relatime"), not a list, on every core this has been checked
+          against. Split it; a genuinely absent value still yields []. -#}
+      {%- set opts_raw = item.mount_options | default(item.options | default('', true), true) -%}
+      {%- set opts = opts_raw.split(',') if opts_raw is string else (opts_raw if opts_raw is iterable else []) -%}
+      {%- set ro = 'ro' in opts -%}
+      {%- set expected_ro = item.mount in linux_vitals_disk_expected_readonly_mounts -%}
+      {%- if not has_size and not has_inodes -%}
+      {%- set row = {
+        'mount': item.mount, 'fstype': item.fstype | default(none, true),
+        'size_used_pct': none, 'size_used_mb': none, 'size_total_mb': none,
+        'inode_used_pct': none, 'inode_total': none, 'inode_available': none,
+        'read_only': ro, 'expected_readonly': expected_ro, 'status': 'Unknown',
+        'reason': (item.note | default('', true)) or 'no size or inode data was returned for this mount'} -%}
+      {%- else -%}
+      {%- set size_pct = ((((total | int) - (avail | int)) / (total | int)) * 100) | round(1) if has_size else none -%}
+      {%- set inode_pct = ((((itotal | int) - (iavail | int)) / (itotal | int)) * 100) | round(1) if has_inodes else none -%}
+      {%- set space_status = 'Critical' if (has_size and size_pct >= space_crit)
+            else 'Warning' if (has_size and size_pct >= space_warn) else 'OK' -%}
+      {%- set inode_status = 'Critical' if (has_inodes and inode_pct >= inode_crit)
+            else 'Warning' if (has_inodes and inode_pct >= inode_warn) else 'OK' -%}
+      {%- set ro_status = 'Critical' if (ro and not expected_ro) else 'OK' -%}
+      {%- set worst_rank = [space_status, inode_status, ro_status] | map('extract', rank) | list | max -%}
+      {%- set status = rank | dictsort | selectattr('1', 'equalto', worst_rank) | map(attribute='0') | first -%}
+      {%- set row = {
+        'mount': item.mount, 'fstype': item.fstype | default(none, true),
+        'size_used_pct': size_pct,
+        'size_used_mb': ((((total | int) - (avail | int)) / 1048576) | round(1)) if has_size else none,
+        'size_total_mb': (((total | int) / 1048576) | round(1)) if has_size else none,
+        'inode_used_pct': inode_pct,
+        'inode_total': (itotal | int) if has_inodes else none,
+        'inode_available': (iavail | int) if has_inodes else none,
+        'read_only': ro, 'expected_readonly': expected_ro, 'status': status, 'reason': none} -%}
+      {%- endif -%}
+      {%- set _ = ns.rows.append(row) -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {#- Seen for real in CI containers: every entry in ansible_facts.mounts
+          -- however many there are, whatever their shape -- fails the scope
+          test above, including the / override, so nothing ends up in scope
+          at all. That is itself a fact-gathering gap this role cannot
+          diagnose further from here, not a reason to report an empty,
+          unchecked filesystems list -- report it the same way as any other
+          unreadable probe, with one synthetic Unknown row. -#}
+      {%- if ns.rows | length == 0 -%}
+      {%- set _ = ns.rows.append({
+        'mount': '/', 'fstype': none, 'size_used_pct': none, 'size_used_mb': none,
+        'size_total_mb': none, 'inode_used_pct': none, 'inode_total': none,
+        'inode_available': none, 'read_only': false, 'expected_readonly': false,
+        'status': 'Unknown', 'reason': 'no mount facts were returned by this host'}) -%}
+      {%- endif -%}
+      {{ ns.rows | sort(attribute='mount') }}
+    linux_vitals_filesystem_degraded_count: >-
+      {{
+        ansible_facts['mounts'] | default([])
+        | reject('mapping') | list | length
+      }}
+  tags:
+    - discovery
+    - boot
+
+- name: Roll the filesystem checks up to one worst mount
+  # Jinja's sort()/max() compare every pair, and size_used_pct is None for
+  # every Unknown-status mount -- comparing None to None raises, so the
+  # worst-mount tiebreak is a plain loop rather than a sort/max expression.
+  ansible.builtin.set_fact:
+    linux_vitals_filesystem_worst_status: >-
+      {%- set rank = {'OK': 0, 'Warning': 1, 'Unknown': 2, 'Critical': 3} -%}
+      {%- if linux_vitals_filesystems | length == 0 -%}
+      None{%- else -%}
+      {%- set worst_rank = linux_vitals_filesystems | map(attribute='status') | map('extract', rank) | list | max -%}
+      {{ rank | dictsort | selectattr('1', 'equalto', worst_rank) | map(attribute='0') | first }}{%- endif -%}
+    # Empty, not null, when there is no worst mount: ansible-core's default
+    # (non-native) Jinja rendering blanks a *bare* top-level None result to
+    # an empty string -- confirmed on 2.16.19 -- so a standalone leaf fact
+    # (this one, and linux_vitals_result.filesystem_worst_mount after it)
+    # can never safely hold None itself. A None value nested inside a dict
+    # or list literal that is itself the whole rendered result (pressure,
+    # each row in linux_vitals_filesystems) is unaffected -- that goes
+    # through Python's own repr(), not Jinja's string conversion. There is
+    # no such container to nest this one in without breaking the flat
+    # filesystem_worst_mount contract the report templates already read, so
+    # it is empty string when absent, every core, by design -- not null.
+    linux_vitals_filesystem_worst_mount: >-
+      {%- set rank = {'OK': 0, 'Warning': 1, 'Unknown': 2, 'Critical': 3} -%}
+      {%- if linux_vitals_filesystems | length == 0 -%}
+      {%- else -%}
+      {%- set worst_rank = linux_vitals_filesystems | map(attribute='status') | map('extract', rank) | list | max -%}
+      {%- set worst_status = rank | dictsort | selectattr('1', 'equalto', worst_rank) | map(attribute='0') | first -%}
+      {%- set ns = namespace(mount=none, key=-1) -%}
+      {%- for row in linux_vitals_filesystems | selectattr('status', 'equalto', worst_status) -%}
+      {%- set key = row.size_used_pct if row.size_used_pct is not none
+            else (row.inode_used_pct if row.inode_used_pct is not none else -1) -%}
+      {%- if ns.mount is none or key > ns.key -%}
+      {%- set ns.mount = row.mount -%}
+      {%- set ns.key = key -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{ ns.mount }}
+      {%- endif -%}
+  tags:
+    - discovery
+    - boot
+
+- name: Build filesystem findings
+  # Moved out of result.yml to stay under its 250-line size ratchet
+  # (tests/test_scan_task_size.py); result.yml only merges this list in.
+  ansible.builtin.set_fact:
+    linux_vitals_filesystem_findings: >-
+      {#- Filesystem capacity, inodes and read-only state across every
+          scoped mount (#30). A mount can raise all three findings at once
+          -- low on space and inodes is a real, common shape (many small
+          files) -- so each is evaluated on its own, the same way the #34
+          PSI check raises one finding per resource rather than picking the
+          single worst. An Unknown mount raises only filesystem_unavailable,
+          with its reason, and skips the rest: there is nothing to
+          threshold against. A mount entry ansible_facts.mounts could not
+          describe at all (the bare 'N/A' string, no name to attach a
+          per-mount finding to) is counted, not dropped, and folds into one
+          host-level filesystem_probe_degraded finding. -#}
+      {%- set disk_warn = linux_vitals_disk_warning_threshold | float -%}
+      {%- set disk_crit = linux_vitals_disk_critical_threshold | float -%}
+      {%- set inode_warn = linux_vitals_disk_inode_warning_threshold | float -%}
+      {%- set inode_crit = linux_vitals_disk_inode_critical_threshold | float -%}
+      {%- set findings = [] -%}
+      {%- for fs in linux_vitals_filesystems -%}
+      {%- if fs.status == 'Unknown' -%}
+      {%- set _ = findings.append({
+        'id': 'filesystem_unavailable', 'subject': fs.mount,
+        'message': fs.mount ~ ' capacity could not be read',
+        'status': 'unknown', 'reason': fs.reason | default('no size or inode data was returned for this mount', true)}) -%}
+      {%- else -%}
+      {%- if fs.size_used_pct is not none and fs.size_used_pct >= disk_warn -%}
+      {%- set _ = findings.append({
+        'id': 'filesystem_space_low', 'subject': fs.mount,
+        'severity': 'critical' if fs.size_used_pct >= disk_crit else 'warning',
+        'message': fs.mount ~ ' is ' ~ fs.size_used_pct ~ '% full'}) -%}
+      {%- endif -%}
+      {%- if fs.inode_used_pct is not none and fs.inode_used_pct >= inode_warn -%}
+      {%- set _ = findings.append({
+        'id': 'filesystem_inodes_low', 'subject': fs.mount,
+        'severity': 'critical' if fs.inode_used_pct >= inode_crit else 'warning',
+        'message': fs.mount ~ ' inode usage is ' ~ fs.inode_used_pct ~ '%'}) -%}
+      {%- endif -%}
+      {%- if fs.read_only and not fs.expected_readonly -%}
+      {%- set _ = findings.append({
+        'id': 'filesystem_read_only', 'subject': fs.mount, 'severity': 'critical',
+        'message': fs.mount ~ ' is mounted read-only'}) -%}
+      {%- endif -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {%- if linux_vitals_filesystem_degraded_count | default(0) | int > 0 -%}
+      {%- set _ = findings.append({
+        'id': 'filesystem_probe_degraded',
+        'message': 'Some filesystem facts could not be read',
+        'status': 'unknown',
+        'reason': linux_vitals_filesystem_degraded_count | string ~ ' mount(s) returned unreadable facts'}) -%}
+      {%- endif -%}
+      {{ findings }}
+  tags:
+    - discovery
+    - boot

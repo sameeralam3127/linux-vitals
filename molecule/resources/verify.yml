@@ -63,6 +63,29 @@
         fail_msg: "The saturation probe did not produce a full reading: {{ host_report.pressure }}"
 
     # ------------------------------------------------------------------
+    # Filesystem capacity/inode checks (#30)
+    # ------------------------------------------------------------------
+    - name: Assert the filesystem probe-free check produced a full reading
+      # Percentages depend on the CI runner's actual disk, so only the shape
+      # is asserted here: a non-empty mount list, a worst_status rollup that
+      # is one of the known values, and every mount that made it into the
+      # list carries a real status, never left as a placeholder. This does
+      # not require / or /boot by name: some container images this role is
+      # also expected to scan (and that Molecule itself runs its scenarios
+      # in) do not report a distinct ansible_facts.mounts entry for an
+      # overlay root at all, which is a fact-gathering gap outside this
+      # role's control, not a reason to leave the mount unreported if one
+      # exists. The /-is-always-in-scope rule (filesystems.yml) and the
+      # golden fixture (filesystem_findings) are what prove a present /
+      # with fstype overlay stays in scope.
+      ansible.builtin.assert:
+        that:
+          - host_report.filesystems.worst_status in ['OK', 'Warning', 'Critical', 'Unknown']
+          - host_report.filesystems.mounts | length > 0
+          - host_report.filesystems.mounts | rejectattr('status', 'in', ['OK', 'Warning', 'Critical', 'Unknown']) | list | length == 0
+        fail_msg: "The filesystem check did not produce a full reading: {{ host_report.filesystems }}"
+
+    # ------------------------------------------------------------------
     # Finding severity (#8)
     # ------------------------------------------------------------------
     - name: Assert every finding carries an id, a message, and a known severity

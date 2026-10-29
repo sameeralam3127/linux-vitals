@@ -649,6 +649,11 @@
           <td>
             <span class="pill pill--{{ boot_class }}"><span class="dot"></span>{{ result.boot_space_status | e }}</span>
             <div class="subtle">{{ result.boot_free_pct }}% free</div>
+            {% if result.filesystems | default([]) %}
+            <div class="subtle">
+              <span class="pill pill--{{ sig_class.get(result.filesystem_worst_status, 'muted') }}" title="Worst filesystem: {{ result.filesystem_worst_mount | default('') | e }}">Disk {{ result.filesystem_worst_status | default('Unknown') | e }}</span>
+            </div>
+            {% endif %}
           </td>
           <td>{{ result.failed_login_count }}</td>
           {% if linux_vitals_summary.comparison_active %}
@@ -709,6 +714,27 @@
                 <span>Rescue image: {{ 'Available' if result.rescue_image_available else 'Not available' }}</span>
                 {% if result.rescue_image_paths %}
                 <ul class="list">{% for item in result.rescue_image_paths %}<li>{{ item | e }}</li>{% endfor %}</ul>
+                {% endif %}
+              </div>
+              <div class="detail-item">
+                <strong>Filesystems</strong>
+                {% set fs_list = result.filesystems | default([]) %}
+                {% if fs_list %}
+                <ul class="list">
+                  {% for fs in fs_list %}
+                  <li>
+                    <span class="pill pill--{{ sig_class.get(fs.status, 'muted') }}"><span class="dot"></span>{{ fs.status | e }}</span>
+                    {{ fs.mount | e }}
+                    &mdash;
+                    {% if fs.size_used_pct is not none %}{{ fs.size_used_pct }}% used{% else %}size unknown{% endif %},
+                    {% if fs.inode_used_pct is not none %}{{ fs.inode_used_pct }}% inodes{% else %}inodes unknown{% endif %}
+                    {% if fs.read_only %}<span class="subtle">(read-only{% if not fs.expected_readonly %}, unexpected{% endif %})</span>{% endif %}
+                    {% if fs.reason %}<span class="subtle">{{ fs.reason | e }}</span>{% endif %}
+                  </li>
+                  {% endfor %}
+                </ul>
+                {% else %}
+                <span class="muted">None in scope.</span>
                 {% endif %}
               </div>
               {% if pr %}

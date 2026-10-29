@@ -142,6 +142,56 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Filesystem capacity and inode checks** ([#30](https://github.com/sameeralam3127/linux-vitals/issues/30)).
+  Until now the only disk check was `/boot`, so a host with `/var` or `/data`
+  pinned at 99% full, or a web of small files eating every inode on `/tmp`,
+  reported `Pass`. One new probe-free task, `filesystems.yml`, reads the
+  per-mount facts Ansible already gathers (`ansible_facts.mounts`) -- no new
+  shell-outs or permissions needed. Every real filesystem is in scope except
+  the pseudo/network ones listed in `linux_vitals_disk_exclude_fstypes`
+  (`proc`, `nfs`, `squashfs`, and the like); add or drop specific mounts with
+  `linux_vitals_disk_include_mounts` / `_exclude_mounts`. `tmpfs` and
+  `overlay` are deliberately not in that default list -- both back real,
+  capacity-constrained mounts in common setups (`tmpfs` for `/tmp` or
+  `/dev/shm`, `overlay` for a container's own root), and excluding either
+  would silently drop a mount an operator genuinely wants checked. `/` is
+  also always in scope regardless of its filesystem type, as a backstop
+  independent of that default. `linux_vitals_disk_exclude_mounts` now also
+  excludes `/etc/hostname`, `/etc/hosts` and `/etc/resolv.conf` by default:
+  container runtimes commonly bind-mount individual host files over these
+  exact paths, each reporting the host disk's own size and inodes rather
+  than a filesystem of their own. A host whose mount facts come back
+  completely empty (some fact-gathering environments can't read the mount
+  table at all) is reported as one `Unknown` mount for `/`, rather than as
+  an empty, unchecked filesystems list. Five findings, one per mount except
+  the last:
+
+  - `filesystem_space_low`: used space at or above 80% / 95%
+    (`linux_vitals_disk_warning_threshold`, `_critical_threshold`).
+  - `filesystem_inodes_low`: used inodes at or above 80% / 95%
+    (`linux_vitals_disk_inode_warning_threshold`, `_critical_threshold`).
+  - `filesystem_read_only`: the mount is read-only and not listed in
+    `linux_vitals_disk_expected_readonly_mounts` -- always `critical`, since
+    an unexpectedly read-only filesystem is usually a remount after an I/O
+    error.
+  - `filesystem_unavailable`: a mount's size or inode facts could not be
+    read; `unknown` with a reason.
+  - `filesystem_probe_degraded`: host-level, fires at most once, when one or
+    more mounts returned unreadable facts.
+
+  This also fixes a long-standing bug: a `/boot` entry with no size data
+  used to compute 0% free and wrongly raise `boot_space_low`. That case now
+  resolves `boot_space.status` to the existing `Not Available` value, and
+  `filesystem_unavailable` covers `/boot` like any other mount so the gap is
+  still reported. Each host gains a `filesystems` object in the JSON report
+  (additive, still schema `2.1`) with `worst_status`, `worst_mount`, and the
+  full per-mount list; numeric fields are `null`, never `0`, when a mount's
+  status is `Unknown`. The dashboard shows the worst filesystem status next
+  to boot space, and the full per-mount breakdown in the host detail. On a
+  fresh checkout of a 5-host fleet with nothing wrong, this adds zero new
+  findings; on a host with a full `/var`, it now shows up instead of only
+  reading `Pass` on free RAM and `/boot`.
+
 - **`summary.failing_host_count`** is an additive alias for
   `critical_error_count`, which remains unchanged for compatibility. The
   report stays at schema `2.1`.

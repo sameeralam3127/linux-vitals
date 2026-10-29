@@ -19,6 +19,25 @@
   "failed_login_count": 0,
   "failed_unit_count": 0,
   "failed_units": [],
+  "filesystem_degraded_count": 0,
+  "filesystem_worst_mount": "/boot",
+  "filesystem_worst_status": "OK",
+  "filesystems": [
+    {
+      "expected_readonly": false,
+      "fstype": null,
+      "inode_available": null,
+      "inode_total": null,
+      "inode_used_pct": null,
+      "mount": "/boot",
+      "read_only": false,
+      "reason": null,
+      "size_total_mb": 1829.8,
+      "size_used_mb": 291.8,
+      "size_used_pct": 15.9,
+      "status": "OK"
+    }
+  ],
   "final_status": "Pass",
   "findings": [
     {

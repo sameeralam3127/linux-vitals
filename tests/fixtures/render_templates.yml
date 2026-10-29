@@ -97,6 +97,34 @@
         swap_rate_per_sec: 0
         swap_reason: ""
         swap_status: "OK"
+      filesystems:
+        - mount: "/"
+          fstype: "ext4"
+          size_used_pct: 42.5
+          size_used_mb: 8500.0
+          size_total_mb: 20000.0
+          inode_used_pct: 12.0
+          inode_total: 1310720
+          inode_available: 1153433
+          read_only: false
+          expected_readonly: false
+          status: "OK"
+          reason: null
+        - mount: "/data"
+          fstype: "ext4"
+          size_used_pct: null
+          size_used_mb: null
+          size_total_mb: null
+          inode_used_pct: null
+          inode_total: null
+          inode_available: null
+          read_only: false
+          expected_readonly: false
+          status: "Unknown"
+          reason: "stat unavailable"
+      filesystem_worst_status: "Unknown"
+      filesystem_worst_mount: "/data"
+      filesystem_degraded_count: 1
       log_errors: 0
       log_excerpt: []
       asset_serial: "TEST-SERIAL-0001"

@@ -141,12 +141,23 @@ evaluator policy, so both values are recorded and neither is chosen here.
 
 ### `mounts`
 
-Entries from `ansible_facts.mounts` whose `mount` is `/boot` or `/boot/efi`,
-**in the order the facts report them**, with only the three keys any finding
-reads. The current preference for `/boot` over `/boot/efi`
-(`boot_space.yml:6`) is a policy and stays in the evaluator, so both are
-kept when both exist. An empty list means neither is a separate mount — which
-is a real observation, not a missing probe.
+Entries from `ansible_facts.mounts`, **in the order the facts report them**.
+Until #30, fixtures only needed to type out `/boot`/`/boot/efi` — the only
+mounts anything read — with just `mount`, `size_available` and
+`size_total`. `filesystems.yml` now reads every mount, and the extra keys a
+real entry can carry: `fstype`, `options` (a comma-separated string, e.g.
+`"rw,relatime"` — not a list), `inode_available`, `inode_total`, and `note`
+(set instead of the size/inode fields when the per-mount probe timed out). A
+fixture mount missing a key behaves exactly as a real one missing it would:
+no fstype means the mount is never excluded by type; no options means it is
+never flagged read-only; no size or inode data means `filesystem_unavailable`
+(`status: unknown`), never 0% free. `mounts` can also hold the bare string
+`'N/A'` in place of a dict — a per-mount probe that errored outright, with
+no mount name left to report — which `filesystems.yml` counts into
+`filesystem_probe_degraded` rather than dropping. The preference for `/boot`
+over `/boot/efi` (`boot_space.yml:6`) is a policy and stays in the
+evaluator, so both are kept when both exist. An empty list means no mounts
+were reported at all — which is a real observation, not a missing probe.
 
 ### `services`
 
