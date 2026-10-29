@@ -141,16 +141,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   per-mount facts Ansible already gathers (`ansible_facts.mounts`) -- no new
   shell-outs or permissions needed. Every real filesystem is in scope except
   the pseudo/network ones listed in `linux_vitals_disk_exclude_fstypes`
-  (`tmpfs`, `proc`, `nfs`, and the like); add or drop specific mounts with
-  `linux_vitals_disk_include_mounts` / `_exclude_mounts`. `/` is always in
-  scope regardless of its filesystem type -- a container's root is commonly
-  `overlay`, which is excluded by default like other pseudo-filesystems, and
-  excluding the one mount every host has because of that would defeat the
-  point. `linux_vitals_disk_exclude_mounts` now also excludes
-  `/etc/hostname`, `/etc/hosts` and `/etc/resolv.conf` by default: container
-  runtimes commonly bind-mount individual host files over these exact
-  paths, each reporting the host disk's own size and inodes rather than a
-  filesystem of their own. Five findings, one per mount except the last:
+  (`proc`, `nfs`, `squashfs`, and the like); add or drop specific mounts with
+  `linux_vitals_disk_include_mounts` / `_exclude_mounts`. `tmpfs` and
+  `overlay` are deliberately not in that default list -- both back real,
+  capacity-constrained mounts in common setups (`tmpfs` for `/tmp` or
+  `/dev/shm`, `overlay` for a container's own root), and excluding either
+  would silently drop a mount an operator genuinely wants checked. `/` is
+  also always in scope regardless of its filesystem type, as a backstop
+  independent of that default. `linux_vitals_disk_exclude_mounts` now also
+  excludes `/etc/hostname`, `/etc/hosts` and `/etc/resolv.conf` by default:
+  container runtimes commonly bind-mount individual host files over these
+  exact paths, each reporting the host disk's own size and inodes rather
+  than a filesystem of their own. A host whose mount facts come back
+  completely empty (some fact-gathering environments can't read the mount
+  table at all) is reported as one `Unknown` mount for `/`, rather than as
+  an empty, unchecked filesystems list. Five findings, one per mount except
+  the last:
 
   - `filesystem_space_low`: used space at or above 80% / 95%
     (`linux_vitals_disk_warning_threshold`, `_critical_threshold`).

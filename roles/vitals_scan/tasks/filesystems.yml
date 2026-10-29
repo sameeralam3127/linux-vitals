@@ -86,6 +86,20 @@
       {%- set _ = ns.rows.append(row) -%}
       {%- endif -%}
       {%- endfor -%}
+      {#- ansible_facts.mounts itself can come back completely empty -- seen
+          for real in CI containers whose mount table ansible's own fact
+          gathering could not read at all, not merely an exclusion emptying
+          an otherwise-populated list (which / always survives, per the rule
+          above). Report that the same way as any other unreadable probe,
+          with one synthetic Unknown row, rather than silently reporting
+          nothing to check. -#}
+      {%- if (ansible_facts['mounts'] | default([]) | length) == 0 -%}
+      {%- set _ = ns.rows.append({
+        'mount': '/', 'fstype': none, 'size_used_pct': none, 'size_used_mb': none,
+        'size_total_mb': none, 'inode_used_pct': none, 'inode_total': none,
+        'inode_available': none, 'read_only': false, 'expected_readonly': false,
+        'status': 'Unknown', 'reason': 'no mount facts were returned by this host'}) -%}
+      {%- endif -%}
       {{ ns.rows | sort(attribute='mount') }}
     linux_vitals_filesystem_degraded_count: >-
       {{
