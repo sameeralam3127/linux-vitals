@@ -131,7 +131,7 @@ know when writing custom templates or downstream automation against
 | Fact | Set by | Description |
 |---|---|---|
 | `linux_vitals_result` | `vitals_scan` (built), `vitals_heal` (partially updates), `vitals_report` (adds `comparison`) | The full per-host result object rendered into the dashboard/JSON. |
-| `linux_vitals_summary` | `vitals_report/tasks/render.yml` | Fleet-wide rollup: `servers_checked`, `critical_error_count`, `auto_fixed_count`, `health_score_pct`, `health_score_band`, `comparison_active`, `regressed_count`, `improved_count`, `new_hosts_count`, `snippet`. |
+| `linux_vitals_summary` | `vitals_report/tasks/render.yml` | Fleet-wide rollup: `servers_checked`, `critical_error_count`, `failing_host_count` (an additive alias), `auto_fixed_count`, `health_score_pct`, `health_score_band`, `comparison_active`, `regressed_count`, `improved_count`, `new_hosts_count`, `snippet`. |
 | `linux_vitals_result.comparison` | `vitals_scan` (default `{baseline_available: false}`), `vitals_report/tasks/compare.yml` (enriched during postcheck) | Before/after comparison for this host; see [report-guide.md](report-guide.md#json-report). |
 
 ## `.env` variables (not Ansible variables)

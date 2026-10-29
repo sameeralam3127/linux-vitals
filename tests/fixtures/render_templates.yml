@@ -18,10 +18,11 @@
     linux_vitals_notification_message: "{{ lookup('ansible.builtin.template', '../../roles/vitals_report/templates/slack_message.txt.j2') }}"
     linux_vitals_summary:
       servers_checked: 1
-      auto_fixed_count: 1
-      critical_error_count: 0
-      health_score_pct: 100.0
-      health_score_band: "Excellent"
+      auto_fixed_count: "{{ fixture_auto_fixed_count | default(1) }}"
+      critical_error_count: "{{ fixture_failing_host_count | default(0) }}"
+      failing_host_count: "{{ fixture_failing_host_count | default(0) }}"
+      health_score_pct: "{{ fixture_health_score_pct | default(100.0) }}"
+      health_score_band: "{{ fixture_health_score_band | default('Excellent') }}"
       hosts_by_severity: {none: 0, info: 0, warning: 1, critical: 0}
       findings_by_severity: {info: 1, warning: 1, critical: 0}
       fail_on_severity: "info"
@@ -29,7 +30,7 @@
       regressed_count: 0
       improved_count: 0
       new_hosts_count: 0
-      snippet: "1 Servers Checked, 1 Auto-Fixed, 0 Critical Errors"
+      snippet: "{{ fixture_snippet | default('1 Servers Checked, 1 Auto-Fixed, 0 Failing Hosts') }}"
     fixture_linux_vitals_result:
       hostname: "localhost"
       ip_address: "127.0.0.1"
@@ -136,7 +137,7 @@
       healing_results:
         - service: "chronyd.service"
           result: "Fixed"
-      final_status: "Pass"
+      final_status: "{{ fixture_final_status | default('Pass') }}"
       severity: "warning"
       severity_counts: {info: 1, warning: 1, critical: 0}
       findings:
