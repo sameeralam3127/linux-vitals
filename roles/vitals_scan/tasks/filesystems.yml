@@ -86,14 +86,14 @@
       {%- set _ = ns.rows.append(row) -%}
       {%- endif -%}
       {%- endfor -%}
-      {#- ansible_facts.mounts itself can come back completely empty -- seen
-          for real in CI containers whose mount table ansible's own fact
-          gathering could not read at all, not merely an exclusion emptying
-          an otherwise-populated list (which / always survives, per the rule
-          above). Report that the same way as any other unreadable probe,
-          with one synthetic Unknown row, rather than silently reporting
-          nothing to check. -#}
-      {%- if (ansible_facts['mounts'] | default([]) | length) == 0 -%}
+      {#- Seen for real in CI containers: every entry in ansible_facts.mounts
+          -- however many there are, whatever their shape -- fails the scope
+          test above, including the / override, so nothing ends up in scope
+          at all. That is itself a fact-gathering gap this role cannot
+          diagnose further from here, not a reason to report an empty,
+          unchecked filesystems list -- report it the same way as any other
+          unreadable probe, with one synthetic Unknown row. -#}
+      {%- if ns.rows | length == 0 -%}
       {%- set _ = ns.rows.append({
         'mount': '/', 'fstype': none, 'size_used_pct': none, 'size_used_mb': none,
         'size_total_mb': none, 'inode_used_pct': none, 'inode_total': none,
