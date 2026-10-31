@@ -40,6 +40,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **The failed-login check no longer reports a clean host when it could
+  not run** ([#39](https://github.com/sameeralam3127/linux-vitals/issues/39)).
+  `lastb` reads `/var/log/btmp`, which is `0600`/`0660 root:utmp`; without
+  `become` it failed, the probe discarded the error, and the host showed
+  *"No failed login attempts found"*. A run without `become`, a host without
+  `lastb`, a host with no `/var/log/btmp`, and a failing `lastb` now each
+  raise `failed_logins` with `status: unknown` and their own `reason`, and
+  `last_failed_login` reads `Not checked: <reason>`. Under the default
+  threshold such a host now fails, and it never counts as healthy. **Expect
+  this on unprivileged runs and on minimal or container images**, which have
+  no `btmp`; see [docs/troubleshooting.md](docs/troubleshooting.md#failed-logins-or-apparmor-reported-as-unknown).
+
+- **A missing `aa-status` is no longer read as "AppArmor disabled"**
+  ([#39](https://github.com/sameeralam3127/linux-vitals/issues/39)). On a
+  Debian-family host, `apparmor_disabled` is `unknown` with a reason when
+  `aa-status` is not installed or cannot read AppArmor's state, and
+  `apparmor_status` gains the values `not-installed` and `unknown` beside
+  `enabled` and `disabled`. RedHat- and SUSE-family hosts without
+  `aa-status` now report `not-installed` rather than `disabled`; they raise
+  no AppArmor finding, as before. The `fail` finding's message is now
+  *"AppArmor is disabled"*.
+
 - **Self-healing no longer reports a service `Fixed` before the restart has
   held** ([#24](https://github.com/sameeralam3127/linux-vitals/issues/24)).
   `vitals_heal` read each unit's state once, straight after restarting it. A
@@ -262,8 +284,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   any consumer checking `status == "Fail"`. The report's `schema_version`
   moves to `2.1`, additively; nothing existing changed type or meaning, and
   a 2.x baseline's findings are read as `fail`. Journal checks now raise
-  `unknown` (#118); [#39](https://github.com/sameeralam3127/linux-vitals/issues/39)
-  (`lastb`) still needs this handling. `tests/test_finding_contract.py` now fails if a
+  `unknown` (#118), and so do the failed-login and AppArmor checks
+  ([#39](https://github.com/sameeralam3127/linux-vitals/issues/39), under
+  *Fixed*). `tests/test_finding_contract.py` now fails if a
   new scan probe sets `failed_when: false`, so a new check is reviewed
   against the contract before it can reintroduce a false-clean report. See
   [docs/report-guide.md](docs/report-guide.md#status-when-a-check-could-not-run).

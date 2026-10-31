@@ -98,8 +98,8 @@ state:
       stdout: Enforcing
     apparmor:
       ran: true
-      rc: 2
-      unsupported_reason: aa-status not found
+      rc: 127
+      unsupported_reason: aa-status not installed
     rescue_images:
       ran: true
       rc: 0

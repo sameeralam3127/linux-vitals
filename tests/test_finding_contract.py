@@ -145,15 +145,18 @@ def test_html_and_json_show_an_unknown_check_distinctly(tmp_path: Path) -> None:
 
 # Scan probes that set `failed_when: false`, recorded when the contract landed
 # (#62). Ignoring a probe's failure is how a check that could not run ends up
-# reading as clean, so each of these is to be audited against the contract --
-# the failed-login probe first (#39). The two journal probes now handle
-# unknown results (#118); the remaining probes still need their audit.
+# reading as clean, so each of these is to be audited against the contract.
+# The two journal probes (#118), the failed-login probe and the AppArmor probe
+# (#39) now handle unknown results; the remaining probes still need their
+# audit.
 #
 # Adding a name here is a review decision, not a way to make this test pass:
 # the probe must tell "ran and found nothing" from "could not run", and raise
 # an `unknown` finding with a reason for the second (docs/architecture.md).
 REVIEWED_PROBES_THAT_IGNORE_FAILURE = {
     "Collect recent systemd log errors",
+    # Exit 3/4/5 (no lastb, no btmp, btmp unreadable) and any lastb failure
+    # become an unknown failed_logins finding in extended_facts.yml (#39).
     "Collect recent failed login attempts",
     "Collect last reboot information",
     "Collect latest installed kernel version",
@@ -162,6 +165,8 @@ REVIEWED_PROBES_THAT_IGNORE_FAILURE = {
     "Check if reboot is recommended on RedHat family",
     "Check if reboot is recommended on SUSE family",
     "Collect SELinux mode",
+    # A missing aa-status (127) or an unreadable state becomes an unknown
+    # apparmor_disabled finding on Debian-family hosts (#39).
     "Collect AppArmor status",
     "Collect rescue image presence",
     "Collect kernel install failures from logs",

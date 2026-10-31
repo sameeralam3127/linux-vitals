@@ -91,7 +91,7 @@
     },
     {
       "id": "apparmor_disabled",
-      "message": "AppArmor is disabled or unavailable",
+      "message": "AppArmor is disabled",
       "severity": "warning",
       "status": "fail"
     }

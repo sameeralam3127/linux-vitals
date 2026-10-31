@@ -349,6 +349,10 @@ restart it, disable it if it is no longer needed, or leave it for
 ### `selinux_disabled` / `apparmor_disabled`
 
 **Means:** the host's mandatory access control is off or unavailable.
+An `apparmor_disabled` finding with `status: unknown` means something else:
+`aa-status` is not installed, or could not read AppArmor's state, so nobody
+knows whether it is on -- see its `reason`. Install `apparmor-utils` (or
+`apparmor`) and run with `become`.
 
 **Confirm:**
 ```bash
@@ -484,10 +488,17 @@ constantly.
 
 **Do:** check `security.last_failed_login` for the source. Repeated attempts
 from one internal address is usually a stale credential in a script, not an
-attack. **Note:** when `lastb` cannot run, this currently reports a clean host
-rather than "unknown"
-([#39](https://github.com/sameeralam3127/linux-vitals/issues/39)) -- absence of
-this finding is not evidence of absence of failed logins.
+attack.
+
+**`status: unknown`** means the check could not run, and `reason` says which
+way:
+
+| `reason` | Do |
+| --- | --- |
+| `reading /var/log/btmp was denied; this check needs become` | Run with `become` -- set `ansible_become: true` in the inventory. `btmp` is `0600`/`0660 root:utmp`. |
+| `/var/log/btmp does not exist, ...` | Nothing on the host records failed logins. Usual on minimal and container images. If you want them recorded, `install -m 0660 -o root -g utmp /dev/null /var/log/btmp`; otherwise retune with `linux_vitals_finding_severity_overrides` and accept the gap knowingly. |
+| `lastb is not installed` | Install the package that ships it (`util-linux` on most families). |
+| `lastb exited N: ...` | `lastb` itself failed -- often a corrupt `btmp`. Read the stderr in the reason. |
 
 ## Certificate findings
 
@@ -601,8 +612,6 @@ It sometimes is, and knowing where saves you chasing a phantom:
 
 - **A host missing from the report is not a passing host.** Check
   `summary.servers_checked` against your inventory count.
-- **`failed_logins` absent does not mean no failed logins** if `lastb` could
-  not run ([#39](https://github.com/sameeralam3127/linux-vitals/issues/39)).
 - **A service reported `Fixed` stayed up for
   `linux_vitals_heal_stability_seconds` (5 s by default), not forever.** One
   that fails later than that is still reported `Fixed`. Trust `systemctl`

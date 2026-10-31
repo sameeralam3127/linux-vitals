@@ -290,13 +290,15 @@ zero.
 nothing" from "could not run", and raise an `unknown` finding with a reason
 for the second. `failed_when: false` on a probe, or `2>/dev/null` on its
 command, is exactly how the two get conflated: the probe's failure becomes an
-empty result, and an empty result reads as clean. That is the bug in
+empty result, and an empty result reads as clean. That was the bug in
 [#39](https://github.com/sameeralam3127/linux-vitals/issues/39), where a
-missing `lastb` reports a host with no failed logins.
+`lastb` that could not read `/var/log/btmp` reported a host with no failed
+logins; `login_records.yml` now gives each way the check can fail its own
+exit code, and each becomes an `unknown` finding with its own reason.
 `tests/test_finding_contract.py` lists every scan probe that sets
 `failed_when: false`, and fails when a new one appears, so the rule is
 checked in review rather than remembered. The probes on that list predate
-the contract and are audited against it one at a time, starting with #39.
+the contract and are audited against it one at a time; the journal (#118), failed-login and AppArmor (#39) probes are done.
 
 ## Why paths resolve from `inventory_dir`, not `playbook_dir`
 

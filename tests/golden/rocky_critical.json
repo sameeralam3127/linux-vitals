@@ -1,5 +1,5 @@
 {
-  "apparmor_status": "disabled",
+  "apparmor_status": "not-installed",
   "asset_serial": "7c9e1b2a-44d0-4f3e-8a61-0b2c3d4e5f60",
   "boot_free_mb": 122.0,
   "boot_free_pct": 12.0,

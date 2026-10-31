@@ -183,13 +183,13 @@ Then per probe:
 | --- | --- | --- |
 | `logs` | `window`, `stdout` | `log_errors` |
 | `audit_logs` | `window`, `stdout` | `kernel_install_failures` |
-| `failed_logins` | `stdout_lines` | `failed_logins` |
+| `failed_logins` | `stdout_lines`; `rc` 3 (no `lastb`), 4 (no `/var/log/btmp`), 5 (`btmp` unreadable) are the probe's own, any other non-zero is `lastb` failing, with `stderr` | `failed_logins` |
 | `last_reboot` | `stdout` | report only |
 | `installed_kernels` | `latest`, `updated_at`, `filtered` | `kernel_not_latest`, `bootloader_mismatch`, `reboot_required` fallback |
 | `bootloader` | `supported`, `source`, `default_entry`, `default_kernel`, `status` | `bootloader_mismatch` |
 | `reboot_required` | `supported`, `detected`, `source`, `detail`, `packages[]` | `reboot_required` |
 | `selinux` | `stdout` | `selinux_disabled` |
-| `apparmor` | `rc` only — the probe has no output, the exit code *is* the answer | `apparmor_disabled` |
+| `apparmor` | `rc` only — the probe has no output, the exit code *is* the answer: `aa-status --enabled`'s own (0 enabled, 1–3 disabled, 4 unreadable), or 127 when `aa-status` is not installed | `apparmor_disabled` |
 | `rescue_images` | `stdout_lines` | report only |
 | `pressure` | `load`, `cpus`, `psi`, `psi_reason`, `psi_cpu_some`, `psi_memory_some`, `psi_memory_full`, `psi_io_some`, `psi_io_full`, `swap_total_kb`, `swap_free_kb`, `swap_sample_seconds`, `swap_in_per_sec`, `swap_out_per_sec` | `cpu_load_high`, `pressure_stall_high`, `swap_paging_high` |
 
@@ -256,7 +256,7 @@ each is a judgement:
 | `ram_used_pct`, `ram_status` | `memory.yml:14`, `extended_facts.yml:7` | evaluate |
 | `boot_free_pct`, `boot_space_status` | `boot_space.yml:40`, `:52` | evaluate |
 | `latest_kernel_selected` | `extended_facts.yml:60` | evaluate |
-| `apparmor_status` (`enabled`/`disabled`) | `extended_facts.yml:132` | evaluate |
+| `apparmor_status` (`enabled`/`disabled`/`not-installed`/`unknown`) | `extended_facts.yml:132` | evaluate |
 | `bootloader_default_matches_latest` | `bootloader_facts.yml:6` | evaluate |
 | `reboot_required` (the decision, not the probe) | `reboot_facts.yml:58` | evaluate |
 | `service_status` three-key map | `services.yml` | evaluate |
