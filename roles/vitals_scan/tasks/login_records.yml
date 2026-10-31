@@ -2,11 +2,26 @@
 # Probes: failed logins (lastb, from btmp) and the last boot (who -b, from
 # utmp). extended_facts.yml parses what they register.
 - name: Collect recent failed login attempts
+  # "No failed logins" and "could not look" must not print the same thing
+  # (#39). The three ways this check cannot run each get their own exit code,
+  # which extended_facts.yml turns into the reason on an unknown finding:
+  #   3  lastb is not installed
+  #   4  /var/log/btmp does not exist, so nothing records failed logins
+  #   5  /var/log/btmp is not readable (0600/0660, so an unprivileged run)
+  # lastb itself only exits 0 or 1; its stderr is kept for the reason.
+  # sbin is appended because a non-root PATH on Debian omits it.
   ansible.builtin.command:
     argv:
       - sh
       - -c
-      - "lastb -n 5 2>/dev/null"
+      - |
+        PATH="$PATH:/usr/sbin:/sbin"
+        command -v lastb >/dev/null 2>&1 || exit 3
+        [ -e /var/log/btmp ] || exit 4
+        [ -r /var/log/btmp ] || exit 5
+        exec lastb -n 5
+  environment:
+    LC_ALL: C
   register: linux_vitals_failed_login_attempts_cmd
   changed_when: false
   failed_when: false

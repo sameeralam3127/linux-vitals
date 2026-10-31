@@ -298,10 +298,10 @@ A finding's `status` says which of two things it records:
 | `status` | Means | Extra field |
 | --- | --- | --- |
 | `fail` | The check ran and found something wrong | -- |
-| `unknown` | The check could not run, so nothing is known either way | `reason`: why, e.g. `lastb unavailable` |
+| `unknown` | The check could not run, so nothing is known either way | `reason`: why, e.g. `reading /var/log/btmp was denied; this check needs become` |
 
 ```json
-{"id": "failed_logins", "message": "Failed-login history could not be read", "severity": "info", "status": "unknown", "reason": "lastb unavailable"}
+{"id": "failed_logins", "message": "Failed login attempts could not be inspected", "severity": "info", "status": "unknown", "reason": "reading /var/log/btmp was denied; this check needs become"}
 ```
 
 A check that ran and found nothing raises no finding at all, so there is no
@@ -350,14 +350,14 @@ at its highest level, so the numbers partition the fleet) and
 | `filesystem_probe_degraded` | warning | Host-level, no `subject`, fires at most once: one or more mount entries returned unreadable facts; `status: unknown` with `reason` |
 | `kernel_install_failures` | warning | Kernel/bootloader failures in the audit log window |
 | `selinux_disabled` | warning | SELinux disabled/unavailable on a RedHat-family host |
-| `apparmor_disabled` | warning | AppArmor disabled/unavailable on a Debian-family host |
+| `apparmor_disabled` | warning | AppArmor is disabled on a Debian-family host. `unknown`, with a `reason`, when `aa-status` is not installed or could not read AppArmor's state; `apparmor_status` is then `not-installed` or `unknown` |
 | `cpu_load_high` | warning or critical | 5-minute load average per online CPU at or above `linux_vitals_load_warning_threshold` (warning) or `linux_vitals_load_critical_threshold` (critical). `unknown` when the load or CPU count could not be read |
 | `pressure_stall_high` | warning or critical | One per resource (`subject`: `cpu`, `memory` or `io`) whose PSI `some avg60` is at or above `linux_vitals_psi_warning_threshold` / `linux_vitals_psi_critical_threshold`. Nothing on a kernel without PSI; `unknown` when the probe could not run |
 | `swap_paging_high` | warning or critical | Pages swapped in plus out per second, over `linux_vitals_swap_sample_seconds`, at or above `linux_vitals_swap_rate_warning_threshold` / `linux_vitals_swap_rate_critical_threshold`. `unknown` when the counters could not be read |
 | `required_service_inactive` | warning | A unit named in `linux_vitals_required_services` is not running (`subject`: the unit name) -- additive to `sssd_inactive`/`time_sync_inactive`, not a replacement for them |
 | `failed_units_present` | warning | At least one unit `failed_units.units` could confirm is enabled is in systemd's failed state -- see [Failed units](#failed-units) |
 | `log_errors` | info | The journal has entries at priority `linux_vitals_log_priority` (default `err`) or worse in the log window |
-| `failed_logins` | info | Recent failed login attempts were detected |
+| `failed_logins` | info | Recent failed login attempts were detected. `unknown`, with a `reason`, when the check could not run: `lastb` not installed, `/var/log/btmp` absent, `/var/log/btmp` unreadable (a run without `become`), or `lastb` failing. `last_failed_login` then reads `Not checked: <reason>` |
 
 The three saturation findings ([#34](https://github.com/sameeralam3127/linux-vitals/issues/34)) also carry their own severity,
 from the threshold the value crossed. The map entry for each (`warning`) is

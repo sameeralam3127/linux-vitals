@@ -322,6 +322,22 @@
               {{ linux_vitals_result.findings
                  | selectattr('id', 'in', ['log_errors', 'kernel_install_failures']) | list }}
 
+        - name: Assert an unreadable btmp is unknown rather than a clean host
+          # btmp is 0600 or 0660 root:utmp on every supported family, or absent
+          # on a minimal image. Unprivileged, the check can never run, so it
+          # must say so with a reason -- never "No failed login attempts found"
+          # (#39). Which of the three reasons applies varies by image.
+          ansible.builtin.assert:
+            that:
+              - login_findings | length == 1
+              - login_findings[0].status == 'unknown'
+              - login_findings[0].reason | length > 0
+              - "linux_vitals_result.last_failed_login is match('Not checked: ')"
+            fail_msg: "Unprivileged failed-login result: {{ login_findings }} / {{ linux_vitals_result.last_failed_login }}"
+          vars:
+            login_findings: >-
+              {{ linux_vitals_result.findings | selectattr('id', 'equalto', 'failed_logins') | list }}
+
     # ------------------------------------------------------------------
     # Bounded journal scans (#23). Last, because it floods the journal.
     # ------------------------------------------------------------------

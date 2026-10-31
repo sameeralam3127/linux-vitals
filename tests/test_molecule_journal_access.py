@@ -8,12 +8,16 @@ def test_journal_regression_uses_the_docker_user_not_su() -> None:
     block = next(task for task in play["tasks"] if task["name"] == "Check journals as the unprivileged Docker user")
     assert block["vars"]["ansible_user"] == "vitals-journal-reader"
     assert not block.get("become", False)
-    identity, scan, verdict = block["block"]
+    identity, scan, verdict, login_verdict = block["block"]
     assert identity["ansible.builtin.command"]["argv"] == ["id", "-un"]
     assert "vitals-journal-reader" in identity["failed_when"]
     assert scan["ansible.builtin.include_role"]["name"].endswith(".vitals_scan")
     assert "apply" not in scan["ansible.builtin.include_role"]
     assert any("length == 2" in rule for rule in verdict["ansible.builtin.assert"]["that"])
+    # The same unprivileged scan proves the failed-login check reports
+    # unknown rather than clean when btmp cannot be read (#39).
+    assert "failed_logins" in login_verdict["vars"]["login_findings"]
+    assert any("'unknown'" in rule for rule in login_verdict["ansible.builtin.assert"]["that"])
 
 
 def test_prepare_does_not_require_logger_to_populate_the_journal() -> None:

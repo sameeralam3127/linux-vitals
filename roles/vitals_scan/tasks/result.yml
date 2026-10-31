@@ -111,14 +111,26 @@
       {%- elif linux_vitals_kernel_install_failures | int > 0 -%}
       {%- set _ = findings.append({'id': 'kernel_install_failures', 'message': 'Kernel installation or bootloader related failures found in logs'}) -%}
       {%- endif -%}
-      {%- if linux_vitals_failed_login_attempts | length > 0 -%}
+      {#- A failed-login check that could not run is unknown, never a clean
+          host (#39): an unprivileged run, no lastb, or no btmp at all. -#}
+      {%- if linux_vitals_failed_login_check_reason | default('') -%}
+      {%- set _ = findings.append({
+        'id': 'failed_logins', 'message': 'Failed login attempts could not be inspected',
+        'status': 'unknown', 'reason': linux_vitals_failed_login_check_reason}) -%}
+      {%- elif linux_vitals_failed_login_attempts | length > 0 -%}
       {%- set _ = findings.append({'id': 'failed_logins', 'message': 'Recent failed login attempts detected'}) -%}
       {%- endif -%}
       {%- if linux_vitals_selinux_status not in ['Enforcing', 'Permissive'] and ansible_facts['os_family'] == 'RedHat' -%}
       {%- set _ = findings.append({'id': 'selinux_disabled', 'message': 'SELinux is disabled or unavailable'}) -%}
       {%- endif -%}
-      {%- if ansible_facts['os_family'] == 'Debian' and linux_vitals_apparmor_status != 'enabled' -%}
-      {%- set _ = findings.append({'id': 'apparmor_disabled', 'message': 'AppArmor is disabled or unavailable'}) -%}
+      {#- A missing or unreadable aa-status says nothing about AppArmor, so
+          it is unknown rather than disabled (#39). -#}
+      {%- if ansible_facts['os_family'] == 'Debian' and linux_vitals_apparmor_check_reason | default('') -%}
+      {%- set _ = findings.append({
+        'id': 'apparmor_disabled', 'message': 'AppArmor status could not be determined',
+        'status': 'unknown', 'reason': linux_vitals_apparmor_check_reason}) -%}
+      {%- elif ansible_facts['os_family'] == 'Debian' and linux_vitals_apparmor_status != 'enabled' -%}
+      {%- set _ = findings.append({'id': 'apparmor_disabled', 'message': 'AppArmor is disabled'}) -%}
       {%- endif -%}
       {#- A restart vitals_heal could not verify (#24: outcome `unknown`) is
           an unknown finding with the reason it could not, not a plain failure
