@@ -32,7 +32,12 @@
       "severity": {{ result.severity | default('none') | to_json }},
       "severity_counts": {{ result.severity_counts | default({}) | to_json }},
       "unknown_count": {{ result.unknown_count | default(0) | int }},
-      "findings": {{ result.findings | to_json }}
+      {#- references (#43): additive, see report.json.j2. #}
+      "findings": [
+        {% for finding in result.findings %}
+        {{ (finding | ansible.builtin.combine({'references': finding.references | default([])}) if finding is mapping else finding) | to_json }}{% if not loop.last %},{% endif %}
+        {% endfor %}
+      ]
     }{% if not loop.last %},{% endif %}
     {% endfor %}
   ]

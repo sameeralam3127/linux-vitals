@@ -128,15 +128,58 @@ def test_html_and_json_show_an_unknown_check_distinctly(tmp_path: Path) -> None:
     assert html.count("Could not check:") == 1
 
     # JSON: the counts, and the finding with its status and reason.
-    assert report["schema_version"] == "2.1"
+    assert report["schema_version"] == "2.2"
     assert report["summary"]["unknown_host_count"] == 1
     host = report["hosts"][0]
     assert host["unknown_count"] == 1
     unknown = [f for f in host["findings"] if f.get("status") == "unknown"]
-    assert unknown == [UNKNOWN_FINDING]
+    assert unknown == [{**UNKNOWN_FINDING, "references": []}]
 
     assert webhook["summary"]["unknown_host_count"] == 1
     assert webhook["hosts"][0]["unknown_count"] == 1
+
+
+def test_html_and_json_show_finding_references(tmp_path: Path) -> None:
+    # references (#43): an exact mapping to an external control id, such as
+    # a CIS or STIG rule number. Additive -- every finding gets the field,
+    # whether or not a mapping exists for it.
+    fixture_vars = yaml.safe_load(PLAYBOOK.read_text(encoding="utf-8"))[0]["vars"]
+    result = dict(fixture_vars["fixture_linux_vitals_result"])
+    mapped, unmapped = result["findings"]
+    result["findings"] = [
+        {**mapped, "references": ["CIS-DIL-1.2.3", "STIG-V-000001"]},
+        unmapped,
+    ]
+    extra_vars = tmp_path / "references_case.json"
+    extra_vars.write_text(
+        json.dumps({"fixture_linux_vitals_result": result}), encoding="utf-8"
+    )
+
+    subprocess.run(
+        [_ansible_playbook_bin(), str(PLAYBOOK), "-e", f"@{extra_vars}"],
+        check=True,
+        cwd=REPO_ROOT,
+        env=_base_env(tmp_path),
+    )
+
+    html = (tmp_path / "report.html").read_text(encoding="utf-8")
+    report = json.loads((tmp_path / "report.json").read_text(encoding="utf-8"))
+    webhook = json.loads((tmp_path / "generic_webhook.json").read_text(encoding="utf-8"))
+
+    # HTML: each reference is its own badge next to the finding it maps.
+    assert "<span class=\"pill pill--muted\">CIS-DIL-1.2.3</span>" in html
+    assert "<span class=\"pill pill--muted\">STIG-V-000001</span>" in html
+
+    # JSON and the webhook: the mapped finding carries both references, the
+    # unmapped one gets an empty list rather than a missing field.
+    host_findings = report["hosts"][0]["findings"]
+    assert host_findings[0]["references"] == ["CIS-DIL-1.2.3", "STIG-V-000001"]
+    assert host_findings[1]["references"] == []
+    assert webhook["hosts"][0]["findings"][0]["references"] == [
+        "CIS-DIL-1.2.3",
+        "STIG-V-000001",
+    ]
+    assert webhook["hosts"][0]["findings"][1]["references"] == []
 
 
 # ---------------------------------------------------------------------------

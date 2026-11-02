@@ -78,12 +78,12 @@ keep the working view small even when the underlying table is large. What the
 
 ## JSON report
 
-`reports/linux_vitals_report.json` -- schema `2.1`, intended for ingestion
+`reports/linux_vitals_report.json` -- schema `2.2`, intended for ingestion
 by log shippers, SIEMs, or your own dashboards.
 
 ```json
 {
-  "schema_version": "2.1",
+  "schema_version": "2.2",
   "generated_at": "20260712T120000Z",
   "report": { "title": "...", "html_output_path": "...", "json_output_path": "..." },
   "maintenance": { "phase": "postcheck", "maintenance_id": "2026-07-12-patch-window" },
@@ -154,7 +154,7 @@ whose final status is `Fail`, regardless of finding severity. The clearer
 `failing_host_count` alias reports the same number. Use
 `findings_by_severity.critical` to count critical findings.
 
-Schema `2.1` is additive over `2.0`: every finding gains `status` (and
+Schema `2.1` was additive over `2.0`: every finding gains `status` (and
 `reason` when the status is `unknown`), each host gains `unknown_count`, the
 summary gains `unknown_host_count` and `failing_host_count` (an alias for the
 existing `critical_error_count`), and each `healing_results` entry gains
@@ -164,6 +164,15 @@ existing `critical_error_count`), and each `healing_results` entry gains
 and `failed_units`
 ([#32](https://github.com/sameeralam3127/linux-vitals/issues/32)). Nothing
 was removed or renamed, and no existing field changed type or meaning.
+
+`2.2` is additive over `2.1`: every finding gains `references`
+([#43](https://github.com/sameeralam3127/linux-vitals/issues/43)), a list of
+exact external control identifiers the finding maps to, such as a CIS or STIG
+rule number -- see [Findings](#findings) below. It is `[]` on every finding
+that has no exact mapping, which as of this release is every finding this
+collection ships: the field exists so a consumer can join on it, but no
+mapping is populated yet, deliberately -- an approximate or guessed control
+number would be worse than none on something an audit might quote.
 
 `pressure` holds the CPU load, pressure stall and swap values the scan read,
 and a status for each of the three checks:
@@ -274,15 +283,23 @@ disabled-but-stopped units never drowns out the ones worth paging on.
 What to *do* about each of these is in the [Operator Runbook](runbook.md).
 
 Every finding is an object with a stable `id`, a human `message`, a
-`severity`, and a `status`:
+`severity`, a `status`, and a `references` list:
 
 ```json
-{"id": "reboot_required", "message": "System reboot is required", "severity": "warning", "status": "fail"}
+{"id": "reboot_required", "message": "System reboot is required", "severity": "warning", "status": "fail", "references": []}
 ```
 
 The `id` is the durable one. It is what severity is keyed on and what an
 external system should join against -- `message` wording can change in any
 release without that being a breaking change.
+
+`references` ([#43](https://github.com/sameeralam3127/linux-vitals/issues/43))
+names the exact external control identifiers this finding maps to, such as a
+CIS or STIG rule number, for example `["CIS-DIL-<section>"]`. It is populated
+only where a mapping is exact; most findings carry an empty list, and that is
+the correct, intended outcome, not a gap -- an approximate control number is
+worse than none on something an audit might quote. No mapping is published
+with this release; the field exists so a consumer can join on it once one is.
 
 A finding that can occur more than once on a host also carries `subject`: the
 unit for the self-healing finding, the path or `host:port` for certificate

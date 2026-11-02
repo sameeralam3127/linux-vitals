@@ -1,5 +1,5 @@
 {
-  "schema_version": "2.1",
+  "schema_version": "2.2",
   "generated_at": {{ linux_vitals_effective_archive_timestamp | default(now(utc=true, fmt='%Y%m%dT%H%M%SZ')) | to_json }},
   "report": {
     "title": {{ linux_vitals_report_title | to_json }},
@@ -141,7 +141,16 @@
       {% endif %}
       "asset_serial": {{ result.asset_serial | to_json }},
       "comparison": {{ result.comparison | to_json }},
-      "findings": {{ result.findings | to_json }}
+      {#- references (#43) maps a finding to an exact external control id,
+         such as a CIS or STIG rule number. Additive: every finding gets the
+         field, defaulting to an empty list where no exact mapping exists
+         (not approximate -- see docs/report-guide.md#findings), rather than
+         changing the finding shape for consumers who do not use it. #}
+      "findings": [
+        {% for finding in result.findings %}
+        {{ (finding | ansible.builtin.combine({'references': finding.references | default([])}) if finding is mapping else finding) | to_json }}{% if not loop.last %},{% endif %}
+        {% endfor %}
+      ]
     }{% if not loop.last %},{% endif %}
     {% endfor %}
   ]
