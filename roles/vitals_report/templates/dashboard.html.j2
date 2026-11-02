@@ -472,6 +472,13 @@
   {%- macro unknown_marker(finding) -%}
   {%- if finding.status | default('fail') == 'unknown' %} <span class="pill pill--serious"><span class="dot"></span>unknown</span> <span class="muted">Could not check: {{ finding.reason | default('') | e }}</span>{% endif -%}
   {%- endmacro %}
+  {#- A finding mapped to an exact external control id (#43), such as a CIS
+      or STIG rule number, shows each one as its own badge. Empty or absent
+      references -- the default, since most findings have no exact mapping
+      -- render nothing. #}
+  {%- macro references_marker(finding) -%}
+  {%- for ref in finding.references | default([]) %} <span class="pill pill--muted">{{ ref | e }}</span>{% endfor -%}
+  {%- endmacro %}
   {#- Why a self-healing attempt ended where it did (#24). A restart that could
       not be verified is marked like an unknown finding; any other attempt
       that was not fixed shows its detail. A result from before 2.2.0 has no
@@ -803,11 +810,11 @@
                 <ul class="list">
                   {% for level in ['critical', 'warning', 'info'] %}
                   {% for finding in result.findings if finding is mapping and finding.severity == level %}
-                  <li><span class="pill pill--{{ 'critical' if level == 'critical' else 'warning' if level == 'warning' else 'muted' }}"><span class="dot"></span>{{ level | e }}</span> {{ finding.message | e }}{{ unknown_marker(finding) }}</li>
+                  <li><span class="pill pill--{{ 'critical' if level == 'critical' else 'warning' if level == 'warning' else 'muted' }}"><span class="dot"></span>{{ level | e }}</span> {{ finding.message | e }}{{ unknown_marker(finding) }}{{ references_marker(finding) }}</li>
                   {% endfor %}
                   {% endfor %}
                   {% for finding in result.findings if finding is mapping and finding.severity not in ['critical', 'warning', 'info'] %}
-                  <li><span class="pill pill--muted"><span class="dot"></span>{{ finding.severity | default('unknown') | e }}</span> {{ finding.message | e }}{{ unknown_marker(finding) }}</li>
+                  <li><span class="pill pill--muted"><span class="dot"></span>{{ finding.severity | default('unknown') | e }}</span> {{ finding.message | e }}{{ unknown_marker(finding) }}{{ references_marker(finding) }}</li>
                   {% endfor %}
                   {% for finding in result.findings if finding is not mapping %}
                   <li>{{ finding | e }}</li>

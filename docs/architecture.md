@@ -286,6 +286,13 @@ threshold a host with an unknown check can pass, so the fleet health score
 counts a host as healthy only if it passes **and** its `unknown_count` is
 zero.
 
+A `references` field -- a list of exact external control identifiers a
+finding maps to, such as a CIS or STIG rule number
+([#43](https://github.com/sameeralam3127/linux-vitals/issues/43)) -- is added
+at the report-template layer, not here: every finding gets `[]` unless
+`report.json.j2` is given one to carry through. No check in `vitals_scan` or
+`vitals_certs` sets it, so this layer's contract above is unchanged.
+
 **The rule for new checks.** A check that shells out must tell "ran and found
 nothing" from "could not run", and raise an `unknown` finding with a reason
 for the second. `failed_when: false` on a probe, or `2>/dev/null` on its

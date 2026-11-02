@@ -164,6 +164,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Findings carry a `references` field, additive and empty for now**
+  ([#43](https://github.com/sameeralam3127/linux-vitals/issues/43)). Every
+  finding in the JSON report and generic webhook payload now has a
+  `references` list, meant to name the exact external control identifiers
+  it maps to -- a CIS or STIG rule number, for example. This release adds
+  only the field itself: no mapping is populated. An approximate or guessed
+  control number is worse than none on something an audit might quote, and
+  verifying the exact section numbers of the CIS Distribution Independent
+  Linux Benchmark (which several findings this collection already has --
+  `selinux_disabled`, `apparmor_disabled`, `time_sync_absent`,
+  `time_sync_inactive` -- plausibly map to) needs the benchmark document
+  itself, not a best guess. `schema_version` moves from `2.1` to `2.2`
+  for this reason alone; nothing else in the report changed. The HTML
+  dashboard shows each reference as a small badge next to the finding it
+  maps, rendering nothing when the list is empty, which is every finding
+  today.
+
 - **Filesystem capacity and inode checks** ([#30](https://github.com/sameeralam3127/linux-vitals/issues/30)).
   Until now the only disk check was `/boot`, so a host with `/var` or `/data`
   pinned at 99% full, or a web of small files eating every inode on `/tmp`,
