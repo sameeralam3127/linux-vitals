@@ -98,3 +98,43 @@
   tags:
     - result
     - reporting
+
+- name: Build the security posture result fields
+  # Also split out of result.yml's "Build per-host report object" to stay
+  # under its line ratchet. Each check reports the tool/source that
+  # answered, so a missing checker is never mistaken for a clean result
+  # (the same contract reboot_required_source gives reboot detection). Each
+  # `| default(...)` guards against a focused `--tags` run that skipped the
+  # probe behind it (tagged `security` only).
+  ansible.builtin.set_fact:
+    linux_vitals_security_posture_result:
+      firewall: >-
+        {{ {
+          'active': linux_vitals_firewall_active | default(false, true),
+          'detection_supported': linux_vitals_firewall_supported | default(false, true),
+          'source': linux_vitals_firewall_source | default('unavailable', true),
+          'detail': linux_vitals_firewall_detail | default('', true),
+        } }}
+      ssh_hardening: >-
+        {{ {
+          'detection_supported': linux_vitals_ssh_detection_supported | default(false, true),
+          'source': linux_vitals_ssh_detection_source | default('unavailable', true),
+          'permit_root_login': linux_vitals_ssh_permit_root_login | default('', true),
+          'password_authentication': linux_vitals_ssh_password_authentication | default('', true),
+          'permit_empty_passwords': linux_vitals_ssh_permit_empty_passwords | default('', true),
+        } }}
+      kernel_taint: >-
+        {{ {
+          'value': linux_vitals_kernel_tainted | default(0, true) | int,
+          'supported': linux_vitals_kernel_tainted_supported | default(false, true),
+          'reasons': linux_vitals_kernel_taint_reasons | default([], true),
+        } }}
+      reboot_blocking_processes: >-
+        {{ {
+          'supported': linux_vitals_deleted_libs_supported | default(false, true),
+          'source': linux_vitals_deleted_libs_source | default('unavailable', true),
+          'processes': linux_vitals_deleted_libs_processes | default([], true),
+        } }}
+  tags:
+    - result
+    - reporting
