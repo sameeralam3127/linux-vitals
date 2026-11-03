@@ -116,6 +116,34 @@
       vars:
         inventory_hostname: "host-b"
 
+    - name: Age host-b baseline for the stale-baseline fixture
+      ansible.builtin.copy:
+        dest: "{{ output_dir }}/snapshots/test-window/baseline/host-b.json"
+        content: >-
+          {{
+            (
+              lookup('ansible.builtin.file', output_dir ~ '/snapshots/test-window/baseline/host-b.json')
+              | from_json
+              | combine({'captured_at': '2000-01-01T00:00:00Z'})
+            ) | to_nice_json
+          }}
+        mode: "0644"
+
+    - name: Remove host-d capture time for the legacy-baseline fixture
+      ansible.builtin.copy:
+        dest: "{{ output_dir }}/snapshots/test-window/baseline/host-d.json"
+        content: >-
+          {{
+            lookup('ansible.builtin.file', output_dir ~ '/snapshots/test-window/baseline/host-d.json')
+            | from_json
+            | dict2items
+            | rejectattr('key', 'equalto', 'captured_at')
+            | list
+            | items2dict
+            | to_nice_json
+          }}
+        mode: "0644"
+
 - name: Postcheck phase -- compare host-a (improved), host-b (regressed), host-c (new)
   hosts: localhost
   connection: local

@@ -86,6 +86,18 @@ def test_unknown_host_count_counts_hosts_not_findings() -> None:
     assert int(_render(expr, linux_vitals_result_list=results)) == 2
 
 
+def test_baseline_age_summary_counts_stale_and_undated_hosts() -> None:
+    summary = _render_task("Build consolidated maintenance summary")["linux_vitals_summary"]
+    results = [
+        {"comparison": {"baseline_age_warning": True, "baseline_age_unknown": False}},
+        {"comparison": {"baseline_age_warning": False, "baseline_age_unknown": True}},
+        {"comparison": {"baseline_available": False}},
+    ]
+
+    assert int(_render(summary["stale_baseline_count"], linux_vitals_result_list=results)) == 1
+    assert int(_render(summary["unknown_baseline_age_count"], linux_vitals_result_list=results)) == 1
+
+
 # ---------------------------------------------------------------------------
 # Rendering
 # ---------------------------------------------------------------------------
