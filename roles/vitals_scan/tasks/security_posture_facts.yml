@@ -45,9 +45,9 @@
         'message': 'SSH empty-password setting could not be checked',
         'status': 'unknown', 'reason': ssh_reason}) -%}
       {%- else -%}
-      {%- set ssh_root = linux_vitals_ssh_permit_root_login | default('', true) -%}
-      {%- set ssh_pwauth = linux_vitals_ssh_password_authentication | default('', true) -%}
-      {%- set ssh_empty = linux_vitals_ssh_permit_empty_passwords | default('', true) -%}
+      {%- set ssh_root = linux_vitals_ssh_probe.permitrootlogin | default('', true) -%}
+      {%- set ssh_pwauth = linux_vitals_ssh_probe.passwordauthentication | default('', true) -%}
+      {%- set ssh_empty = linux_vitals_ssh_probe.permitemptypasswords | default('', true) -%}
       {%- if ssh_root and ssh_root not in ssh_ok_root_values -%}
       {%- set _ = findings.append({
         'id': 'ssh_permit_root_login_insecure',
@@ -119,9 +119,9 @@
         {{ {
           'detection_supported': linux_vitals_ssh_detection_supported | default(false, true),
           'source': linux_vitals_ssh_detection_source | default('unavailable', true),
-          'permit_root_login': linux_vitals_ssh_permit_root_login | default('', true),
-          'password_authentication': linux_vitals_ssh_password_authentication | default('', true),
-          'permit_empty_passwords': linux_vitals_ssh_permit_empty_passwords | default('', true),
+          'permit_root_login': linux_vitals_ssh_probe.permitrootlogin | default('', true),
+          'password_authentication': linux_vitals_ssh_probe.passwordauthentication | default('', true),
+          'permit_empty_passwords': linux_vitals_ssh_probe.permitemptypasswords | default('', true),
         } }}
       kernel_taint: >-
         {{ {
