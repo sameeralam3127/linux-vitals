@@ -4,19 +4,26 @@ window.LV_CHANGELOG = [
   "version": "Unreleased",
   "date": null,
   "summary": "",
+  "sections": {},
+  "highlights": []
+ },
+ {
+  "version": "2.2.0",
+  "date": "2026-11-03",
+  "summary": "",
   "sections": {
-   "Changed": 2,
-   "Fixed": 7,
-   "Added": 3,
+   "Added": 8,
+   "Changed": 3,
+   "Fixed": 10,
    "Documentation": 3
   },
   "highlights": [
+   "Postcheck reports show when each baseline was captured",
+   "Failing hosts are labeled accurately in report summaries",
    "`log_errors` now counts journal entries at priority `err` or worse, instead of lines containing `error` or `failed`",
-   "Self-healing no longer reports a service `Fixed` before the restart has held",
-   "Journal scans are bounded and filtered on the managed host",
-   "A delivered email no longer fails the run",
-   "Retention pruning no longer deletes another report's archives",
-   "Each run archives the report it rendered"
+   "Maintenance snapshot IDs are validated and trimmed consistently",
+   "The failed-login check no longer reports a clean host when it could not run",
+   "A missing `aa-status` is no longer read as \"AppArmor disabled\""
   ]
  },
  {
