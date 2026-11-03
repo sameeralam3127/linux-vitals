@@ -78,6 +78,7 @@ What degrades without escalation, rather than failing:
 | `getenforce`, `aa-status` | Usually readable unprivileged |
 | Bootloader default entry | `grubby`/`grub2-editenv` typically needs root |
 | `service_facts` | Unit list is readable; some states are not |
+| `sshd -T` (#36) | Needs root to read host key material; reported `unknown`/unsupported, not guessed at (see [#36](https://github.com/sameeralam3127/linux-vitals/issues/36)) |
 
 **Recommendation:** grant `become` narrowly. The scan needs to *read*
 privileged state, not to write anything. A sudoers rule limited to the probe
@@ -87,7 +88,7 @@ safer than blanket `NOPASSWD: ALL`:
 ```sudoers
 automation ALL=(root) NOPASSWD: /usr/bin/journalctl, /usr/bin/lastb, \
     /usr/bin/needs-restarting, /usr/sbin/getenforce, /usr/sbin/aa-status, \
-    /usr/sbin/grubby, /usr/bin/who
+    /usr/sbin/grubby, /usr/bin/who, /usr/sbin/sshd
 ```
 
 Add `/usr/bin/systemctl restart *` only on hosts where you intend to enable
@@ -97,14 +98,16 @@ treat LinuxVitals as read-only.
 
 ## Command injection
 
-**No task uses the `shell` module.** All 13 command tasks in `vitals_scan` use
+**No task uses the `shell` module.** All 17 command tasks in `vitals_scan` use
 `ansible.builtin.command` with `argv:` lists, so arguments are passed to
 `execve` without a shell parsing them.
 
-Five probes do run `sh -c` with an inline script -- kernel enumeration,
-bootloader inspection, and the three per-family reboot checks -- and the
-kernel-install-failure scan runs `bash -c`, for `pipefail`, to filter the
-journal with `grep` on the host. **None of those scripts interpolate a Jinja
+Eleven probes do run `sh -c` with an inline script -- kernel enumeration,
+bootloader inspection, the three per-family reboot checks, login records,
+rescue-image discovery, pressure/PSI/swap sampling, and, since #36, firewall
+detection and the deleted-shared-library scan -- and the kernel-install-
+failure scan runs `bash -c`, for `pipefail`, to filter the journal with
+`grep` on the host. **None of those scripts interpolate a Jinja
 variable.** They are static text. The templated values near a command --
 `linux_vitals_log_window`, `linux_vitals_audit_log_window`,
 `linux_vitals_log_priority` and `linux_vitals_log_max_lines` -- are each a

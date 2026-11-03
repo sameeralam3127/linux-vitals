@@ -59,6 +59,13 @@
       "status": "fail"
     },
     {
+      "id": "firewall_inactive",
+      "message": "Firewall state could not be determined",
+      "reason": "firewall-cmd exited 1: Permission denied",
+      "severity": "critical",
+      "status": "unknown"
+    },
+    {
       "id": "filesystem_unavailable",
       "message": "/ capacity could not be read",
       "reason": "no mount facts were returned by this host",
@@ -67,11 +74,22 @@
       "subject": "/"
     }
   ],
+  "firewall": {
+    "active": false,
+    "detail": "firewall-cmd exited 1: Permission denied",
+    "detection_supported": false,
+    "source": "firewalld"
+  },
   "healing_results": [],
   "hostname": "app-03",
   "ip_address": "10.0.6.13",
   "kernel_install_failure_excerpt": [],
   "kernel_install_failures": 0,
+  "kernel_taint": {
+    "reasons": [],
+    "supported": true,
+    "value": 0
+  },
   "last_failed_login": "deploy   ssh:notty    10.0.1.5         Sat Sep 26 09:14 - 09:14  (00:00)",
   "last_reboot": "2026-08-13 10:02",
   "latest_installed_kernel": "6.4.0-150600.23.25-default",
@@ -117,6 +135,11 @@
   "ram_total_mb": 3931.0,
   "ram_used_mb": 3223.0,
   "ram_used_pct": 82.0,
+  "reboot_blocking_processes": {
+    "processes": [],
+    "source": "lsof",
+    "supported": true
+  },
   "reboot_detection_supported": true,
   "reboot_reason": "Reboot required (zypper-needs-rebooting): zypper reports core libraries or the kernel were updated",
   "reboot_required": true,
@@ -127,13 +150,20 @@
   "running_kernel": "6.4.0-150600.23.22-default",
   "selinux_status": "not-installed",
   "services_healed": [],
-  "severity": "warning",
+  "severity": "critical",
   "severity_counts": {
-    "critical": 0,
+    "critical": 1,
     "info": 1,
     "warning": 3
   },
-  "unknown_count": 1,
+  "ssh_hardening": {
+    "detection_supported": true,
+    "password_authentication": "no",
+    "permit_empty_passwords": "no",
+    "permit_root_login": "no",
+    "source": "sshd-T"
+  },
+  "unknown_count": 2,
   "uptime": "44d 0h 0m",
   "virtualization_type": "kvm"
 }

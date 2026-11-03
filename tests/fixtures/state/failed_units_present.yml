@@ -113,3 +113,30 @@ state:
       ran: true
       rc: 0
       stdout_lines: []
+    firewall:
+      ran: true
+      rc: 0
+      supported: true
+      active: true
+      source: ufw
+      detail: "Status: active"
+    ssh_hardening:
+      ran: true
+      rc: 0
+      supported: true
+      source: sshd-T
+      detail: ""
+      permitrootlogin: "no"
+      passwordauthentication: "no"
+      permitemptypasswords: "no"
+    kernel_taint:
+      ran: true
+      rc: 0
+      stdout: "0"
+    deleted_libs:
+      ran: true
+      rc: 0
+      supported: true
+      source: lsof
+      detail: ""
+      processes: []
