@@ -16,6 +16,14 @@ Override any of these in inventory, `group_vars`, or `-e` extra vars.
 | `linux_vitals_ram_warning_threshold` | `80` | RAM used % at or above which `ram_status` becomes `Warning`. |
 | `linux_vitals_ram_critical_threshold` | `95` | RAM used % at or above which `ram_status` becomes `Critical` (and the host fails). |
 | `linux_vitals_boot_warning_threshold` | `20` | Boot partition free % below which `boot_space_status` becomes `Low` (and the host fails). |
+| `linux_vitals_disk_warning_threshold` | `80` | Filesystem used % at or above which `filesystem_space_low` is raised as `warning`, for every mount in scope. |
+| `linux_vitals_disk_critical_threshold` | `95` | Filesystem used % at or above which `filesystem_space_low` is raised as `critical`. |
+| `linux_vitals_disk_inode_warning_threshold` | `80` | Inode used % at or above which `filesystem_inodes_low` is raised as `warning`. Checked independently of space: a filesystem can have gigabytes free and still fail writes with an exhausted inode table. |
+| `linux_vitals_disk_inode_critical_threshold` | `95` | Inode used % at or above which `filesystem_inodes_low` is raised as `critical`. |
+| `linux_vitals_disk_exclude_fstypes` | kernel pseudo-filesystems, `squashfs`, `nfs`/`nfs3`/`nfs4`/`cifs` -- see [defaults](../roles/vitals_scan/defaults/main.yml) | Filesystem types excluded from capacity and inode checks by default. `tmpfs` and `overlay` are deliberately not excluded, since both can back a real, capacity-constrained mount (`tmpfs` for `/tmp` or `/dev/shm`, `overlay` for a container's own root). |
+| `linux_vitals_disk_include_mounts` | `[]` | Mount points checked even though their filesystem type is excluded. |
+| `linux_vitals_disk_exclude_mounts` | `/etc/hostname`, `/etc/hosts`, `/etc/resolv.conf` | Mount points never checked. Wins over `linux_vitals_disk_include_mounts` for a mount named in both. The default excludes the individual files container runtimes commonly bind-mount over these exact paths, which report the underlying host filesystem's size and inodes rather than a filesystem of their own. |
+| `linux_vitals_disk_expected_readonly_mounts` | `[]` | Mount points allowed to be read-only without raising `filesystem_read_only`. |
 | `linux_vitals_load_warning_threshold` | `1.5` | 5-minute load average **per online CPU** at or above which `cpu_load_high` is raised as `warning`. `1.0` means every CPU was busy on average, which a healthy batch host reaches routinely, so the default sits above it. [#34](https://github.com/sameeralam3127/linux-vitals/issues/34) |
 | `linux_vitals_load_critical_threshold` | `3.0` | 5-minute load average per online CPU at or above which `cpu_load_high` is raised as `critical`. |
 | `linux_vitals_psi_warning_threshold` | `25` | Pressure stall % (PSI `some avg60`: the share of the last minute in which at least one task waited) at or above which `pressure_stall_high` is raised as `warning` for that resource: CPU, memory or I/O. PSI needs kernel 4.20+ with PSI enabled; elsewhere it is reported as unsupported and raises nothing. |
@@ -23,6 +31,7 @@ Override any of these in inventory, `group_vars`, or `-e` extra vars.
 | `linux_vitals_swap_rate_warning_threshold` | `100` | Pages swapped in plus out per second, over the sample below, at or above which `swap_paging_high` is raised as `warning`. |
 | `linux_vitals_swap_rate_critical_threshold` | `1000` | Pages swapped per second at or above which `swap_paging_high` is raised as `critical`. |
 | `linux_vitals_swap_sample_seconds` | `2` | Seconds between the two `/proc/vmstat` reads the swap rate is measured over. Every host waits this long once per scan. `0` skips the measurement and `swap_paging_high`; values above `60` are treated as `60`. |
+| `linux_vitals_required_services` | `[]` | Extra must-run systemd units, checked by exact unit name exactly like `sssd`, `systemd-journald` and the resolved time-sync unit always are: a `required_service_inactive` finding when one is not running. Additive, not a replacement -- the built-in three are always checked regardless, which is why the empty default reproduces every earlier release's behaviour exactly ([#32](https://github.com/sameeralam3127/linux-vitals/issues/32)). E.g. `[nginx.service, postgresql.service, docker.service]`. |
 | `linux_vitals_fail_on_severity` | `info` | Severity at or above which a finding fails the host. `info` means any finding fails it, which is the pre-severity behaviour. Raise to `warning`/`critical` to triage. Also moves the fleet health score. |
 | `linux_vitals_finding_severity_overrides` | `{}` | Per-finding severity overrides, merged over the shipped map. E.g. `{apparmor_disabled: info}`. |
 | `linux_vitals_finding_severities` | see [defaults](../roles/vitals_scan/defaults/main.yml) | The shipped finding-id to severity map. Prefer the overrides variable above; replacing this map means findings added later fall back to `warning`. |
@@ -122,7 +131,7 @@ know when writing custom templates or downstream automation against
 | Fact | Set by | Description |
 |---|---|---|
 | `linux_vitals_result` | `vitals_scan` (built), `vitals_heal` (partially updates), `vitals_report` (adds `comparison`) | The full per-host result object rendered into the dashboard/JSON. |
-| `linux_vitals_summary` | `vitals_report/tasks/render.yml` | Fleet-wide rollup: `servers_checked`, `critical_error_count`, `auto_fixed_count`, `health_score_pct`, `health_score_band`, `comparison_active`, `regressed_count`, `improved_count`, `new_hosts_count`, `snippet`. |
+| `linux_vitals_summary` | `vitals_report/tasks/render.yml` | Fleet-wide rollup: `servers_checked`, `critical_error_count`, `failing_host_count` (an additive alias), `auto_fixed_count`, `health_score_pct`, `health_score_band`, `comparison_active`, `regressed_count`, `improved_count`, `new_hosts_count`, `snippet`. |
 | `linux_vitals_result.comparison` | `vitals_scan` (default `{baseline_available: false}`), `vitals_report/tasks/compare.yml` (enriched during postcheck) | Before/after comparison for this host; see [report-guide.md](report-guide.md#json-report). |
 
 ## `.env` variables (not Ansible variables)

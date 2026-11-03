@@ -12,10 +12,19 @@
     - security
 
 - name: Collect AppArmor status
+  # Exit 127 means aa-status is not installed, which is not the same answer
+  # as "AppArmor is disabled" (#39). Run directly, a missing binary made the
+  # command module report rc 2, which aa-status itself uses for "enabled, no
+  # policy loaded". sbin is appended because a non-root PATH on Debian omits
+  # it, and aa-status lives there.
   ansible.builtin.command:
     argv:
-      - aa-status
-      - --enabled
+      - sh
+      - -c
+      - |
+        PATH="$PATH:/usr/sbin:/sbin"
+        command -v aa-status >/dev/null 2>&1 || exit 127
+        exec aa-status --enabled
   register: linux_vitals_apparmor_cmd
   changed_when: false
   failed_when: false

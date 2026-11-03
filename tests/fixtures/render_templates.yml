@@ -18,10 +18,11 @@
     linux_vitals_notification_message: "{{ lookup('ansible.builtin.template', '../../roles/vitals_report/templates/slack_message.txt.j2') }}"
     linux_vitals_summary:
       servers_checked: 1
-      auto_fixed_count: 1
-      critical_error_count: 0
-      health_score_pct: 100.0
-      health_score_band: "Excellent"
+      auto_fixed_count: "{{ fixture_auto_fixed_count | default(1) }}"
+      critical_error_count: "{{ fixture_failing_host_count | default(0) }}"
+      failing_host_count: "{{ fixture_failing_host_count | default(0) }}"
+      health_score_pct: "{{ fixture_health_score_pct | default(100.0) }}"
+      health_score_band: "{{ fixture_health_score_band | default('Excellent') }}"
       hosts_by_severity: {none: 0, info: 0, warning: 1, critical: 0}
       findings_by_severity: {info: 1, warning: 1, critical: 0}
       fail_on_severity: "info"
@@ -29,7 +30,7 @@
       regressed_count: 0
       improved_count: 0
       new_hosts_count: 0
-      snippet: "1 Servers Checked, 1 Auto-Fixed, 0 Critical Errors"
+      snippet: "{{ fixture_snippet | default('1 Servers Checked, 1 Auto-Fixed, 0 Failing Hosts') }}"
     fixture_linux_vitals_result:
       hostname: "localhost"
       ip_address: "127.0.0.1"
@@ -96,15 +97,47 @@
         swap_rate_per_sec: 0
         swap_reason: ""
         swap_status: "OK"
+      filesystems:
+        - mount: "/"
+          fstype: "ext4"
+          size_used_pct: 42.5
+          size_used_mb: 8500.0
+          size_total_mb: 20000.0
+          inode_used_pct: 12.0
+          inode_total: 1310720
+          inode_available: 1153433
+          read_only: false
+          expected_readonly: false
+          status: "OK"
+          reason: null
+        - mount: "/data"
+          fstype: "ext4"
+          size_used_pct: null
+          size_used_mb: null
+          size_total_mb: null
+          inode_used_pct: null
+          inode_total: null
+          inode_available: null
+          read_only: false
+          expected_readonly: false
+          status: "Unknown"
+          reason: "stat unavailable"
+      filesystem_worst_status: "Unknown"
+      filesystem_worst_mount: "/data"
+      filesystem_degraded_count: 1
       log_errors: 0
       log_excerpt: []
       asset_serial: "TEST-SERIAL-0001"
+      failed_units:
+        - name: "molecule-broken.service"
+          enabled: true
+      failed_unit_count: 1
       services_healed:
         - "chronyd.service"
       healing_results:
         - service: "chronyd.service"
           result: "Fixed"
-      final_status: "Pass"
+      final_status: "{{ fixture_final_status | default('Pass') }}"
       severity: "warning"
       severity_counts: {info: 1, warning: 1, critical: 0}
       findings:

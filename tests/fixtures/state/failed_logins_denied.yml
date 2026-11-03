@@ -1,9 +1,9 @@
-# Known bug (#39): lastb run without root cannot read /var/log/btmp, and the Rocky host reports no failed logins. Its fix must change this golden file.
+# Rocky 9.4, scanned without become: /var/log/btmp cannot be read, so failed_logins is unknown rather than clean (#39).
 state:
   state_schema: 1
   collected_at: "2026-09-26T14:02:11Z"
   host:
-    inventory_hostname: known-bug-lastb-unreadable
+    inventory_hostname: failed-logins-denied
     hostname: db-03
     ip_address: 10.0.4.23
     product_serial: 2e8b4f1a-9c3d-4b7e-a6f1-8d0c2b5e7a90
@@ -56,13 +56,13 @@ state:
       window: 7 days ago
       stdout: ""
     failed_logins:
-      # /var/log/btmp is 0600 root:utmp. lastb exits 1, its stderr is
-      # discarded by the probe's 2>/dev/null, and stdout is empty -- the same
-      # output as a host nobody has tried to log in to.
+      # /var/log/btmp is 0600 root:utmp (0660 on Debian). Without become
+      # the probe cannot read it and exits 5 before running lastb -- an
+      # empty stdout here must not read as a host nobody tried to log in to.
       ran: true
-      rc: 1
+      rc: 5
       stdout_lines: []
-      unsupported_reason: "lastb: cannot open /var/log/btmp: Permission denied"
+      unsupported_reason: "/var/log/btmp not readable without become"
     last_reboot:
       ran: true
       rc: 0
@@ -95,8 +95,8 @@ state:
       stdout: Enforcing
     apparmor:
       ran: true
-      rc: 2
-      unsupported_reason: aa-status not found
+      rc: 127
+      unsupported_reason: aa-status not installed
     rescue_images:
       ran: true
       rc: 0

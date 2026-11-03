@@ -34,7 +34,11 @@ def test_scan_and_heal_share_the_service_status_task(tmp_path):
         ]["tasks_from"]
         == "services.yml"
     )
-    assert len(shared) == 1
+    # services.yml also builds the operator-declared required-service map
+    # and the fleet-wide failed-unit inventory (#32), additive tasks that
+    # read the same service_facts; the shared task heal and scan both run
+    # is still the first one.
+    assert len(shared) == 4
     assert "linux_vitals_service_status" in shared[0]["ansible.builtin.set_fact"]
     assert (
         sum(

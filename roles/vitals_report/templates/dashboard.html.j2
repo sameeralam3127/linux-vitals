@@ -472,6 +472,13 @@
   {%- macro unknown_marker(finding) -%}
   {%- if finding.status | default('fail') == 'unknown' %} <span class="pill pill--serious"><span class="dot"></span>unknown</span> <span class="muted">Could not check: {{ finding.reason | default('') | e }}</span>{% endif -%}
   {%- endmacro %}
+  {#- A finding mapped to an exact external control id (#43), such as a CIS
+      or STIG rule number, shows each one as its own badge. Empty or absent
+      references -- the default, since most findings have no exact mapping
+      -- render nothing. #}
+  {%- macro references_marker(finding) -%}
+  {%- for ref in finding.references | default([]) %} <span class="pill pill--muted">{{ ref | e }}</span>{% endfor -%}
+  {%- endmacro %}
   {#- Why a self-healing attempt ended where it did (#24). A restart that could
       not be verified is marked like an unknown finding; any other attempt
       that was not fixed shows its detail. A result from before 2.2.0 has no
@@ -649,6 +656,11 @@
           <td>
             <span class="pill pill--{{ boot_class }}"><span class="dot"></span>{{ result.boot_space_status | e }}</span>
             <div class="subtle">{{ result.boot_free_pct }}% free</div>
+            {% if result.filesystems | default([]) %}
+            <div class="subtle">
+              <span class="pill pill--{{ sig_class.get(result.filesystem_worst_status, 'muted') }}" title="Worst filesystem: {{ result.filesystem_worst_mount | default('') | e }}">Disk {{ result.filesystem_worst_status | default('Unknown') | e }}</span>
+            </div>
+            {% endif %}
           </td>
           <td>{{ result.failed_login_count }}</td>
           {% if linux_vitals_summary.comparison_active %}
@@ -711,6 +723,27 @@
                 <ul class="list">{% for item in result.rescue_image_paths %}<li>{{ item | e }}</li>{% endfor %}</ul>
                 {% endif %}
               </div>
+              <div class="detail-item">
+                <strong>Filesystems</strong>
+                {% set fs_list = result.filesystems | default([]) %}
+                {% if fs_list %}
+                <ul class="list">
+                  {% for fs in fs_list %}
+                  <li>
+                    <span class="pill pill--{{ sig_class.get(fs.status, 'muted') }}"><span class="dot"></span>{{ fs.status | e }}</span>
+                    {{ fs.mount | e }}
+                    &mdash;
+                    {% if fs.size_used_pct is not none %}{{ fs.size_used_pct }}% used{% else %}size unknown{% endif %},
+                    {% if fs.inode_used_pct is not none %}{{ fs.inode_used_pct }}% inodes{% else %}inodes unknown{% endif %}
+                    {% if fs.read_only %}<span class="subtle">(read-only{% if not fs.expected_readonly %}, unexpected{% endif %})</span>{% endif %}
+                    {% if fs.reason %}<span class="subtle">{{ fs.reason | e }}</span>{% endif %}
+                  </li>
+                  {% endfor %}
+                </ul>
+                {% else %}
+                <span class="muted">None in scope.</span>
+                {% endif %}
+              </div>
               {% if pr %}
               <div class="detail-item">
                 <strong>CPU, pressure &amp; swap</strong>
@@ -754,6 +787,18 @@
                 {% endif %}
               </div>
               <div class="detail-item">
+                {# Failed systemd units (#32), next to self-healing since
+                   they are what a self-healing attempt would have acted
+                   on -- including the ones vitals_heal never attempts
+                   because they are disabled or were never required. #}
+                <strong>Failed units ({{ result.failed_unit_count | default(0) }})</strong>
+                {% if result.failed_units | default([]) %}
+                <ul class="list">{% for unit in result.failed_units | default([]) %}<li>{{ unit.name | e }}{{ ' (enabled)' if unit.enabled else ' (not confirmed enabled)' }}</li>{% endfor %}</ul>
+                {% else %}
+                <span class="muted">No failed units.</span>
+                {% endif %}
+              </div>
+              <div class="detail-item">
                 <strong>Findings ({{ result.findings | length }})</strong>
                 {% if result.findings %}
                 {# Most severe first, so triage reads top-down. Grouped by an
@@ -765,11 +810,11 @@
                 <ul class="list">
                   {% for level in ['critical', 'warning', 'info'] %}
                   {% for finding in result.findings if finding is mapping and finding.severity == level %}
-                  <li><span class="pill pill--{{ 'critical' if level == 'critical' else 'warning' if level == 'warning' else 'muted' }}"><span class="dot"></span>{{ level | e }}</span> {{ finding.message | e }}{{ unknown_marker(finding) }}</li>
+                  <li><span class="pill pill--{{ 'critical' if level == 'critical' else 'warning' if level == 'warning' else 'muted' }}"><span class="dot"></span>{{ level | e }}</span> {{ finding.message | e }}{{ unknown_marker(finding) }}{{ references_marker(finding) }}</li>
                   {% endfor %}
                   {% endfor %}
                   {% for finding in result.findings if finding is mapping and finding.severity not in ['critical', 'warning', 'info'] %}
-                  <li><span class="pill pill--muted"><span class="dot"></span>{{ finding.severity | default('unknown') | e }}</span> {{ finding.message | e }}{{ unknown_marker(finding) }}</li>
+                  <li><span class="pill pill--muted"><span class="dot"></span>{{ finding.severity | default('unknown') | e }}</span> {{ finding.message | e }}{{ unknown_marker(finding) }}{{ references_marker(finding) }}</li>
                   {% endfor %}
                   {% for finding in result.findings if finding is not mapping %}
                   <li>{{ finding | e }}</li>

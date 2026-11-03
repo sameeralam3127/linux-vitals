@@ -72,6 +72,9 @@
 - name: Evaluate boot partition space
   ansible.builtin.import_tasks: boot_space.yml
 
+- name: Evaluate filesystem capacity and inodes across every mount
+  ansible.builtin.import_tasks: filesystems.yml
+
 - name: Build required service status map
   ansible.builtin.include_tasks: services.yml
   tags:

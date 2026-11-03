@@ -8,6 +8,7 @@ from pathlib import Path
 from shutil import which
 
 import pytest
+import yaml
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -90,6 +91,14 @@ def test_templates_render_with_representative_health_data(tmp_path: Path) -> Non
     assert "localhost" in report
     assert "Default boot entry selects the latest installed kernel" in report
     assert "chronyd.service: Fixed" in report
+    # Failed units (#32), surfaced next to self-healing in the host detail
+    # and in the JSON report.
+    assert "Failed units (1)" in report
+    assert "molecule-broken.service" in report
+    assert json_report["hosts"][0]["failed_units"]["count"] == 1
+    assert json_report["hosts"][0]["failed_units"]["units"] == [
+        {"name": "molecule-broken.service", "enabled": True}
+    ]
     assert "Standard Maintenance Summary" in slack
     assert "Overall Status: PASS" in slack
     assert "Bootloader: 6.8.0-test (latest selected)" in slack
@@ -97,7 +106,7 @@ def test_templates_render_with_representative_health_data(tmp_path: Path) -> Non
     assert generic_webhook["summary"]["overall_status"] == "PASS"
     assert generic_webhook["hosts"][0]["hostname"] == "localhost"
     assert "Standard Maintenance Summary" in generic_webhook["message"]
-    assert json_report["schema_version"] == "2.1"
+    assert json_report["schema_version"] == "2.2"
     assert json_report["summary"]["health_score_pct"] == 100.0
     # Additive (#62): a result built without the unknown fields renders them
     # as zero rather than failing, so the shape never depends on who built it.
@@ -129,10 +138,31 @@ def test_templates_render_with_representative_health_data(tmp_path: Path) -> Non
     assert "<strong>CPU, pressure &amp; swap</strong>" in report
     assert "memory 31.2 (all tasks 9.8)" in report
 
+    # Filesystem capacity/inode checks (#30): the JSON carries one entry per
+    # mount, with numeric fields null (never 0) when a mount's status is
+    # Unknown, and the dashboard shows the worst status next to boot space
+    # plus a full per-mount breakdown in the host detail.
+    filesystems = json_report["hosts"][0]["filesystems"]
+    assert filesystems["worst_status"] == "Unknown"
+    assert filesystems["worst_mount"] == "/data"
+    mounts_by_path = {m["mount"]: m for m in filesystems["mounts"]}
+    assert mounts_by_path["/"]["size_used_pct"] == 42.5
+    assert mounts_by_path["/"]["status"] == "OK"
+    assert mounts_by_path["/data"]["status"] == "Unknown"
+    assert mounts_by_path["/data"]["size_used_pct"] is None
+    assert mounts_by_path["/data"]["size_used_mb"] is None
+    assert mounts_by_path["/data"]["inode_total"] is None
+    assert mounts_by_path["/data"]["reason"] == "stat unavailable"
+    assert generic_webhook["hosts"][0]["filesystem_worst_status"] == "Unknown"
+    assert "Disk Unknown" in report
+    assert "<strong>Filesystems</strong>" in report
+    assert "42.5% used" in report
+    assert "stat unavailable" in report
+
     # Slack renders the top-level `text` ABOVE the attachment, so it must be
     # one short line. Putting the full plain-text summary there printed the
     # entire old-style message above the new card, duplicated.
-    assert slack_blocks["text"] == "LinuxVitals: PASS — 1 host(s) checked, 0 critical, 1 auto-fixed"
+    assert slack_blocks["text"] == "LinuxVitals: PASS — 1 host(s) checked, 0 failing hosts, 1 auto-fixed"
     assert "\n" not in slack_blocks["text"]
     assert len(slack_blocks["text"]) < 200
     # The plain-text message itself is unchanged and still carried by the
@@ -149,7 +179,7 @@ def test_templates_render_with_representative_health_data(tmp_path: Path) -> Non
     counters = {f["text"].split("\n")[0]: f["text"].split("\n")[1] for f in blocks[2]["fields"]}
     assert counters["*Servers checked*"] == "1"
     assert counters["*Auto-fixed*"] == "1"
-    assert counters["*Critical errors*"] == "0"
+    assert counters["*Failing hosts*"] == "0"
     table = _host_table(blocks)
     # The whole point of the issue: this was one `|`-joined run-on line.
     assert table[0].split() == ["HOST", "STATUS", "SEV", "KERNEL", "BOOTLDR", "REBOOT", "/BOOT", "LOGINS"]
@@ -161,6 +191,103 @@ def test_templates_render_with_representative_health_data(tmp_path: Path) -> Non
     context = " ".join(e["text"] for b in blocks if b["type"] == "context" for e in b["elements"])
     assert "LinuxVitals" in context
     _assert_block_kit_within_slack_limits(slack_blocks)
+
+
+def test_warning_only_failures_are_labeled_as_failing_hosts(tmp_path: Path) -> None:
+    subprocess.run(
+        [
+            _ansible_playbook_bin(),
+            str(PLAYBOOK),
+            "-e",
+            json.dumps(
+                {
+                    "fixture_failing_host_count": 1,
+                    "fixture_final_status": "Fail",
+                    "fixture_auto_fixed_count": 0,
+                    "fixture_health_score_pct": 0.0,
+                    "fixture_health_score_band": "Poor",
+                    "fixture_snippet": "1 Servers Checked, 0 Auto-Fixed, 1 Failing Host",
+                }
+            ),
+        ],
+        check=True,
+        cwd=REPO_ROOT,
+        env=_base_env(tmp_path),
+    )
+
+    html = (tmp_path / "report.html").read_text(encoding="utf-8")
+    slack = (tmp_path / "slack.txt").read_text(encoding="utf-8")
+    slack_blocks = json.loads((tmp_path / "slack.json").read_text(encoding="utf-8"))
+    webhook = json.loads((tmp_path / "generic_webhook.json").read_text(encoding="utf-8"))
+    report = json.loads((tmp_path / "report.json").read_text(encoding="utf-8"))
+
+    assert "Failing Hosts: 1" in slack
+    assert "Critical Errors" not in slack
+    assert "Critical Errors" not in html
+    assert slack_blocks["text"] == "LinuxVitals: FAIL — 1 host(s) checked, 1 failing host, 0 auto-fixed"
+    counters = {
+        field["text"].split("\n")[0]: field["text"].split("\n")[1]
+        for block in slack_blocks["attachments"][0]["blocks"]
+        if block["type"] == "section" and "fields" in block
+        for field in block["fields"]
+    }
+    assert counters["*Failing hosts*"] == "1"
+    assert webhook["summary"]["overall_status"] == "FAIL"
+    assert webhook["summary"]["critical_error_count"] == 1
+    assert webhook["summary"]["failing_host_count"] == 1
+    assert webhook["summary"]["findings_by_severity"]["critical"] == 0
+    assert "Critical Errors" not in webhook["message"]
+    assert report["summary"]["critical_error_count"] == 1
+    assert report["summary"]["failing_host_count"] == 1
+    assert report["summary"]["findings_by_severity"]["critical"] == 0
+
+
+def test_real_render_reports_warning_only_failure_with_failing_host_counts(tmp_path: Path) -> None:
+    fixture_vars = yaml.safe_load(ARCHIVE_PLAYBOOK.read_text(encoding="utf-8"))[0]["vars"]
+    result = dict(fixture_vars["fixture_linux_vitals_result"])
+    result.update(
+        {
+            "final_status": "Fail",
+            "severity": "warning",
+            "severity_counts": {"info": 0, "warning": 1, "critical": 0},
+            "findings": [
+                {
+                    "id": "warning_only_failure",
+                    "message": "Warning-only finding",
+                    "severity": "warning",
+                    "status": "fail",
+                }
+            ],
+        }
+    )
+    extra_vars = tmp_path / "warning_only_failure.json"
+    extra_vars.write_text(
+        json.dumps({"fixture_linux_vitals_result": result}),
+        encoding="utf-8",
+    )
+
+    subprocess.run(
+        [
+            _ansible_playbook_bin(),
+            str(ARCHIVE_PLAYBOOK),
+            "-e",
+            f"@{extra_vars}",
+        ],
+        check=True,
+        cwd=REPO_ROOT,
+        env=_base_env(tmp_path),
+    )
+
+    report = json.loads(
+        (tmp_path / "latest" / "linux_vitals_report.json").read_text(encoding="utf-8")
+    )
+    summary = report["summary"]
+    assert summary["snippet"] == "1 Servers Checked, 0 Auto-Fixed, 1 Failing Host"
+    assert summary["critical_error_count"] == summary["failing_host_count"] == 1
+    assert summary["findings_by_severity"]["critical"] == 0
+    assert summary["auto_fixed_count"] == 0
+    assert summary["health_score_pct"] == 0.0
+    assert summary["health_score_band"] == "Poor"
 
 
 def test_reporting_archives_timestamped_outputs_and_prunes_old_reports(tmp_path: Path) -> None:
@@ -370,7 +497,7 @@ def test_slack_block_kit_caps_hosts_and_orders_worst_first(tmp_path: Path) -> No
 
     attachment = payload["attachments"][0]
     blocks = attachment["blocks"]
-    assert attachment["color"] == "#e01e5a"  # critical errors present
+    assert attachment["color"] == "#e01e5a"  # failing hosts present
 
     table = _host_table(blocks)
     rows = table[2:]  # heading, rule, then one line per host

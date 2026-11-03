@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **Failing hosts are labeled accurately in report summaries**
+  ([#143](https://github.com/sameeralam3127/linux-vitals/issues/143)). The
+  `summary.snippet` and Slack, email and webhook `message` wording now say
+  "N Failing Host(s)" instead of "N Critical Error(s)"; they count hosts whose
+  final status is `Fail`, regardless of finding severity. Anyone matching
+  those labels in the text will need to update their match and should read
+  `critical_error_count` for the count instead.
+
 - **`log_errors` now counts journal entries at priority `err` or worse,
   instead of lines containing `error` or `failed`**
   ([#23](https://github.com/sameeralam3127/linux-vitals/issues/23)). The
@@ -41,6 +49,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   2.1.0 with a padded ID will not find that baseline at the trimmed path.
   `report.json`'s `maintenance_id` is also trimmed. Finish any open maintenance
   windows before upgrading, or rename the snapshot directory to a valid ID.
+
+- **The failed-login check no longer reports a clean host when it could
+  not run** ([#39](https://github.com/sameeralam3127/linux-vitals/issues/39)).
+  `lastb` reads `/var/log/btmp`, which is `0600`/`0660 root:utmp`; without
+  `become` it failed, the probe discarded the error, and the host showed
+  *"No failed login attempts found"*. A run without `become`, a host without
+  `lastb`, a host with no `/var/log/btmp`, and a failing `lastb` now each
+  raise `failed_logins` with `status: unknown` and their own `reason`, and
+  `last_failed_login` reads `Not checked: <reason>`. Under the default
+  threshold such a host now fails, and it never counts as healthy. **Expect
+  this on unprivileged runs and on minimal or container images**, which have
+  no `btmp`; see [docs/troubleshooting.md](docs/troubleshooting.md#failed-logins-or-apparmor-reported-as-unknown).
+
+- **A missing `aa-status` is no longer read as "AppArmor disabled"**
+  ([#39](https://github.com/sameeralam3127/linux-vitals/issues/39)). On a
+  Debian-family host, `apparmor_disabled` is `unknown` with a reason when
+  `aa-status` is not installed or cannot read AppArmor's state, and
+  `apparmor_status` gains the values `not-installed` and `unknown` beside
+  `enabled` and `disabled`. RedHat- and SUSE-family hosts without
+  `aa-status` now report `not-installed` rather than `disabled`; they raise
+  no AppArmor finding, as before. The `fail` finding's message is now
+  *"AppArmor is disabled"*.
 
 - **Self-healing no longer reports a service `Fixed` before the restart has
   held** ([#24](https://github.com/sameeralam3127/linux-vitals/issues/24)).
@@ -144,6 +174,99 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Findings carry a `references` field, additive and empty for now**
+  ([#43](https://github.com/sameeralam3127/linux-vitals/issues/43)). Every
+  finding in the JSON report and generic webhook payload now has a
+  `references` list, meant to name the exact external control identifiers
+  it maps to -- a CIS or STIG rule number, for example. This release adds
+  only the field itself: no mapping is populated. An approximate or guessed
+  control number is worse than none on something an audit might quote, and
+  verifying the exact section numbers of the CIS Distribution Independent
+  Linux Benchmark (which several findings this collection already has --
+  `selinux_disabled`, `apparmor_disabled`, `time_sync_absent`,
+  `time_sync_inactive` -- plausibly map to) needs the benchmark document
+  itself, not a best guess. `schema_version` moves from `2.1` to `2.2`
+  for this reason alone; nothing else in the report changed. The HTML
+  dashboard shows each reference as a small badge next to the finding it
+  maps, rendering nothing when the list is empty, which is every finding
+  today.
+
+- **Filesystem capacity and inode checks** ([#30](https://github.com/sameeralam3127/linux-vitals/issues/30)).
+  Until now the only disk check was `/boot`, so a host with `/var` or `/data`
+  pinned at 99% full, or a web of small files eating every inode on `/tmp`,
+  reported `Pass`. One new probe-free task, `filesystems.yml`, reads the
+  per-mount facts Ansible already gathers (`ansible_facts.mounts`) -- no new
+  shell-outs or permissions needed. Every real filesystem is in scope except
+  the pseudo/network ones listed in `linux_vitals_disk_exclude_fstypes`
+  (`proc`, `nfs`, `squashfs`, and the like); add or drop specific mounts with
+  `linux_vitals_disk_include_mounts` / `_exclude_mounts`. `tmpfs` and
+  `overlay` are deliberately not in that default list -- both back real,
+  capacity-constrained mounts in common setups (`tmpfs` for `/tmp` or
+  `/dev/shm`, `overlay` for a container's own root), and excluding either
+  would silently drop a mount an operator genuinely wants checked. `/` is
+  also always in scope regardless of its filesystem type, as a backstop
+  independent of that default. `linux_vitals_disk_exclude_mounts` now also
+  excludes `/etc/hostname`, `/etc/hosts` and `/etc/resolv.conf` by default:
+  container runtimes commonly bind-mount individual host files over these
+  exact paths, each reporting the host disk's own size and inodes rather
+  than a filesystem of their own. A host whose mount facts come back
+  completely empty (some fact-gathering environments can't read the mount
+  table at all) is reported as one `Unknown` mount for `/`, rather than as
+  an empty, unchecked filesystems list. Five findings, one per mount except
+  the last:
+
+  - `filesystem_space_low`: used space at or above 80% / 95%
+    (`linux_vitals_disk_warning_threshold`, `_critical_threshold`).
+  - `filesystem_inodes_low`: used inodes at or above 80% / 95%
+    (`linux_vitals_disk_inode_warning_threshold`, `_critical_threshold`).
+  - `filesystem_read_only`: the mount is read-only and not listed in
+    `linux_vitals_disk_expected_readonly_mounts` -- always `critical`, since
+    an unexpectedly read-only filesystem is usually a remount after an I/O
+    error.
+  - `filesystem_unavailable`: a mount's size or inode facts could not be
+    read; `unknown` with a reason.
+  - `filesystem_probe_degraded`: host-level, fires at most once, when one or
+    more mounts returned unreadable facts.
+
+  This also fixes a long-standing bug: a `/boot` entry with no size data
+  used to compute 0% free and wrongly raise `boot_space_low`. That case now
+  resolves `boot_space.status` to the existing `Not Available` value, and
+  `filesystem_unavailable` covers `/boot` like any other mount so the gap is
+  still reported. Each host gains a `filesystems` object in the JSON report
+  (additive, still schema `2.1`) with `worst_status`, `worst_mount`, and the
+  full per-mount list; numeric fields are `null`, never `0`, when a mount's
+  status is `Unknown`. The dashboard shows the worst filesystem status next
+  to boot space, and the full per-mount breakdown in the host detail. On a
+  fresh checkout of a 5-host fleet with nothing wrong, this adds zero new
+  findings; on a host with a full `/var`, it now shows up instead of only
+  reading `Pass` on free RAM and `/boot`.
+
+- **`summary.failing_host_count`** is an additive alias for
+  `critical_error_count`, which remains unchanged for compatibility. The
+  report stays at schema `2.1`.
+- **Every failed systemd unit is now reported, and the required-service
+  list is configurable**
+  ([#32](https://github.com/sameeralam3127/linux-vitals/issues/32)).
+  `vitals_scan` used to check exactly three services by name (`sssd`,
+  `systemd-journald`, the resolved time-sync unit), so a host with eight
+  failed units still reported `Pass` as long as those three were running.
+  Each host now gains `failed_units` (unit name and whether it is confirmed
+  enabled) and `failed_unit_count` in the JSON report, read from the
+  `service_facts` the scan already gathers -- no new command. Disabled,
+  masked, static, and missing units are excluded, so the count is not
+  "every stopped unit on the host." A new `failed_units_present` finding
+  (`warning`) fires on the count of units confirmed enabled; a crashed unit
+  whose enabled state service_facts could not preserve is still listed, but
+  counted conservatively rather than guessed. A new list variable,
+  `linux_vitals_required_services` (default `[]`), lets a fleet declare its
+  own must-run units (`nginx`, `postgresql`, `docker`, ...) per group or
+  host; each is checked the same way as the built-in three via a new
+  `required_service_inactive` finding. The empty default is additive on top
+  of the built-in three, which always run regardless -- so leaving the
+  variable unset reproduces every earlier release's behaviour exactly. The
+  dashboard shows failed units in the host detail next to self-healing
+  outcomes.
+
 - **CPU saturation, pressure stall and swap activity checks** ([#34](https://github.com/sameeralam3127/linux-vitals/issues/34)).
   Memory used to be the only pressure signal, so a host pinned at load 40
   with a thrashing swap device reported `Pass` as long as it had free RAM.
@@ -188,8 +311,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   any consumer checking `status == "Fail"`. The report's `schema_version`
   moves to `2.1`, additively; nothing existing changed type or meaning, and
   a 2.x baseline's findings are read as `fail`. Journal checks now raise
-  `unknown` (#118); [#39](https://github.com/sameeralam3127/linux-vitals/issues/39)
-  (`lastb`) still needs this handling. `tests/test_finding_contract.py` now fails if a
+  `unknown` (#118), and so do the failed-login and AppArmor checks
+  ([#39](https://github.com/sameeralam3127/linux-vitals/issues/39), under
+  *Fixed*). `tests/test_finding_contract.py` now fails if a
   new scan probe sets `failed_when: false`, so a new check is reviewed
   against the contract before it can reintroduce a false-clean report. See
   [docs/report-guide.md](docs/report-guide.md#status-when-a-check-could-not-run).
