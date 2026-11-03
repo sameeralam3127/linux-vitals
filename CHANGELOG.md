@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-11-03
+
 ### Added
 
 - **Postcheck reports show when each baseline was captured**
@@ -15,7 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   default) are flagged; set the limit to `0` to disable stale-age warnings.
   Undated or malformed timestamps remain visible as an unknown age. The JSON
   summary adds the configured limit and counts of stale and unknown-age
-  baselines. Additive within schema `2.1`.
+  baselines. Additive within schema `2.2`.
 
 ### Changed
 
@@ -244,7 +246,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   resolves `boot_space.status` to the existing `Not Available` value, and
   `filesystem_unavailable` covers `/boot` like any other mount so the gap is
   still reported. Each host gains a `filesystems` object in the JSON report
-  (additive, still schema `2.1`) with `worst_status`, `worst_mount`, and the
+  (additive, schema `2.2` in this release) with `worst_status`, `worst_mount`, and the
   full per-mount list; numeric fields are `null`, never `0`, when a mount's
   status is `Unknown`. The dashboard shows the worst filesystem status next
   to boot space, and the full per-mount breakdown in the host detail. On a
@@ -254,7 +256,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **`summary.failing_host_count`** is an additive alias for
   `critical_error_count`, which remains unchanged for compatibility. The
-  report stays at schema `2.1`.
+  report's schema is `2.2` in this release, moved by the `references` field
+  above rather than by this alias.
 - **Every failed systemd unit is now reported, and the required-service
   list is configurable**
   ([#32](https://github.com/sameeralam3127/linux-vitals/issues/32)).
@@ -299,7 +302,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   never as zero, and raises no PSI finding. A value that could not be read,
   or a probe that could not run, raises the finding as `unknown` with the
   reason (#62). Each host gains a `pressure` object in the JSON report
-  (additive, still schema `2.1`). The dashboard shows load, worst stall and
+  (additive, schema `2.2` in this release). The dashboard shows load, worst stall and
   swap rate under each RAM meter, and the full breakdown in the host detail.
   Every scan now waits `linux_vitals_swap_sample_seconds` once per host for
   the swap rate; set it to `0` to skip that.

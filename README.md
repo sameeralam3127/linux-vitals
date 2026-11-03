@@ -115,7 +115,8 @@ That is the whole loop. Everything below is optional.
 | --- | --- |
 | **System** | CPU and platform discovery, virtualization type, uptime, last reboot, asset serial |
 | **Memory & load** | RAM usage; 5-minute load per CPU; pressure stalls (PSI) for CPU, memory and I/O; swap paging rate -- each against warning and critical thresholds |
-| **Services** | `sssd`, `systemd-journald`, and the resolved time-sync unit |
+| **Filesystems** | Used space and used inodes on **every real mount**, plus mounts that unexpectedly went read-only, and mounts whose capacity could not be read |
+| **Services** | `sssd`, `systemd-journald`, the resolved time-sync unit, **every enabled unit systemd reports as failed**, and any unit you name in `linux_vitals_required_services` |
 | **Logs** | Journal entries at priority `err` or worse (configurable) in a bounded window, plus kernel/bootloader install failures |
 | **Kernel & boot** | Running vs. latest installed kernel, bootloader default entry, reboot-required (per distro), `/boot` free space, rescue image |
 | **Security** | SELinux, AppArmor, recent failed logins |
@@ -124,6 +125,12 @@ That is the whole loop. Everything below is optional.
 Every finding carries a **severity**, and each host rolls up to the worst one it
 has. Results render as an HTML dashboard and a JSON report, with optional
 Slack, email, and generic-webhook summaries.
+
+A check that **could not run** -- a command missing, a log or mount table
+unreadable -- raises its finding as `unknown` with the reason, rather than
+leaving the host reading clean. A host where something could not be checked
+never counts towards the fleet health score, whatever your severity threshold
+is: see [Status](docs/report-guide.md#status-when-a-check-could-not-run).
 
 ---
 
@@ -166,13 +173,15 @@ to *do* about each one is in the [Operator Runbook](docs/runbook.md).
 
 ## Configuration
 
-Defaults are conservative and safe. The four most people change:
+Defaults are conservative and safe. The ones most people change:
 
 ```yaml
 linux_vitals_ram_critical_threshold: 95   # RAM % that fails a host
+linux_vitals_disk_critical_threshold: 95  # filesystem used % that is critical
 linux_vitals_fail_on_severity: info       # severity that fails a host
 linux_vitals_heal_enabled: false          # opt in to service restarts
 linux_vitals_certs_enabled: false         # opt in to TLS checks
+linux_vitals_required_services: []        # your own must-run units
 ```
 
 Set them in `group_vars`, inventory, or with `-e`.
@@ -283,6 +292,16 @@ before/after panel. Hosts with no matching baseline are marked **New** rather
 than failing the run. Step-by-step:
 [Running a maintenance window](docs/runbook.md#procedure-a-maintenance-window).
 
+Each snapshot records when it was captured, and the postcheck reports that
+age — so a comparison against a baseline from three weeks ago says so instead
+of reading as a fresh before/after. Baselines older than
+`linux_vitals_baseline_max_age_hours` (72 by default; `0` disables the
+warning) are flagged in the dashboard header and per host.
+
+Maintenance ids are validated before anything is written: an id containing a
+path separator, a leading dot, or a control character is refused rather than
+writing a snapshot outside the snapshot directory.
+
 Splitting a large fleet across several runs? Every shard keeps the window's
 maintenance id and sets its own `linux_vitals_snapshot_shard`, so a shard id
 reused for a different set of hosts is refused rather than silently merged
@@ -296,10 +315,11 @@ Every task is tagged, so you can run a slice instead of the whole scan:
 
 | Tag | Runs |
 | --- | --- |
-| `discovery` | Facts, services, memory, logs, kernel, boot, security |
+| `discovery` | Facts, services, memory, saturation, filesystems, logs, kernel, boot, security |
 | `kernel` | Kernel and reboot-required checks |
 | `security` | SELinux, AppArmor, failed logins |
-| `boot` | Boot partition and rescue image |
+| `boot` | Boot partition, rescue image, and the per-mount filesystem checks |
+| `result` | Build the findings list, classify severity, and assemble each host's result |
 | `self_healing` | Restart attempts (only acts if enabled) |
 | `certs` | TLS certificate checks (only acts if enabled) |
 | `reporting`, `notifications` | Rebuild reports and send summaries |
@@ -340,7 +360,7 @@ flowchart TB
     subgraph OUT["What you get"]
         direction LR
         HTML["<b>Dashboard</b><br/>one HTML file"]
-        JSON["<b>JSON report</b><br/>schema 2.1"]
+        JSON["<b>JSON report</b><br/>schema 2.2"]
         SNAP["<b>Snapshots</b><br/>before → after"]
         MSG["<b>Notifications</b><br/>Slack · email<br/>webhook"]
         HTML ~~~ JSON ~~~ SNAP ~~~ MSG
@@ -365,10 +385,17 @@ Why the roles share one variable namespace, and why paths resolve from
 
 ### Consuming the JSON
 
-`reports/linux_vitals_report.json` is **schema 2.1**. Findings are objects
-(`{id, message, severity, status}`, plus a `reason` when `status` is
-`unknown`), not strings, and each carries a stable `id` you can join on —
-`message` wording may change between releases, ids will not.
+`reports/linux_vitals_report.json` is **schema 2.2**. Findings are objects
+(`{id, message, severity, status, references}`, plus a `reason` when `status`
+is `unknown`), not strings, and each carries a stable `id` you can join on —
+`message` wording may change between releases, ids will not. `references` is
+reserved for exact external control identifiers (a CIS or STIG rule number)
+and is an empty list on every finding today, so a consumer can join on it
+before any mapping is published.
+
+Each host also carries `filesystems` (per-mount space and inodes),
+`pressure` (load, PSI and swap), `failed_units`, and `unknown_count`.
+Full schema and every field: **[Report Guide](docs/report-guide.md#json-report)**.
 
 ---
 
