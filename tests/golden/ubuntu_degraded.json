@@ -19,6 +19,39 @@
   "failed_login_count": 2,
   "failed_unit_count": 0,
   "failed_units": [],
+  "filesystem_degraded_count": 0,
+  "filesystem_worst_mount": "/boot",
+  "filesystem_worst_status": "Warning",
+  "filesystems": [
+    {
+      "expected_readonly": false,
+      "fstype": null,
+      "inode_available": null,
+      "inode_total": null,
+      "inode_used_pct": null,
+      "mount": "/boot",
+      "read_only": false,
+      "reason": null,
+      "size_total_mb": 1829.8,
+      "size_used_mb": 1592.3,
+      "size_used_pct": 87.0,
+      "status": "Warning"
+    },
+    {
+      "expected_readonly": false,
+      "fstype": null,
+      "inode_available": null,
+      "inode_total": null,
+      "inode_used_pct": null,
+      "mount": "/boot/efi",
+      "read_only": false,
+      "reason": null,
+      "size_total_mb": 1072.9,
+      "size_used_mb": 12.0,
+      "size_used_pct": 1.1,
+      "status": "OK"
+    }
+  ],
   "final_status": "Fail",
   "findings": [
     {
@@ -56,6 +89,13 @@
       "message": "Recent failed login attempts detected",
       "severity": "info",
       "status": "fail"
+    },
+    {
+      "id": "filesystem_space_low",
+      "message": "/boot is 87.0% full",
+      "severity": "warning",
+      "status": "fail",
+      "subject": "/boot"
     }
   ],
   "healing_results": [],
@@ -133,7 +173,7 @@
   "severity_counts": {
     "critical": 0,
     "info": 2,
-    "warning": 4
+    "warning": 5
   },
   "unknown_count": 0,
   "uptime": "30d 0h 5m",

@@ -1,6 +1,8 @@
 ---
 # The /boot (or /boot/efi) mount and its free space, from ansible_facts.mounts.
-# The second task reads the mount the first one picks.
+# The second task reads the mount the first one picks. ansible_facts.mounts
+# can hold the bare string 'N/A' in place of a dict (#30), so mapping items
+# are selected before reading .mount off them.
 - name: Build boot partition facts
   ansible.builtin.set_fact:
     linux_vitals_boot_mount: >-
@@ -8,11 +10,13 @@
         (
           (
             ansible_facts['mounts'] | default([])
+            | select('mapping') | list
             | selectattr('mount', 'equalto', '/boot')
             | list
           )
           + (
             ansible_facts['mounts'] | default([])
+            | select('mapping') | list
             | selectattr('mount', 'equalto', '/boot/efi')
             | list
           )
@@ -49,10 +53,21 @@
           ) * 100
         ) | round(1)
       }}
+    # A /boot entry that is present but has no size_available/size_total --
+    # a timed-out probe, typically -- used to compute 0% free and wrongly
+    # report 'Low'. It now reads as 'Not Available', the same value already
+    # used for "no /boot mount at all": no new boot_space_status value is
+    # introduced (docs/compatibility.md). filesystems.yml's
+    # filesystem_unavailable finding covers this case with a reason; see
+    # result.yml.
     linux_vitals_boot_space_status: >-
       {{
         'Not Available'
-        if linux_vitals_boot_mount.mount is not defined
+        if (
+          linux_vitals_boot_mount.mount is not defined
+          or linux_vitals_boot_mount.size_available is not defined
+          or linux_vitals_boot_mount.size_total is not defined
+        )
         else 'Low'
         if (
           (

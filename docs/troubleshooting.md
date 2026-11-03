@@ -147,6 +147,18 @@ group access, expect unknown findings rather than zero errors. Inspect the
 reason before changing journal permissions or the requested time window.
 See [the finding contract](report-guide.md#status-when-a-check-could-not-run).
 
+## Failed logins or AppArmor reported as unknown
+
+The failed-login check reads `/var/log/btmp`, which is `0600` or `0660
+root:utmp`, so **it needs `become`**: run without it and `failed_logins` is
+`unknown` with the reason `reading /var/log/btmp was denied`. It is also
+`unknown` when `lastb` is not installed or `/var/log/btmp` does not exist --
+the default on minimal and container images, where nothing records failed
+logins at all. On Debian-family hosts, `apparmor_disabled` is `unknown` when
+`aa-status` is missing or cannot read AppArmor's state. None of these is a
+clean host; the [runbook](runbook.md#failed_logins----recent-failed-login-attempts)
+says what to do for each reason.
+
 ## Tuning the journal scans for chatty hosts
 
 Both journal scans are filtered on the managed host and return at most
