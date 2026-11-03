@@ -116,6 +116,46 @@
       vars:
         inventory_hostname: "host-b"
 
+    # These two read back what vitals_report just wrote, so they must use the
+    # same snapshot directory it chose -- the trimmed maintenance id, not the
+    # literal "test-window". test_templates.py overrides the id through
+    # extra-vars (#153 parametrises it with "yes"/"true"/2026, which
+    # extra-vars wins over the play's own value), and a hardcoded path here
+    # looks for a file that run never wrote.
+    - name: Age host-b baseline for the stale-baseline fixture
+      vars:
+        baseline_dir: >-
+          {{ output_dir }}/snapshots/{{ linux_vitals_maintenance_id | string | trim }}/baseline
+      ansible.builtin.copy:
+        dest: "{{ baseline_dir }}/host-b.json"
+        content: >-
+          {{
+            (
+              lookup('ansible.builtin.file', baseline_dir ~ '/host-b.json')
+              | from_json
+              | combine({'captured_at': '2000-01-01T00:00:00Z'})
+            ) | to_nice_json
+          }}
+        mode: "0644"
+
+    - name: Remove host-d capture time for the legacy-baseline fixture
+      vars:
+        baseline_dir: >-
+          {{ output_dir }}/snapshots/{{ linux_vitals_maintenance_id | string | trim }}/baseline
+      ansible.builtin.copy:
+        dest: "{{ baseline_dir }}/host-d.json"
+        content: >-
+          {{
+            lookup('ansible.builtin.file', baseline_dir ~ '/host-d.json')
+            | from_json
+            | dict2items
+            | rejectattr('key', 'equalto', 'captured_at')
+            | list
+            | items2dict
+            | to_nice_json
+          }}
+        mode: "0644"
+
 - name: Postcheck phase -- compare host-a (improved), host-b (regressed), host-c (new)
   hosts: localhost
   connection: local

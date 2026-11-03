@@ -26,6 +26,13 @@ Both phases need `-e linux_vitals_maintenance_id=<id>`; the id has no
 sensible default because it's what correlates a baseline with its
 postcheck. Reuse the exact same id for both runs.
 
+**A `baseline` or `postcheck` run fails because
+`linux_vitals_maintenance_id` contains an invalid value.**
+The id cannot contain `/`, `\`, control characters, or start with `.` because
+it names a directory below `linux_vitals_snapshot_dir`. Leading and trailing
+spaces are ignored; control characters are refused even at the ends. Choose
+a valid id, then use the same id for the baseline and postcheck runs.
+
 **A `baseline` or `postcheck` run fails with "Snapshot shard '...' of
 maintenance id '...' (...) was recorded with N host(s), and this run also
 targets ...".**
