@@ -136,7 +136,7 @@
       {%- endif -%}
       {#- Security posture (#36): firewall/SSH/kernel-taint/deleted-lib
           findings, built in security_posture_facts.yml imported above. -#}
-      {%- set _ = findings.extend(linux_vitals_security_posture_findings) -%}
+      {%- set _ = findings.extend(linux_vitals_security_posture_findings | default([])) -%}
       {#- A restart vitals_heal could not verify (#24: outcome `unknown`) is
           an unknown finding with the reason it could not, not a plain failure
           and never a pass. -#}
