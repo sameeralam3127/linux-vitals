@@ -1,5 +1,5 @@
 {
-  "apparmor_status": "disabled",
+  "apparmor_status": "not-installed",
   "asset_serial": "3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90",
   "boot_free_mb": 669.0,
   "boot_free_pct": 66.0,
@@ -17,6 +17,27 @@
     "baseline_available": false
   },
   "failed_login_count": 0,
+  "failed_unit_count": 0,
+  "failed_units": [],
+  "filesystem_degraded_count": 0,
+  "filesystem_worst_mount": "/boot",
+  "filesystem_worst_status": "OK",
+  "filesystems": [
+    {
+      "expected_readonly": false,
+      "fstype": null,
+      "inode_available": null,
+      "inode_total": null,
+      "inode_used_pct": null,
+      "mount": "/boot",
+      "read_only": false,
+      "reason": null,
+      "size_total_mb": 1014.0,
+      "size_used_mb": 345.0,
+      "size_used_pct": 34.0,
+      "status": "OK"
+    }
+  ],
   "final_status": "Pass",
   "findings": [],
   "firewall": {

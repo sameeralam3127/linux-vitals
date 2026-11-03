@@ -816,7 +816,7 @@ def test_slack_receives_the_rendered_block_kit_payload(delivery: Delivery, scena
     assert body == result.expected_json("slack")
     # Anchors that do not depend on the expected render, so a template that
     # renders nothing useful cannot pass by agreeing with itself.
-    assert body["text"] == "LinuxVitals: PASS — 1 host(s) checked, 0 critical, 0 auto-fixed"
+    assert body["text"] == "LinuxVitals: PASS — 1 host(s) checked, 0 failing hosts, 0 auto-fixed"
     blocks = body["attachments"][0]["blocks"]
     assert blocks[0]["text"]["text"] == HEADER
     assert any(scenario in block.get("text", {}).get("text", "") for block in blocks)

@@ -56,7 +56,7 @@
       regressed_count: 0
       improved_count: 0
       new_hosts_count: 0
-      snippet: "25 Servers Checked, 2 Auto-Fixed, 3 Critical Errors"
+      snippet: "25 Servers Checked, 2 Auto-Fixed, 3 Failing Hosts"
   tasks:
     - name: Populate a per-host health result
       ansible.builtin.set_fact:

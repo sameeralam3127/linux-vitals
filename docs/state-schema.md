@@ -5,7 +5,7 @@
 > refactor ([#98](https://github.com/sameeralam3127/linux-vitals/issues/98))
 > builds against, written before the tasks that produce it, and it is what
 > `tests/fixtures/state/` encodes. The shipped report keeps its own
-> `schema_version` (`2.1`) — the two version independently, which is the point
+> `schema_version` (`2.2`) — the two version independently, which is the point
 > of separating them.
 
 One JSON document per host, produced by the **collect** layer. It records
@@ -141,12 +141,23 @@ evaluator policy, so both values are recorded and neither is chosen here.
 
 ### `mounts`
 
-Entries from `ansible_facts.mounts` whose `mount` is `/boot` or `/boot/efi`,
-**in the order the facts report them**, with only the three keys any finding
-reads. The current preference for `/boot` over `/boot/efi`
-(`boot_space.yml:6`) is a policy and stays in the evaluator, so both are
-kept when both exist. An empty list means neither is a separate mount — which
-is a real observation, not a missing probe.
+Entries from `ansible_facts.mounts`, **in the order the facts report them**.
+Until #30, fixtures only needed to type out `/boot`/`/boot/efi` — the only
+mounts anything read — with just `mount`, `size_available` and
+`size_total`. `filesystems.yml` now reads every mount, and the extra keys a
+real entry can carry: `fstype`, `options` (a comma-separated string, e.g.
+`"rw,relatime"` — not a list), `inode_available`, `inode_total`, and `note`
+(set instead of the size/inode fields when the per-mount probe timed out). A
+fixture mount missing a key behaves exactly as a real one missing it would:
+no fstype means the mount is never excluded by type; no options means it is
+never flagged read-only; no size or inode data means `filesystem_unavailable`
+(`status: unknown`), never 0% free. `mounts` can also hold the bare string
+`'N/A'` in place of a dict — a per-mount probe that errored outright, with
+no mount name left to report — which `filesystems.yml` counts into
+`filesystem_probe_degraded` rather than dropping. The preference for `/boot`
+over `/boot/efi` (`boot_space.yml:6`) is a policy and stays in the
+evaluator, so both are kept when both exist. An empty list means no mounts
+were reported at all — which is a real observation, not a missing probe.
 
 ### `services`
 
@@ -172,13 +183,13 @@ Then per probe:
 | --- | --- | --- |
 | `logs` | `window`, `stdout` | `log_errors` |
 | `audit_logs` | `window`, `stdout` | `kernel_install_failures` |
-| `failed_logins` | `stdout_lines` | `failed_logins` |
+| `failed_logins` | `stdout_lines`; `rc` 3 (no `lastb`), 4 (no `/var/log/btmp`), 5 (`btmp` unreadable) are the probe's own, any other non-zero is `lastb` failing, with `stderr` | `failed_logins` |
 | `last_reboot` | `stdout` | report only |
 | `installed_kernels` | `latest`, `updated_at`, `filtered` | `kernel_not_latest`, `bootloader_mismatch`, `reboot_required` fallback |
 | `bootloader` | `supported`, `source`, `default_entry`, `default_kernel`, `status` | `bootloader_mismatch` |
 | `reboot_required` | `supported`, `detected`, `source`, `detail`, `packages[]` | `reboot_required` |
 | `selinux` | `stdout` | `selinux_disabled` |
-| `apparmor` | `rc` only — the probe has no output, the exit code *is* the answer | `apparmor_disabled` |
+| `apparmor` | `rc` only — the probe has no output, the exit code *is* the answer: `aa-status --enabled`'s own (0 enabled, 1–3 disabled, 4 unreadable), or 127 when `aa-status` is not installed | `apparmor_disabled` |
 | `rescue_images` | `stdout_lines` | report only |
 | `pressure` | `load`, `cpus`, `psi`, `psi_reason`, `psi_cpu_some`, `psi_memory_some`, `psi_memory_full`, `psi_io_some`, `psi_io_full`, `swap_total_kb`, `swap_free_kb`, `swap_sample_seconds`, `swap_in_per_sec`, `swap_out_per_sec` | `cpu_load_high`, `pressure_stall_high`, `swap_paging_high` |
 | `firewall` | `supported`, `active`, `source`, `detail` | `firewall_inactive` |
@@ -259,7 +270,7 @@ each is a judgement:
 | `ram_used_pct`, `ram_status` | `memory.yml:14`, `extended_facts.yml:7` | evaluate |
 | `boot_free_pct`, `boot_space_status` | `boot_space.yml:40`, `:52` | evaluate |
 | `latest_kernel_selected` | `extended_facts.yml:60` | evaluate |
-| `apparmor_status` (`enabled`/`disabled`) | `extended_facts.yml:132` | evaluate |
+| `apparmor_status` (`enabled`/`disabled`/`not-installed`/`unknown`) | `extended_facts.yml:132` | evaluate |
 | `bootloader_default_matches_latest` | `bootloader_facts.yml:6` | evaluate |
 | `reboot_required` (the decision, not the probe) | `reboot_facts.yml:58` | evaluate |
 | `service_status` three-key map | `services.yml` | evaluate |

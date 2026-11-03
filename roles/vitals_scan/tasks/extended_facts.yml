@@ -129,29 +129,33 @@
         | trim
         | default('not-installed', true)
       }}
+    # aa-status(8): 0 enabled; 1 not enabled; 2 enabled with no policy
+    # loaded; 3 AppArmor's control files are absent (not in the kernel).
+    # All but 0 confine nothing, so all read as disabled. 127 is the probe's
+    # own "not installed" (security.yml). Anything else -- 4 is insufficient
+    # privileges -- means the state could not be read.
     linux_vitals_apparmor_status: >-
       {{
-        'enabled'
-        if linux_vitals_apparmor_cmd.rc | default(1) == 0
-        else 'disabled'
+        'enabled' if apparmor_rc | int == 0
+        else 'disabled' if apparmor_rc | int in [1, 2, 3]
+        else 'not-installed' if apparmor_rc | int == 127
+        else 'unknown'
       }}
+    linux_vitals_apparmor_check_reason: "{{ apparmor_reason | trim }}"
+    linux_vitals_failed_login_check_reason: "{{ lastb_reason | trim }}"
     linux_vitals_failed_login_attempts: >-
       {{
-        linux_vitals_failed_login_attempts_cmd.stdout_lines
-        | default([])
-        | reject('equalto', '')
-        | reject('match', '^btmp begins ')
-        | list
+        lastb_lines
+        if lastb_rc | int == 0
+        else []
       }}
+    # Never "No failed login attempts found" for a check that did not run:
+    # the dashboard would present an unchecked control as a clean one.
     linux_vitals_last_failed_login: >-
       {{
-        (
-          linux_vitals_failed_login_attempts_cmd.stdout_lines
-          | default([])
-          | reject('equalto', '')
-          | reject('match', '^btmp begins ')
-          | list
-        ) | first | default('No failed login attempts found')
+        lastb_lines | first | default('No failed login attempts found')
+        if lastb_rc | int == 0
+        else 'Not checked: ' ~ lastb_reason | trim
       }}
     linux_vitals_last_reboot: >-
       {{
@@ -166,6 +170,43 @@
         linux_vitals_rescue_image_cmd.stdout | default('') | trim | length > 0
       }}
     linux_vitals_rescue_image_paths: "{{ linux_vitals_rescue_image_cmd.stdout_lines | default([]) }}"
+  vars:
+    # Cast again at each use: ansible-core 2.16 stores these as strings.
+    apparmor_rc: "{{ linux_vitals_apparmor_cmd.rc | default(-1) }}"
+    lastb_rc: "{{ linux_vitals_failed_login_attempts_cmd.rc | default(-1) }}"
+    lastb_lines: >-
+      {{
+        linux_vitals_failed_login_attempts_cmd.stdout_lines
+        | default([])
+        | reject('equalto', '')
+        | reject('match', '^btmp begins ')
+        | list
+      }}
+    # In vars rather than set_fact keys, because one key of a set_fact cannot
+    # read another set in the same task.
+    apparmor_reason: >-
+      {{
+        '' if apparmor_rc | int in [0, 1, 2, 3]
+        else 'aa-status is not installed, so whether AppArmor is enabled could not be read'
+        if apparmor_rc | int == 127
+        else 'aa-status lacked the privileges to read the AppArmor control files'
+        if apparmor_rc | int == 4
+        else 'aa-status exited ' ~ apparmor_rc ~ ': '
+             ~ (linux_vitals_apparmor_cmd.stderr | default(linux_vitals_apparmor_cmd.msg | default(''), true) | trim
+                or 'no error output')
+      }}
+    # Exit codes 3-5 are the probe's own (login_records.yml). Any other
+    # non-zero exit is lastb failing, and its stderr says why.
+    lastb_reason: >-
+      {{
+        '' if lastb_rc | int == 0
+        else 'lastb is not installed' if lastb_rc | int == 3
+        else '/var/log/btmp does not exist, so failed logins are not being recorded' if lastb_rc | int == 4
+        else 'reading /var/log/btmp was denied; this check needs become' if lastb_rc | int == 5
+        else 'lastb exited ' ~ lastb_rc ~ ': '
+             ~ (linux_vitals_failed_login_attempts_cmd.stderr | default(linux_vitals_failed_login_attempts_cmd.msg | default(''), true) | trim
+                or 'no error output')
+      }}
   tags:
     - discovery
     - kernel
