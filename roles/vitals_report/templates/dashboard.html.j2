@@ -803,8 +803,18 @@
                 <strong>Self-healing</strong>
                 {% if result.healing_results %}
                 <ul class="list">{% for service in result.healing_results %}<li>{{ service.service | e }}: {{ service.result | e }}{{ healing_detail(service) }}</li>{% endfor %}</ul>
-                {% else %}
+                {% elif not result.heal_skipped | default([]) %}
+                {# Only when there is nothing at all to say. A run that
+                   restarted nothing because policy forbade it did take a
+                   decision, and the list below is that decision. #}
                 <span class="muted">No healing actions taken this run.</span>
+                {% endif %}
+                {# Units policy left alone (#148). Listed under the attempts
+                   rather than beside them, because the operator's first
+                   question about a failed unit with no outcome is whether
+                   self-healing tried and could not, or never tried. #}
+                {% if result.heal_skipped | default([]) %}
+                <ul class="list">{% for skipped in result.heal_skipped %}<li>{{ skipped.service | e }}: not restarted &mdash; {{ skipped.detail | e }}</li>{% endfor %}</ul>
                 {% endif %}
               </div>
               <div class="detail-item">

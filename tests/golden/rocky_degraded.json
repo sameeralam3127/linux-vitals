@@ -78,6 +78,7 @@
     "detection_supported": true,
     "source": "firewalld"
   },
+  "heal_skipped": [],
   "healing_results": [],
   "hostname": "db-01",
   "ip_address": "10.0.4.21",

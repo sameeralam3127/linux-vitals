@@ -996,6 +996,499 @@ def test_dashboard_and_json_say_why_a_restart_was_not_fixed(tmp_path: Path) -> N
     assert "<li>legacy.service: Manual Intervention Required</li>" in html
     assert html.count("Could not verify:") == 1
 
-    # JSON carries every field through unchanged, and the schema stays 2.2.
-    assert report["schema_version"] == "2.2"
+    # JSON carries every field through unchanged, and the schema stays 2.3.
+    assert report["schema_version"] == "2.3"
     assert report["hosts"][0]["self_healing"]["healing_results"] == result["healing_results"]
+
+
+# ---------------------------------------------------------------------------
+# Restart guardrails: include/exclude, the window and the cap (#148)
+# ---------------------------------------------------------------------------
+#
+# These run the real `policy.yml` tasks with the failed+enabled set seeded, so
+# what is under test is the policy and not the host discovery above it. The
+# maintenance window needs a controllable clock, which a fake `date` on PATH
+# provides -- the same trick the verification tests use for `systemctl`, and
+# for the same reason: a test that waits for a wall clock is a test that is
+# only true some of the day.
+
+POLICY_TASKS = REPO_ROOT / "roles" / "vitals_heal" / "tasks" / "policy.yml"
+
+FAKE_DATE = """#!/bin/sh
+# Answers `date +%H:%M` from FAKE_DATE_NOW. An empty FAKE_DATE_NOW fails the
+# way an unreadable clock does, which is its own case in the policy.
+if [ -z "${FAKE_DATE_NOW}" ]; then
+  echo 'date: cannot read the clock' >&2
+  exit 1
+fi
+printf '%s\\n' "${FAKE_DATE_NOW}"
+"""
+
+
+def _policy_tasks() -> list[dict]:
+    return yaml.safe_load(POLICY_TASKS.read_text(encoding="utf-8"))
+
+
+def _policy_playbook(failed_enabled: list[str]) -> list[dict]:
+    return [
+        {
+            "name": "Seed the failed enabled services for the scenario under test",
+            "ansible.builtin.set_fact": {
+                "linux_vitals_failed_enabled_services": failed_enabled,
+            },
+        },
+        *_policy_tasks(),
+        _dump_task(
+            {
+                "restart": "linux_vitals_heal_restart_services",
+                "skipped": "linux_vitals_heal_skipped",
+            }
+        ),
+    ]
+
+
+def _fake_clock_env(tmp_path: Path, now: str) -> dict[str, str]:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(exist_ok=True)
+    fake = bin_dir / "date"
+    fake.write_text(FAKE_DATE, encoding="utf-8")
+    fake.chmod(0o755)
+    return {
+        "PATH": f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}",
+        "FAKE_DATE_NOW": now,
+    }
+
+
+def _run_policy(
+    tmp_path: Path,
+    failed_enabled: list[str],
+    now: str | None = None,
+    **policy: object,
+) -> dict:
+    return _run_playbook(
+        tmp_path,
+        _policy_playbook(failed_enabled),
+        play_vars={**_heal_defaults(), **policy},
+        env=None if now is None else _fake_clock_env(tmp_path, now),
+    )
+
+
+def _policy_failure(tmp_path: Path, failed_enabled: list[str], **policy: object) -> str:
+    """Run the policy expecting it to refuse to run, and return the output."""
+    playbook = [
+        {
+            "name": "Policy validation case",
+            "hosts": "localhost",
+            "connection": "local",
+            "gather_facts": False,
+            "vars": {
+                "output_dir": "{{ lookup('ansible.builtin.env', 'TEST_OUTPUT_DIR') }}",
+                **_heal_defaults(),
+                **policy,
+            },
+            "tasks": _policy_playbook(failed_enabled),
+        }
+    ]
+    path = tmp_path / "policy_failure_case.yml"
+    path.write_text(yaml.safe_dump(playbook, sort_keys=False), encoding="utf-8")
+
+    completed = subprocess.run(
+        [_ansible_playbook_bin(), str(path)],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+        env=_base_env(tmp_path),
+    )
+    assert completed.returncode != 0, completed.stdout
+    return completed.stdout + completed.stderr
+
+
+def _skips(result: dict) -> dict[str, tuple[str, str]]:
+    return {s["service"]: (s["reason"], s["detail"]) for s in result["skipped"]}
+
+
+# --- Scope: include and exclude -------------------------------------------
+
+def test_the_defaults_leave_the_restart_set_unchanged(tmp_path: Path) -> None:
+    # The guardrails are opt-in: a run that configures none of them must
+    # restart exactly what the role restarted before they existed.
+    units = ["chronyd.service", "nginx.service", "postgresql.service"]
+    result = _run_policy(tmp_path, units)
+
+    assert result["restart"] == units
+    assert result["skipped"] == []
+
+
+def test_an_excluded_unit_is_never_in_scope(tmp_path: Path) -> None:
+    result = _run_policy(
+        tmp_path,
+        ["chronyd.service", "postgresql.service"],
+        linux_vitals_heal_exclude_services=["postgresql"],
+    )
+
+    assert result["restart"] == ["chronyd.service"]
+    assert _skips(result) == {
+        "postgresql.service": (
+            "excluded",
+            "it matches linux_vitals_heal_exclude_services",
+        )
+    }
+
+
+def test_an_include_list_narrows_the_scope(tmp_path: Path) -> None:
+    result = _run_policy(
+        tmp_path,
+        ["chronyd.service", "nginx.service", "postgresql.service"],
+        linux_vitals_heal_include_services=["nginx", "chronyd.service"],
+    )
+
+    assert result["restart"] == ["chronyd.service", "nginx.service"]
+    assert _skips(result) == {
+        "postgresql.service": (
+            "not_included",
+            "it does not match linux_vitals_heal_include_services",
+        )
+    }
+
+
+def test_exclude_wins_over_include(tmp_path: Path) -> None:
+    # The usual policy is a broad include with narrow carve-outs, which only
+    # works if the two are not read as a contradiction.
+    result = _run_policy(
+        tmp_path,
+        ["nginx.service", "nginx-backup.service"],
+        linux_vitals_heal_include_services=["nginx*"],
+        linux_vitals_heal_exclude_services=["nginx-backup"],
+    )
+
+    assert result["restart"] == ["nginx.service"]
+    assert _skips(result)["nginx-backup.service"][0] == "excluded"
+
+
+def test_a_pattern_matches_a_unit_with_or_without_the_service_suffix(tmp_path: Path) -> None:
+    units = ["chronyd.service", "nginx.service"]
+
+    with_suffix = _run_policy(
+        tmp_path, units, linux_vitals_heal_include_services=["chronyd.service", "nginx.service"]
+    )
+    without_suffix = _run_policy(
+        tmp_path, units, linux_vitals_heal_include_services=["chronyd", "nginx"]
+    )
+
+    assert with_suffix["restart"] == units
+    assert without_suffix["restart"] == units
+
+
+def test_a_glob_matches_and_a_dot_does_not(tmp_path: Path) -> None:
+    # `*` and `?` are globs; everything else, a dot above all, is literal.
+    # A pattern that silently behaved like a regex would match far more units
+    # than its author intended, which on this role means restarting them.
+    result = _run_policy(
+        tmp_path,
+        ["web-01.service", "web-02.service", "webXservice", "database.service"],
+        linux_vitals_heal_include_services=["web-??", "web.service"],
+    )
+
+    assert result["restart"] == ["web-01.service", "web-02.service"]
+    assert sorted(_skips(result)) == ["database.service", "webXservice"]
+
+
+def test_an_empty_include_list_puts_nothing_in_scope(tmp_path: Path) -> None:
+    result = _run_policy(
+        tmp_path,
+        ["chronyd.service"],
+        linux_vitals_heal_include_services=[],
+    )
+
+    assert result["restart"] == []
+    assert _skips(result)["chronyd.service"][0] == "not_included"
+
+
+# --- The restart cap -------------------------------------------------------
+
+def test_the_restart_cap_stands_the_whole_host_down(tmp_path: Path) -> None:
+    # Deliberately not "restart the first two". The first N of too many is an
+    # arbitrary subset of a host that is probably failing for one reason a
+    # restart will not fix.
+    units = ["a.service", "b.service", "c.service"]
+    result = _run_policy(tmp_path, units, linux_vitals_heal_max_restarts=2)
+
+    assert result["restart"] == []
+    assert sorted(_skips(result)) == units
+    assert {reason for reason, _ in _skips(result).values()} == {"over_max_restarts"}
+    assert _skips(result)["a.service"][1] == (
+        "3 units were in scope on this host, over the "
+        "linux_vitals_heal_max_restarts limit of 2, so none of them was restarted"
+    )
+
+
+def test_a_run_at_the_restart_cap_still_runs(tmp_path: Path) -> None:
+    units = ["a.service", "b.service"]
+    result = _run_policy(tmp_path, units, linux_vitals_heal_max_restarts=2)
+
+    assert result["restart"] == units
+    assert result["skipped"] == []
+
+
+def test_the_cap_counts_what_is_in_scope_not_what_failed(tmp_path: Path) -> None:
+    # An excluded unit is not a restart, so it must not consume the budget --
+    # otherwise narrowing the policy would make the cap fire sooner.
+    result = _run_policy(
+        tmp_path,
+        ["a.service", "b.service", "noisy.service"],
+        linux_vitals_heal_exclude_services=["noisy"],
+        linux_vitals_heal_max_restarts=2,
+    )
+
+    assert result["restart"] == ["a.service", "b.service"]
+    assert _skips(result)["noisy.service"][0] == "excluded"
+
+
+# --- The maintenance window ------------------------------------------------
+
+def test_a_unit_inside_the_maintenance_window_is_restarted(tmp_path: Path) -> None:
+    result = _run_policy(
+        tmp_path,
+        ["chronyd.service"],
+        now="22:30",
+        linux_vitals_heal_window_start="22:00",
+        linux_vitals_heal_window_end="23:00",
+    )
+
+    assert result["restart"] == ["chronyd.service"]
+    assert result["skipped"] == []
+
+
+def test_nothing_is_restarted_outside_the_maintenance_window(tmp_path: Path) -> None:
+    result = _run_policy(
+        tmp_path,
+        ["chronyd.service", "nginx.service"],
+        now="10:00",
+        linux_vitals_heal_window_start="22:00",
+        linux_vitals_heal_window_end="23:00",
+    )
+
+    assert result["restart"] == []
+    assert _skips(result)["chronyd.service"] == (
+        "outside_window",
+        "the clock on this host reads 10:00, outside the self-healing window 22:00-23:00",
+    )
+    assert _skips(result)["nginx.service"][0] == "outside_window"
+
+
+def test_a_window_whose_end_is_before_its_start_spans_midnight(tmp_path: Path) -> None:
+    window = {
+        "linux_vitals_heal_window_start": "22:00",
+        "linux_vitals_heal_window_end": "02:00",
+    }
+
+    for now in ("22:00", "23:59", "00:00", "02:00"):
+        inside = _run_policy(tmp_path, ["chronyd.service"], now=now, **window)
+        assert inside["restart"] == ["chronyd.service"], now
+
+    for now in ("02:01", "12:00", "21:59"):
+        outside = _run_policy(tmp_path, ["chronyd.service"], now=now, **window)
+        assert outside["restart"] == [], now
+        assert _skips(outside)["chronyd.service"][0] == "outside_window"
+
+
+def test_a_clock_that_cannot_be_read_stands_the_host_down(tmp_path: Path) -> None:
+    # Failing closed. A configured window that cannot be evaluated must not
+    # quietly become no window at all.
+    result = _run_policy(
+        tmp_path,
+        ["chronyd.service"],
+        now="",
+        linux_vitals_heal_window_start="22:00",
+        linux_vitals_heal_window_end="23:00",
+    )
+
+    assert result["restart"] == []
+    assert _skips(result)["chronyd.service"] == (
+        "window_unknown",
+        "self-healing is restricted to 22:00-23:00 and the clock on this host "
+        "could not be read",
+    )
+
+
+def test_no_window_means_the_clock_is_never_consulted(tmp_path: Path) -> None:
+    # The fake clock fails on every call. With no window configured the run
+    # must not care, which is also what keeps the default path free of an
+    # extra command on every host.
+    result = _run_policy(tmp_path, ["chronyd.service"], now="")
+
+    assert result["restart"] == ["chronyd.service"]
+    assert result["skipped"] == []
+
+
+# --- Refusing to run on an unusable policy ---------------------------------
+
+def test_half_a_window_fails_the_run_rather_than_being_guessed_at(tmp_path: Path) -> None:
+    for half in ({"linux_vitals_heal_window_start": "22:00"},
+                 {"linux_vitals_heal_window_end": "02:00"}):
+        output = _policy_failure(tmp_path, ["chronyd.service"], **half)
+        assert "Self-healing policy is not usable" in output
+
+
+def test_a_malformed_window_time_fails_the_run(tmp_path: Path) -> None:
+    output = _policy_failure(
+        tmp_path,
+        ["chronyd.service"],
+        linux_vitals_heal_window_start="10pm",
+        linux_vitals_heal_window_end="02:00",
+    )
+    assert "Self-healing policy is not usable" in output
+
+    output = _policy_failure(
+        tmp_path,
+        ["chronyd.service"],
+        linux_vitals_heal_window_start="24:00",
+        linux_vitals_heal_window_end="02:00",
+    )
+    assert "Self-healing policy is not usable" in output
+
+
+def test_a_negative_restart_cap_fails_the_run(tmp_path: Path) -> None:
+    output = _policy_failure(tmp_path, ["chronyd.service"], linux_vitals_heal_max_restarts=-1)
+    assert "Self-healing policy is not usable" in output
+
+
+# --- Reaching the report ---------------------------------------------------
+
+def test_the_restart_loop_runs_over_the_policy_narrowed_list(tmp_path: Path) -> None:
+    # The guardrail is only a guardrail if the restart task reads it. Asserted
+    # against the shipped task rather than trusted, because the two facts are
+    # one word apart.
+    restart = _task_named("Attempt one restart for enabled failed services")
+
+    assert restart["loop"] == "{{ linux_vitals_heal_restart_services }}"
+    assert restart["when"] == "linux_vitals_heal_restart_services | length > 0"
+
+
+def test_skipped_units_reach_the_host_result(tmp_path: Path) -> None:
+    # The field vitals_heal writes and the field the report reads are in
+    # different roles, so the join between them is rendered here rather than
+    # assumed.
+    result_tasks = yaml.safe_load(RESULT_TASKS.read_text(encoding="utf-8"))
+    build_result = next(
+        t for t in result_tasks if t.get("name") == "Build per-host report object"
+    )
+    expression = build_result["ansible.builtin.set_fact"]["linux_vitals_result"]["heal_skipped"]
+    skipped = [
+        {"service": "postgresql.service", "reason": "excluded",
+         "detail": "it matches linux_vitals_heal_exclude_services"}
+    ]
+
+    rendered = _run_playbook(
+        tmp_path,
+        [
+            {
+                "name": "Seed the skipped units",
+                "ansible.builtin.set_fact": {"linux_vitals_heal_skipped": skipped},
+            },
+            {
+                "name": "Render the result field exactly as result.yml builds it",
+                "ansible.builtin.set_fact": {"rendered_heal_skipped": expression},
+            },
+            _dump_task({"heal_skipped": "rendered_heal_skipped"}),
+        ],
+        play_vars=_heal_defaults(),
+    )
+
+    assert rendered["heal_skipped"] == skipped
+
+    # And it defaults to an empty list on a run where vitals_heal never set it,
+    # which is every run with self-healing off.
+    empty = _run_playbook(
+        tmp_path,
+        [
+            {
+                "name": "Render the result field with no healing run",
+                "ansible.builtin.set_fact": {"rendered_heal_skipped": expression},
+            },
+            _dump_task({"heal_skipped": "rendered_heal_skipped"}),
+        ],
+        play_vars=_heal_defaults(),
+    )
+    assert empty["heal_skipped"] == []
+
+
+def test_dashboard_and_json_report_units_policy_did_not_attempt(tmp_path: Path) -> None:
+    fixture_vars = yaml.safe_load(PLAYBOOK.read_text(encoding="utf-8"))[0]["vars"]
+    result = dict(fixture_vars["fixture_linux_vitals_result"])
+    result["healing_results"] = [
+        {"service": "chronyd.service", "result": "Fixed", "outcome": "fixed",
+         "reason": "stayed_active", "detail": "it stayed active for 5 s after the restart"},
+    ]
+    result["heal_skipped"] = [
+        {"service": "postgresql.service", "reason": "excluded",
+         "detail": "it matches linux_vitals_heal_exclude_services"},
+        # The detail is a sentence built from configuration, so it is escaped
+        # on the way into the HTML like any other.
+        {"service": "backup.service", "reason": "over_max_restarts",
+         "detail": "3 units were in scope on this host, over the <limit> of 2"},
+    ]
+    extra_vars = tmp_path / "skipped_case.json"
+    extra_vars.write_text(json.dumps({"fixture_linux_vitals_result": result}), encoding="utf-8")
+
+    subprocess.run(
+        [_ansible_playbook_bin(), str(PLAYBOOK), "-e", f"@{extra_vars}"],
+        check=True,
+        cwd=REPO_ROOT,
+        env=_base_env(tmp_path),
+    )
+
+    html = (tmp_path / "report.html").read_text(encoding="utf-8")
+    report = json.loads((tmp_path / "report.json").read_text(encoding="utf-8"))
+
+    assert (
+        "<li>postgresql.service: not restarted &mdash; "
+        "it matches linux_vitals_heal_exclude_services</li>"
+    ) in html
+    assert "over the &lt;limit&gt; of 2" in html
+    assert "<limit>" not in html
+    # The attempt that did happen still renders as it did before.
+    assert "<li>chronyd.service: Fixed</li>" in html
+
+    # A host where policy forbade every restart did take a decision, so it
+    # must not read as "nothing to report".
+    no_attempts = dict(result, healing_results=[])
+    extra_vars.write_text(
+        json.dumps({"fixture_linux_vitals_result": no_attempts}), encoding="utf-8"
+    )
+    subprocess.run(
+        [_ansible_playbook_bin(), str(PLAYBOOK), "-e", f"@{extra_vars}"],
+        check=True,
+        cwd=REPO_ROOT,
+        env=_base_env(tmp_path),
+    )
+    quiet_html = (tmp_path / "report.html").read_text(encoding="utf-8")
+    assert "No healing actions taken this run." not in quiet_html
+    assert "postgresql.service: not restarted" in quiet_html
+
+    # The webhook payload is a deliberate per-host subset and carries no
+    # self_healing object at all, so there is nothing to add there.
+    assert report["hosts"][0]["self_healing"]["skipped_by_policy"] == result["heal_skipped"]
+
+
+def test_a_result_without_skipped_units_still_renders(tmp_path: Path) -> None:
+    # Every golden fixture and every pre-2.3 snapshot predates the field.
+    fixture_vars = yaml.safe_load(PLAYBOOK.read_text(encoding="utf-8"))[0]["vars"]
+    result = {
+        key: value
+        for key, value in fixture_vars["fixture_linux_vitals_result"].items()
+        if key != "heal_skipped"
+    }
+    extra_vars = tmp_path / "no_skipped_case.json"
+    extra_vars.write_text(json.dumps({"fixture_linux_vitals_result": result}), encoding="utf-8")
+
+    subprocess.run(
+        [_ansible_playbook_bin(), str(PLAYBOOK), "-e", f"@{extra_vars}"],
+        check=True,
+        cwd=REPO_ROOT,
+        env=_base_env(tmp_path),
+    )
+
+    report = json.loads((tmp_path / "report.json").read_text(encoding="utf-8"))
+    assert report["hosts"][0]["self_healing"]["skipped_by_policy"] == []
+    assert "not restarted &mdash;" not in (tmp_path / "report.html").read_text(encoding="utf-8")

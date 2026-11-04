@@ -7,6 +7,13 @@
     # Self-healing is off by default; the whole point of this scenario is to
     # prove the heal path, so it is opted into here.
     linux_vitals_heal_enabled: true
+    # One of the three planted failed units is off limits (#148). It is
+    # healable -- it shares the flaky unit's script -- so verify.yml proving
+    # it is still failed proves the exclusion held and no restart was tried.
+    # The include list and the window are left at their defaults so the rest
+    # of the heal path is exercised exactly as it was before the guardrails.
+    linux_vitals_heal_exclude_services:
+      - molecule-excluded
     # The report role writes to inventory_dir by default, which is Molecule's
     # generated inventory directory -- pin every output under the scenario's
     # ephemeral directory instead so verify.yml knows where to look.

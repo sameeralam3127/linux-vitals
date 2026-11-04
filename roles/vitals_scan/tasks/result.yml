@@ -137,9 +137,8 @@
       {#- Security posture (#36): firewall/SSH/kernel-taint/deleted-lib
           findings, built in security_posture_facts.yml imported above. -#}
       {%- set _ = findings.extend(linux_vitals_security_posture_findings | default([])) -%}
-      {#- A restart vitals_heal could not verify (#24: outcome `unknown`) is
-          an unknown finding with the reason it could not, not a plain failure
-          and never a pass. -#}
+      {#- A restart vitals_heal could not verify (#24: outcome `unknown`) is an
+          unknown finding with its reason, not a plain failure, never a pass. -#}
       {%- for item in linux_vitals_healing_results | default([]) -%}
       {%- if item.result != 'Fixed' and item.outcome | default('') == 'unknown' -%}
       {%- set _ = findings.append({
@@ -238,6 +237,7 @@
       failed_unit_count: "{{ linux_vitals_failed_unit_count | default(0) }}"
       services_healed: "{{ linux_vitals_services_healed | default([]) }}"
       healing_results: "{{ linux_vitals_healing_results | default([]) }}"
+      heal_skipped: "{{ linux_vitals_heal_skipped | default([]) }}"
       final_status: "{{ linux_vitals_final_status }}"
       severity: "{{ linux_vitals_host_severity }}"
       severity_counts: "{{ linux_vitals_severity_counts }}"

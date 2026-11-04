@@ -140,7 +140,7 @@ def test_html_and_json_show_an_unknown_check_distinctly(tmp_path: Path) -> None:
     assert html.count("Could not check:") == 1
 
     # JSON: the counts, and the finding with its status and reason.
-    assert report["schema_version"] == "2.2"
+    assert report["schema_version"] == "2.3"
     assert report["summary"]["unknown_host_count"] == 1
     host = report["hosts"][0]
     assert host["unknown_count"] == 1

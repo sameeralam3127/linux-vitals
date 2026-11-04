@@ -114,6 +114,7 @@
     "detection_supported": true,
     "source": "ufw"
   },
+  "heal_skipped": [],
   "healing_results": [],
   "hostname": "web-02",
   "ip_address": "10.0.3.12",
