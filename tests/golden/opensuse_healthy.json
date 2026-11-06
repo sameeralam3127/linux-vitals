@@ -17,13 +17,46 @@
     "baseline_available": false
   },
   "failed_login_count": 0,
+  "failed_unit_count": 0,
+  "failed_units": [],
+  "filesystem_degraded_count": 0,
+  "filesystem_worst_mount": "/boot/efi",
+  "filesystem_worst_status": "OK",
+  "filesystems": [
+    {
+      "expected_readonly": false,
+      "fstype": null,
+      "inode_available": null,
+      "inode_total": null,
+      "inode_used_pct": null,
+      "mount": "/boot/efi",
+      "read_only": false,
+      "reason": null,
+      "size_total_mb": 511.0,
+      "size_used_mb": 6.3,
+      "size_used_pct": 1.2,
+      "status": "OK"
+    }
+  ],
   "final_status": "Pass",
   "findings": [],
+  "firewall": {
+    "active": true,
+    "detail": "running",
+    "detection_supported": true,
+    "source": "firewalld"
+  },
+  "heal_skipped": [],
   "healing_results": [],
   "hostname": "app-03",
   "ip_address": "10.0.6.13",
   "kernel_install_failure_excerpt": [],
   "kernel_install_failures": 0,
+  "kernel_taint": {
+    "reasons": [],
+    "supported": true,
+    "value": 0
+  },
   "last_failed_login": "No failed login attempts found",
   "last_reboot": "2026-09-15 10:02",
   "latest_installed_kernel": "6.4.0-150600.23.22-default",
@@ -69,6 +102,11 @@
   "ram_total_mb": 3931.0,
   "ram_used_mb": 1327.0,
   "ram_used_pct": 33.8,
+  "reboot_blocking_processes": {
+    "processes": [],
+    "source": "lsof",
+    "supported": true
+  },
   "reboot_detection_supported": true,
   "reboot_reason": "No reboot required (zypper-needs-rebooting)",
   "reboot_required": false,
@@ -84,6 +122,13 @@
     "critical": 0,
     "info": 0,
     "warning": 0
+  },
+  "ssh_hardening": {
+    "detection_supported": true,
+    "password_authentication": "no",
+    "permit_empty_passwords": "no",
+    "permit_root_login": "no",
+    "source": "sshd-T"
   },
   "unknown_count": 0,
   "uptime": "11d 0h 0m",

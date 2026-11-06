@@ -455,10 +455,19 @@
       <h1>{{ linux_vitals_report_title }}
         {% if linux_vitals_phase != 'adhoc' %}
         <span class="badge">{{ linux_vitals_phase | capitalize }}</span>
-        {% if linux_vitals_maintenance_id %}<span class="badge">ID: {{ linux_vitals_maintenance_id | e }}</span>{% endif %}
+        {% if linux_vitals_maintenance_id | default('', true) | string | trim %}<span class="badge">ID: {{ linux_vitals_maintenance_id | string | trim | e }}</span>{% endif %}
         {% endif %}
       </h1>
       <p class="meta">Generated {{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S UTC') }} for {{ linux_vitals_summary.servers_checked }} managed host(s). {{ linux_vitals_summary.snippet }}</p>
+      {% if linux_vitals_summary.comparison_active %}
+      <p class="meta">Baseline age limit: {{ linux_vitals_summary.baseline_max_age_hours | default(72) }} hours; {{ linux_vitals_summary.stale_baseline_count | default(0) }} older, {{ linux_vitals_summary.unknown_baseline_age_count | default(0) }} unknown.</p>
+      {% endif %}
+      {% if linux_vitals_summary.comparison_active and linux_vitals_summary.stale_baseline_count | default(0) | int > 0 %}
+      <p class="meta"><span class="pill pill--warning"><span class="dot"></span>Warning: {{ linux_vitals_summary.stale_baseline_count }} baseline(s) exceed {{ linux_vitals_summary.baseline_max_age_hours | default(72) }} hours.</span></p>
+      {% endif %}
+      {% if linux_vitals_summary.comparison_active and linux_vitals_summary.unknown_baseline_age_count | default(0) | int > 0 %}
+      <p class="meta"><span class="pill pill--warning"><span class="dot"></span>Warning: {{ linux_vitals_summary.unknown_baseline_age_count }} baseline age(s) unknown.</span></p>
+      {% endif %}
     </div>
     <div class="hero-actions">
       <button class="btn" id="expand-all" type="button">Expand all</button>
@@ -471,6 +480,13 @@
       reason, so it never reads like an ordinary failure, or like nothing. #}
   {%- macro unknown_marker(finding) -%}
   {%- if finding.status | default('fail') == 'unknown' %} <span class="pill pill--serious"><span class="dot"></span>unknown</span> <span class="muted">Could not check: {{ finding.reason | default('') | e }}</span>{% endif -%}
+  {%- endmacro %}
+  {#- A finding mapped to an exact external control id (#43), such as a CIS
+      or STIG rule number, shows each one as its own badge. Empty or absent
+      references -- the default, since most findings have no exact mapping
+      -- render nothing. #}
+  {%- macro references_marker(finding) -%}
+  {%- for ref in finding.references | default([]) %} <span class="pill pill--muted">{{ ref | e }}</span>{% endfor -%}
   {%- endmacro %}
   {#- Why a self-healing attempt ended where it did (#24). A restart that could
       not be verified is marked like an unknown finding; any other attempt
@@ -653,6 +669,11 @@
           <td>
             <span class="pill pill--{{ boot_class }}"><span class="dot"></span>{{ result.boot_space_status | e }}</span>
             <div class="subtle">{{ result.boot_free_pct }}% free</div>
+            {% if result.filesystems | default([]) %}
+            <div class="subtle">
+              <span class="pill pill--{{ sig_class.get(result.filesystem_worst_status, 'muted') }}" title="Worst filesystem: {{ result.filesystem_worst_mount | default('') | e }}">Disk {{ result.filesystem_worst_status | default('Unknown') | e }}</span>
+            </div>
+            {% endif %}
           </td>
           <td>{{ result.failed_login_count }}</td>
           {% if linux_vitals_summary.comparison_active %}
@@ -704,7 +725,19 @@
                 <span>SELinux: {{ result.selinux_status | e }}</span><br>
                 <span>AppArmor: {{ result.apparmor_status | e }}</span><br>
                 <span>Failed logins: {{ result.failed_login_count }}</span><br>
-                <span>Last failed login: {{ result.last_failed_login | e }}</span>
+                <span>Last failed login: {{ result.last_failed_login | e }}</span><br>
+                {% set fw = result.firewall | default({}) %}
+                <span>Firewall ({{ fw.source | default('unavailable') | e }}): {% if not fw.detection_supported | default(false) %}unknown{% else %}{{ 'active' if fw.active | default(false) else 'inactive' }}{% endif %}</span><br>
+                {% set ssh = result.ssh_hardening | default({}) %}
+                {% if ssh.detection_supported | default(false) %}
+                <span>SSH ({{ ssh.source | default('') | e }}): PermitRootLogin {{ ssh.permit_root_login | e }}, PasswordAuthentication {{ ssh.password_authentication | e }}, PermitEmptyPasswords {{ ssh.permit_empty_passwords | e }}</span><br>
+                {% else %}
+                <span>SSH hardening: unknown</span><br>
+                {% endif %}
+                {% set taint = result.kernel_taint | default({}) %}
+                <span>Kernel taint: {% if not taint.supported | default(false) %}unknown{% elif taint.value | default(0) | int == 0 %}clean{% else %}{{ taint.value }} ({{ taint.reasons | default([]) | join(', ') }}){% endif %}</span><br>
+                {% set libs = result.reboot_blocking_processes | default({}) %}
+                <span>Deleted-library processes: {% if not libs.supported | default(false) %}unknown{% else %}{{ libs.processes | default([]) | length }}{% endif %}</span>
               </div>
               <div class="detail-item">
                 <strong>Boot partition</strong>
@@ -713,6 +746,27 @@
                 <span>Rescue image: {{ 'Available' if result.rescue_image_available else 'Not available' }}</span>
                 {% if result.rescue_image_paths %}
                 <ul class="list">{% for item in result.rescue_image_paths %}<li>{{ item | e }}</li>{% endfor %}</ul>
+                {% endif %}
+              </div>
+              <div class="detail-item">
+                <strong>Filesystems</strong>
+                {% set fs_list = result.filesystems | default([]) %}
+                {% if fs_list %}
+                <ul class="list">
+                  {% for fs in fs_list %}
+                  <li>
+                    <span class="pill pill--{{ sig_class.get(fs.status, 'muted') }}"><span class="dot"></span>{{ fs.status | e }}</span>
+                    {{ fs.mount | e }}
+                    &mdash;
+                    {% if fs.size_used_pct is not none %}{{ fs.size_used_pct }}% used{% else %}size unknown{% endif %},
+                    {% if fs.inode_used_pct is not none %}{{ fs.inode_used_pct }}% inodes{% else %}inodes unknown{% endif %}
+                    {% if fs.read_only %}<span class="subtle">(read-only{% if not fs.expected_readonly %}, unexpected{% endif %})</span>{% endif %}
+                    {% if fs.reason %}<span class="subtle">{{ fs.reason | e }}</span>{% endif %}
+                  </li>
+                  {% endfor %}
+                </ul>
+                {% else %}
+                <span class="muted">None in scope.</span>
                 {% endif %}
               </div>
               {% if pr %}
@@ -753,8 +807,30 @@
                 <strong>Self-healing</strong>
                 {% if result.healing_results %}
                 <ul class="list">{% for service in result.healing_results %}<li>{{ service.service | e }}: {{ service.result | e }}{{ healing_detail(service) }}</li>{% endfor %}</ul>
-                {% else %}
+                {% elif not result.heal_skipped | default([]) %}
+                {# Only when there is nothing at all to say. A run that
+                   restarted nothing because policy forbade it did take a
+                   decision, and the list below is that decision. #}
                 <span class="muted">No healing actions taken this run.</span>
+                {% endif %}
+                {# Units policy left alone (#148). Listed under the attempts
+                   rather than beside them, because the operator's first
+                   question about a failed unit with no outcome is whether
+                   self-healing tried and could not, or never tried. #}
+                {% if result.heal_skipped | default([]) %}
+                <ul class="list">{% for skipped in result.heal_skipped %}<li>{{ skipped.service | e }}: not restarted &mdash; {{ skipped.detail | e }}</li>{% endfor %}</ul>
+                {% endif %}
+              </div>
+              <div class="detail-item">
+                {# Failed systemd units (#32), next to self-healing since
+                   they are what a self-healing attempt would have acted
+                   on -- including the ones vitals_heal never attempts
+                   because they are disabled or were never required. #}
+                <strong>Failed units ({{ result.failed_unit_count | default(0) }})</strong>
+                {% if result.failed_units | default([]) %}
+                <ul class="list">{% for unit in result.failed_units | default([]) %}<li>{{ unit.name | e }}{{ ' (enabled)' if unit.enabled else ' (not confirmed enabled)' }}</li>{% endfor %}</ul>
+                {% else %}
+                <span class="muted">No failed units.</span>
                 {% endif %}
               </div>
               <div class="detail-item">
@@ -769,11 +845,11 @@
                 <ul class="list">
                   {% for level in ['critical', 'warning', 'info'] %}
                   {% for finding in result.findings if finding is mapping and finding.severity == level %}
-                  <li><span class="pill pill--{{ 'critical' if level == 'critical' else 'warning' if level == 'warning' else 'muted' }}"><span class="dot"></span>{{ level | e }}</span> {{ finding.message | e }}{{ unknown_marker(finding) }}</li>
+                  <li><span class="pill pill--{{ 'critical' if level == 'critical' else 'warning' if level == 'warning' else 'muted' }}"><span class="dot"></span>{{ level | e }}</span> {{ finding.message | e }}{{ unknown_marker(finding) }}{{ references_marker(finding) }}</li>
                   {% endfor %}
                   {% endfor %}
                   {% for finding in result.findings if finding is mapping and finding.severity not in ['critical', 'warning', 'info'] %}
-                  <li><span class="pill pill--muted"><span class="dot"></span>{{ finding.severity | default('unknown') | e }}</span> {{ finding.message | e }}{{ unknown_marker(finding) }}</li>
+                  <li><span class="pill pill--muted"><span class="dot"></span>{{ finding.severity | default('unknown') | e }}</span> {{ finding.message | e }}{{ unknown_marker(finding) }}{{ references_marker(finding) }}</li>
                   {% endfor %}
                   {% for finding in result.findings if finding is not mapping %}
                   <li>{{ finding | e }}</li>
@@ -786,6 +862,12 @@
               {% if linux_vitals_summary.comparison_active and cmp.baseline_available %}
               <div class="detail-item">
                 <strong>Change vs. baseline</strong>
+                {% if cmp.baseline_age_unknown | default(false) | bool %}
+                <span class="pill pill--warning"><span class="dot"></span>Baseline age unknown</span><br>
+                {% else %}
+                <span>Baseline age: {{ cmp.baseline_age_hours | float | round(1) }} hours (captured {{ cmp.baseline_captured_at | e }})</span><br>
+                {% if cmp.baseline_age_warning | default(false) | bool %}<span class="pill pill--warning"><span class="dot"></span>Older than {{ linux_vitals_summary.baseline_max_age_hours | default(72) }} hours</span><br>{% endif %}
+                {% endif %}
                 <span>Status: {{ cmp.status_before | e }} &#8594; {{ cmp.status_after | e }}</span><br>
                 <span>RAM: {{ cmp.ram_used_pct_before }}% &#8594; {{ cmp.ram_used_pct_after }}% ({{ '+' if cmp.ram_used_pct_delta | float >= 0 else '' }}{{ cmp.ram_used_pct_delta }} pts)</span><br>
                 <span>Kernel: {{ cmp.running_kernel_before | e }} &#8594; {{ cmp.running_kernel_after | e }}</span><br>

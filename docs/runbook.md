@@ -119,6 +119,77 @@ it is slow to start, and `linux_vitals_heal_settle_retries` /
 
 See [Certificate findings](#certificate-findings).
 
+### `firewall_inactive` -- no active firewall was detected
+
+**Means:** none of `firewalld`, `ufw`, `nftables` or `iptables` reported an
+active, non-empty ruleset. `firewall.source` says which tool answered (or
+`none`); `firewall.detail` has the raw answer. `status: unknown` means a
+tool was present but could not be asked -- usually a permission error, not
+"no firewall" -- check `firewall.detail` for the reason before assuming the
+host is exposed.
+
+**Confirm:**
+```bash
+firewall-cmd --state                  # RHEL family
+ufw status verbose                    # Debian family
+nft list ruleset; iptables -S         # generic fallback
+```
+
+**Do:** if the host is genuinely behind a cloud security group or an
+upstream firewall and runs none locally by design, record that rather than
+living with a permanent finding:
+```yaml
+linux_vitals_finding_severity_overrides:
+  firewall_inactive: info
+```
+Otherwise enable and configure the distro's firewall tool before the next
+scan.
+
+### `ssh_permit_empty_passwords_enabled` -- sshd allows empty passwords
+
+**Means:** `sshd -T` reports `PermitEmptyPasswords yes` -- an account with no
+password set can log in over SSH. There is no legitimate reason for this on
+a reachable host.
+
+**Confirm:**
+```bash
+sshd -T | grep -i permitemptypasswords
+awk -F: '($2 == "") {print $1}' /etc/shadow
+```
+
+**Do:** set `PermitEmptyPasswords no` (the OpenSSH default) and reload
+`sshd`. Then fix any account the second command lists -- a password-less
+account is the actual exposure; the setting only controls whether SSH will
+use it.
+
+### `filesystem_read_only` -- a filesystem unexpectedly became read-only
+
+One finding per mount, named in `subject`. Always `critical`.
+
+**Means:** the mount is read-only and is not listed in
+`linux_vitals_disk_expected_readonly_mounts`. This is almost never
+intentional -- the kernel remounts a filesystem read-only after it detects an
+I/O error or metadata corruption, specifically to stop making things worse.
+Treat this as urgent: every write to that mount is silently failing or has
+been failing since the remount, and anything that logs, queues, or persists
+state there is now degraded in a way that may not be visible until something
+downstream notices missing data.
+
+**Confirm:**
+```bash
+mount | grep ' ro,\| ro)'
+dmesg -T | grep -iE 'remount|read-only|ext4-fs error|i/o error' | tail -40
+journalctl -k --since "1 hour ago" | grep -iE 'remount|i/o error'
+```
+
+**Do:** identify the underlying disk/volume problem before remounting
+read-write -- a remount that just papers over a failing device will flip
+back to read-only again. If the mount is *supposed* to be read-only (a
+golden image, a read-only root), add it to
+`linux_vitals_disk_expected_readonly_mounts` so the finding stops firing for
+that mount specifically, rather than overriding the finding's severity for
+every host.
+
 ## Warning findings
 
 ### `reboot_required` -- system reboot is required
@@ -190,6 +261,89 @@ apt autoremove --purge                                     # Debian family
 Deleting files from `/boot` by hand leaves the package database believing they
 are present, and the next update will not regenerate them.
 
+### `filesystem_space_low` -- a filesystem is running out of space
+
+One finding per mount, named in `subject`; raised as `warning` or `critical`
+by threshold.
+
+**Means:** a mount's used space is at or above
+`linux_vitals_disk_warning_threshold` (default 80%) or
+`_critical_threshold` (default 95%). Every real filesystem is in scope except
+the pseudo/network ones listed in `linux_vitals_disk_exclude_fstypes`
+(`tmpfs`, `proc`, `nfs`, and the like); add or remove mounts with
+`linux_vitals_disk_include_mounts` / `_exclude_mounts`.
+
+**Confirm:**
+```bash
+df -h
+du -sh /path/to/mount/* | sort -rh | head -20
+```
+
+**Do:** find and clear the largest consumer -- logs, core dumps, package
+caches, container layers -- rather than growing the volume as a reflex.
+A mount that is legitimately full by design should get a per-host threshold
+override and a note saying why, the same as a busy CPU host under
+`cpu_load_high`.
+
+### `filesystem_inodes_low` -- a filesystem is running out of inodes
+
+One finding per mount, named in `subject`; raised as `warning` or `critical`
+by threshold.
+
+**Means:** a mount's used inode count is at or above
+`linux_vitals_disk_inode_warning_threshold` / `_critical_threshold`. A
+filesystem can read as having plenty of free space and still fail every
+write with `No space left on device`, because inodes ran out first -- common
+with huge numbers of small files (mail spools, session caches, per-request
+temp files that never got cleaned up).
+
+**Confirm:**
+```bash
+df -i
+find /path/to/mount -xdev -printf '%h\n' | sort | uniq -c | sort -rn | head -20
+```
+
+**Do:** find and remove the directory tree generating the small files, then
+fix whatever is failing to clean up after itself. Reformatting with more
+inodes is a last resort and needs a backup/restore window.
+
+### `filesystem_unavailable` -- a filesystem's capacity could not be read
+
+One finding per mount, named in `subject`. `status: unknown` with `reason`.
+
+**Means:** the mount is present but its size or inode facts could not be
+read -- for example a `/boot` entry with no size data, which used to be
+misread as 0% free and wrongly raise `boot_space_low`; it now surfaces here
+instead, with the actual gap named in `reason`.
+
+**Confirm:**
+```bash
+df -h /path/to/mount
+stat -f /path/to/mount
+```
+
+**Do:** treat `unknown` the same as any other check that could not run --
+under the default `linux_vitals_fail_on_severity`, it still fails the host.
+Fix whatever is preventing the read (a stale mount, a disconnected network
+share, a device that dropped out), then re-run.
+
+### `filesystem_probe_degraded` -- some filesystem facts could not be read
+
+Host-level, no `subject`, fires at most once per host. `status: unknown`
+with `reason` naming how many mounts were affected.
+
+**Means:** one or more mount entries returned unreadable facts during
+discovery (a bare string instead of the expected fields) and were folded
+into this single finding rather than each raising its own
+`filesystem_unavailable`, to avoid flooding a host with near-duplicate
+unknowns when the underlying cause is the same for all of them.
+
+**Confirm:** check `filesystem_degraded_count` in the JSON report and look
+at the mount list for entries with `status: Unknown`.
+
+**Do:** same as `filesystem_unavailable` -- find the mount(s) behind the
+count and fix whatever is blocking the read.
+
 ### `sssd_inactive` / `time_sync_absent` / `time_sync_inactive`
 
 **Means:** a service the fleet relies on is not running. Time sync is the one
@@ -207,9 +361,51 @@ timedatectl status
 already. For time sync, check drift before restarting -- a host that is hours
 out may need `chronyc makestep` rather than a restart.
 
+### `required_service_inactive` -- an operator-declared required service is not active
+
+**Means:** a unit named in `linux_vitals_required_services` -- a fleet's own
+must-run service, such as `nginx`, `postgresql`, or `docker` -- is not
+running. Same check as `sssd_inactive`/`time_sync_inactive`, just for a name
+the operator added rather than one this collection ships.
+
+**Confirm:**
+```bash
+systemctl status <unit>
+journalctl -u <unit> --since "1 hour ago"
+```
+
+**Do:** treat it like any other required-service finding -- check why it
+stopped before restarting it, since a service that keeps failing on restart
+usually has a configuration or dependency problem, not a transient one.
+
+### `failed_units_present` -- enabled units are in a failed state
+
+**Means:** `systemctl --failed` would show at least one unit that
+`service_facts` reports as enabled, beyond the handful of required services
+this collection checks by name. The finding's count is only the units this
+collection could confirm are enabled; disabled and masked units that are
+intentionally stopped are excluded, and a crashed unit whose enabled state
+could not be read counts toward `failed_unit_count` in the report but not
+toward this finding -- see `docs/report-guide.md` for the full field.
+
+**Confirm:**
+```bash
+systemctl --failed
+systemctl is-enabled <unit>
+```
+
+**Do:** check each listed unit the same way you would investigate any failed
+service -- `journalctl -u <unit>` for why it stopped, then decide whether to
+restart it, disable it if it is no longer needed, or leave it for
+`vitals_heal` if it is enabled for self-healing.
+
 ### `selinux_disabled` / `apparmor_disabled`
 
 **Means:** the host's mandatory access control is off or unavailable.
+An `apparmor_disabled` finding with `status: unknown` means something else:
+`aa-status` is not installed, or could not read AppArmor's state, so nobody
+knows whether it is on -- see its `reason`. Install `apparmor-utils` (or
+`apparmor`) and run with `become`.
 
 **Confirm:**
 ```bash
@@ -232,6 +428,97 @@ missing (an image trimmed without `libselinux-utils`) or it failed to report a
 mode. The finding's `reason` says so. Install the package; do not encode an
 override for it -- an unreadable mode is not "allowed off" the way a disabled
 one can be.
+### `ssh_permit_root_login_insecure` -- sshd allows root login
+
+**Means:** `sshd -T` reports `PermitRootLogin` is something other than `no`,
+`prohibit-password`, or `without-password`. `status: unknown` when the
+effective config could not be read -- see [SSH below](#sshd--t-could-not-run).
+
+**Confirm:**
+```bash
+sshd -T | grep -i permitrootlogin
+```
+
+**Do:** set `PermitRootLogin prohibit-password` (key-based root login,
+no password) or `no`, and reload `sshd`. If a host genuinely needs
+password-based root login (a rescue console, say), record the decision:
+```yaml
+linux_vitals_finding_severity_overrides:
+  ssh_permit_root_login_insecure: info
+```
+
+### `ssh_password_authentication_enabled` -- sshd allows password authentication
+
+**Means:** `sshd -T` reports `PasswordAuthentication yes`. Many fleets run
+this intentionally (break-glass access, non-key-based onboarding), so it is
+a `warning`, not an assumed misconfiguration -- see
+[#8](https://github.com/sameeralam3127/linux-vitals/issues/8).
+
+**Confirm:**
+```bash
+sshd -T | grep -i passwordauthentication
+```
+
+**Do:** if key-based auth is the intended posture, set
+`PasswordAuthentication no` and reload `sshd`. If password auth is
+deliberate, override the severity rather than living with a permanent
+warning:
+```yaml
+linux_vitals_finding_severity_overrides:
+  ssh_password_authentication_enabled: info
+```
+
+#### `sshd -T` could not run
+
+Both SSH findings go `unknown` together when `sshd -T` could not be read:
+`sshd` is not installed (the host may be managed over something other than
+OpenSSH), or the command failed -- most commonly because `become` is not
+available. `sshd -T` typically needs root to read the host key material it
+touches; see [docs/threat-model.md](threat-model.md#become--what-actually-needs-it).
+`ssh_hardening.detection_supported` is `false` and `source` says which case
+it was.
+
+### `kernel_tainted` -- the kernel is tainted
+
+**Means:** `/proc/sys/kernel/tainted` is non-zero. `kernel_taint.reasons`
+decodes the bits the collection recognises (proprietary module loaded, a
+module force-loaded or force-unloaded, an out-of-tree module, a live patch,
+a prior OOPS/BUG, and others); an empty list with a non-zero value means a
+bit this collection does not yet decode is set.
+
+**Confirm:**
+```bash
+cat /proc/sys/kernel/tainted
+dmesg | grep -i taint
+lsmod | grep -v '^Module'   # look for out-of-tree / unsigned modules
+```
+
+**Do:** a proprietary or out-of-tree module (GPU, RAID, or virtualization
+drivers are common culprits) is often expected on a given host class --
+record that rather than living with a permanent finding. A taint from a
+live OOPS, BUG, or soft lockup is worth investigating: check `dmesg` and the
+journal around the time it was set. A reboot clears the flag; it does not
+address whatever set it.
+
+### `reboot_blocking_deleted_libs` -- a process is holding a deleted library open
+
+**Means:** after a package update, a running process still has a file
+handle open on a shared library (`.so`) that has since been deleted from
+disk -- the classic "needs a restart, not just a reboot" state. Distinct
+from `reboot_required`: this can fire without a pending kernel update, and
+clears as soon as the process restarts. `reboot_blocking_processes.processes`
+lists each as `{pid, name}` (never the full command line). `status: unknown`
+means `lsof` is not installed.
+
+**Confirm:**
+```bash
+lsof +L1 | awk 'NR==1 || $NF ~ /\.so(\.[0-9]+)*$/'
+```
+
+**Do:** restart the named process (a service restart is usually enough; a
+full host reboot is not required just for this). If the list includes a
+core system daemon, treat it with the same care as any other service
+restart -- check what depends on it first.
 
 ### `kernel_install_failures`
 
@@ -352,10 +639,17 @@ constantly.
 
 **Do:** check `security.last_failed_login` for the source. Repeated attempts
 from one internal address is usually a stale credential in a script, not an
-attack. **Note:** when `lastb` cannot run, this currently reports a clean host
-rather than "unknown"
-([#39](https://github.com/sameeralam3127/linux-vitals/issues/39)) -- absence of
-this finding is not evidence of absence of failed logins.
+attack.
+
+**`status: unknown`** means the check could not run, and `reason` says which
+way:
+
+| `reason` | Do |
+| --- | --- |
+| `reading /var/log/btmp was denied; this check needs become` | Run with `become` -- set `ansible_become: true` in the inventory. `btmp` is `0600`/`0660 root:utmp`. |
+| `/var/log/btmp does not exist, ...` | Nothing on the host records failed logins. Usual on minimal and container images. If you want them recorded, `install -m 0660 -o root -g utmp /dev/null /var/log/btmp`; otherwise retune with `linux_vitals_finding_severity_overrides` and accept the gap knowingly. |
+| `lastb is not installed` | Install the package that ships it (`util-linux` on most families). |
+| `lastb exited N: ...` | `lastb` itself failed -- often a corrupt `btmp`. Read the stderr in the reason. |
 
 ## Certificate findings
 
@@ -412,6 +706,13 @@ passing and is now failing is the window's fault until proven otherwise. Hosts
 marked **New** had no baseline -- they were added mid-window or were
 unreachable during the baseline run, and both are worth knowing.
 
+The dashboard and run output show each host's baseline capture time. A warning
+marks baselines older than `linux_vitals_baseline_max_age_hours` (72 hours by
+default); an older snapshot may belong to a previous window. Set
+`linux_vitals_baseline_max_age_hours=0` to suppress warnings for dated baselines
+while keeping capture times visible. A snapshot from an older release without
+a capture time remains marked as age unknown.
+
 Keep the snapshot directory until the window is signed off. Snapshots are not
 pruned by `linux_vitals_report_retention_count`; delete the maintenance-id
 directory when you are done.
@@ -458,9 +759,39 @@ Before enabling it on a group, list what it *would* restart there:
 ansible -i inventory.ini web_tier -b -m ansible.builtin.shell \
   -a "systemctl list-units --state=failed --no-legend" 2>/dev/null
 ```
-`vitals_heal` restarts any unit that is both **enabled** and **failed**, with
-no allowlist. If that set contains something you would not restart unattended
-at 3am, do not enable it for that group. See
+By default `vitals_heal` restarts any unit that is both **enabled** and
+**failed**. If that set contains something you would not restart unattended at
+3am, name it before you enable the group
+([#148](https://github.com/sameeralam3127/linux-vitals/issues/148)):
+
+```yaml
+# group_vars/web_tier.yml, continued.
+linux_vitals_heal_exclude_services:   # never, whatever else is configured
+  - postgresql                        # restarting it can trigger failover
+  - "*-backup"                        # Type=oneshot: a restart runs the job again
+linux_vitals_heal_max_restarts: 3     # over this, leave the host alone entirely
+linux_vitals_heal_window_start: "01:00"
+linux_vitals_heal_window_end: "05:00"
+```
+
+Patterns are globs matched against the unit name, with `.service` optional.
+For a host you trust less, invert it -- set
+`linux_vitals_heal_include_services` to the short list you *do* want healed
+and leave everything else out of scope.
+
+Check the policy before you trust it. Run the group once with the lists set
+and read `self_healing.skipped_by_policy` in the JSON report: it names every
+failed unit a restart was not attempted on, and the `reason` says which
+guardrail stopped it.
+
+```bash
+jq '.hosts[] | {hostname, skipped: .self_healing.skipped_by_policy}' \
+  reports/linux_vitals_report.json
+```
+
+A unit that is skipped is still reported -- it stays in `failed_units` and
+still fails its required-service check if it is one. The guardrails suppress
+the restart, never the finding. See
 [threat-model.md](threat-model.md#self-healing-what-it-can-and-cannot-modify).
 
 ## When LinuxVitals is wrong
@@ -469,8 +800,10 @@ It sometimes is, and knowing where saves you chasing a phantom:
 
 - **A host missing from the report is not a passing host.** Check
   `summary.servers_checked` against your inventory count.
-- **`failed_logins` absent does not mean no failed logins** if `lastb` could
-  not run ([#39](https://github.com/sameeralam3127/linux-vitals/issues/39)).
+- **A unit with no self-healing outcome was not necessarily attempted.**
+  `self_healing.skipped_by_policy` is where a unit a guardrail ruled out
+  appears; the absence of a `healing_results` entry on its own does not say
+  whether the role tried and could not, or never tried.
 - **A service reported `Fixed` stayed up for
   `linux_vitals_heal_stability_seconds` (5 s by default), not forever.** One
   that fails later than that is still reported `Fixed`. Trust `systemctl`

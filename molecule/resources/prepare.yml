@@ -98,6 +98,13 @@
         - name: molecule-broken.service
           description: LinuxVitals test service that cannot be healed
           exec_start: /bin/false
+        - name: molecule-excluded.service
+          # Shares the flaky script on purpose (#148). The marker is removed
+          # before the converge, so a restart of this unit would succeed --
+          # it is still failed at the end only because converge.yml puts it in
+          # linux_vitals_heal_exclude_services and no restart was attempted.
+          description: LinuxVitals test service self-healing may not restart
+          exec_start: /usr/local/bin/molecule-flaky
       loop_control:
         label: "{{ item.name }}"
 
@@ -109,6 +116,7 @@
       loop:
         - molecule-flaky.service
         - molecule-broken.service
+        - molecule-excluded.service
 
     - name: Arm the flaky service so its first start fails
       ansible.builtin.file:
@@ -125,6 +133,7 @@
       loop:
         - molecule-flaky.service
         - molecule-broken.service
+        - molecule-excluded.service
       changed_when: true
       failed_when: false
 
@@ -140,6 +149,7 @@
       loop:
         - molecule-flaky.service
         - molecule-broken.service
+        - molecule-excluded.service
 
     - name: Disarm the flaky service so a restart can succeed
       ansible.builtin.file:

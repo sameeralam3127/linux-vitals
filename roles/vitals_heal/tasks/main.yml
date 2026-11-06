@@ -61,6 +61,12 @@
             | list
           }}
 
+    - name: Apply the self-healing policy to the failed enabled services
+      # include, exclude, the maintenance window and the restart cap (#148).
+      # Produces linux_vitals_heal_restart_services (what this run may touch)
+      # and linux_vitals_heal_skipped (what policy left alone, and why).
+      ansible.builtin.include_tasks: policy.yml
+
     - name: Attempt one restart for enabled failed services
       # A restart that errors is recorded, not fatal. `ignore_errors` rather
       # than `failed_when: false`, because failed_when overwrites each item's
@@ -79,10 +85,10 @@
       ansible.builtin.service:
         name: "{{ item | regex_replace('\\.service$', '') }}"
         state: restarted
-      loop: "{{ linux_vitals_failed_enabled_services }}"
+      loop: "{{ linux_vitals_heal_restart_services }}"
       register: linux_vitals_restart_attempts
       ignore_errors: true
-      when: linux_vitals_failed_enabled_services | length > 0
+      when: linux_vitals_heal_restart_services | length > 0
 
     # Verifying the restarts (#24). Reaching `active` is not the same as
     # staying active, so a unit is judged in two looks with a window between
@@ -180,7 +186,7 @@
       # Read after verification, so the required-service status refreshed
       # below sees the settled state rather than a unit mid-transition.
       ansible.builtin.service_facts:
-      when: linux_vitals_failed_enabled_services | length > 0
+      when: linux_vitals_heal_restart_services | length > 0
 
     - name: Summarize self-healing outcomes
       # Each attempt ends in one of three outcomes -- fixed, still_failed or
@@ -317,6 +323,10 @@
       # service states above have not been re-evaluated. Rebuilding the result
       # here is what puts the healing outcomes -- and the "requires manual
       # follow-up" findings -- into the report.
+      #
+      # Guarded on the failed+enabled set rather than the policy-narrowed one,
+      # because a run where policy skipped everything still has something to
+      # report: linux_vitals_heal_skipped (#148).
       ansible.builtin.include_role:
         name: sameeralam3127.linux_vitals.vitals_scan
         tasks_from: result.yml

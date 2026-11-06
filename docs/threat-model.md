@@ -78,6 +78,7 @@ What degrades without escalation, rather than failing:
 | `getenforce`, `aa-status` | Usually readable unprivileged; a missing `getenforce` on a RedHat-family host reports `unknown` (#150) |
 | Bootloader default entry | `grubby`/`grub2-editenv` typically needs root; a config present but unreadable reports `bootloader_mismatch` `unknown` with the tools' stderr, not a silent pass (#150) |
 | `service_facts` | Unit list is readable; some states are not |
+| `sshd -T` (#36) | Needs root to read host key material; reported `unknown`/unsupported, not guessed at (see [#36](https://github.com/sameeralam3127/linux-vitals/issues/36)) |
 
 **Recommendation:** grant `become` narrowly. The scan needs to *read*
 privileged state, not to write anything. A sudoers rule limited to the probe
@@ -87,7 +88,7 @@ safer than blanket `NOPASSWD: ALL`:
 ```sudoers
 automation ALL=(root) NOPASSWD: /usr/bin/journalctl, /usr/bin/lastb, \
     /usr/bin/needs-restarting, /usr/sbin/getenforce, /usr/sbin/aa-status, \
-    /usr/sbin/grubby, /usr/bin/who
+    /usr/sbin/grubby, /usr/bin/who, /usr/sbin/sshd
 ```
 
 Add `/usr/bin/systemctl restart *` only on hosts where you intend to enable
@@ -97,14 +98,16 @@ treat LinuxVitals as read-only.
 
 ## Command injection
 
-**No task uses the `shell` module.** All 13 command tasks in `vitals_scan` use
+**No task uses the `shell` module.** All 17 command tasks in `vitals_scan` use
 `ansible.builtin.command` with `argv:` lists, so arguments are passed to
 `execve` without a shell parsing them.
 
-Five probes do run `sh -c` with an inline script -- kernel enumeration,
-bootloader inspection, and the three per-family reboot checks -- and the
-kernel-install-failure scan runs `bash -c`, for `pipefail`, to filter the
-journal with `grep` on the host. **None of those scripts interpolate a Jinja
+Eleven probes do run `sh -c` with an inline script -- kernel enumeration,
+bootloader inspection, the three per-family reboot checks, login records,
+rescue-image discovery, pressure/PSI/swap sampling, and, since #36, firewall
+detection and the deleted-shared-library scan -- and the kernel-install-
+failure scan runs `bash -c`, for `pipefail`, to filter the journal with
+`grep` on the host. **None of those scripts interpolate a Jinja
 variable.** They are static text. The templated values near a command --
 `linux_vitals_log_window`, `linux_vitals_audit_log_window`,
 `linux_vitals_log_priority` and `linux_vitals_log_max_lines` -- are each a
@@ -143,19 +146,34 @@ came up, once more after the stability window, with the unit name as its own
 - touch files, packages, users, or the network
 - reboot a host -- reboot-required is reported, never acted on
 
-**The residual risk is the enable bit.** Self-healing restarts whatever is
-enabled and failed. A local user who can get a unit into a failed state, on a
-host where they can also influence what that unit executes, gets a root-context
-restart of it at your next run. That is a compromised host either way, but it
-is the mechanism by which LinuxVitals could become part of a chain. Two
-consequences worth accepting deliberately:
+**The residual risk is the enable bit.** By default, self-healing restarts
+whatever is enabled and failed. A local user who can get a unit into a failed
+state, on a host where they can also influence what that unit executes, gets a
+root-context restart of it at your next run. That is a compromised host either
+way, but it is the mechanism by which LinuxVitals could become part of a chain.
+Three consequences worth deciding deliberately:
 
 - **Enable self-healing per group, not globally.** It is a per-host decision
   about how much you trust that host's unit files.
-- **There is no allowlist of healable services.** If you need one, do not
-  enable the role; run it against a group you have scoped instead. (Making the
-  required-service list configurable is tracked as
-  [#32](https://github.com/sameeralam3127/linux-vitals/issues/32).)
+- **Name what may be restarted.** `linux_vitals_heal_include_services` and
+  `linux_vitals_heal_exclude_services`
+  ([#148](https://github.com/sameeralam3127/linux-vitals/issues/148)) bound the
+  set by unit name, and the exclude list wins. The default is still every
+  failed, enabled unit, so this is a decision you have to make rather than one
+  the collection makes for you -- but on a host whose unit files you do not
+  fully trust, an allowlist is the narrower grant and is now available without
+  giving up the rest of the role.
+- **Bound when and how much it may act.** `linux_vitals_heal_max_restarts`
+  caps restarts per host per run, and
+  `linux_vitals_heal_window_start`/`_end` restrict them to a time of day on
+  the managed host's clock. Both stand the whole host down rather than letting
+  part of a run through, and a window that cannot be evaluated -- an unreadable
+  clock -- stands the host down too, so a guardrail that fails does not fail
+  open.
+
+None of this changes what `become` grants, and a skipped unit is still
+reported: `self_healing.skipped_by_policy` names it and says which guardrail
+ruled it out, so a narrowed policy does not hide a failing host.
 
 A remediation claim is stronger than a detection claim, so `Fixed` is only
 reported once a restart has held: the unit came up and was still active, on
@@ -191,6 +209,20 @@ each configured endpoint. Consequences to accept deliberately:
   the socket is closed as soon as the peer certificate is read. **This is a
   reporting tool, not a trust decision.** Never use its output as evidence
   that a certificate chain validates.
+- **The handshake will not go below TLS 1.2.** That floor is set explicitly in
+  `plugins/modules/linux_vitals_cert_facts.py` rather than inherited from the
+  interpreter: Python 3.10 built against OpenSSL 1.1.1 or newer already floors
+  it there, but that is a property of how Python was built, and an older build
+  floors it at TLS 1.0 instead -- on such a control node the probe would
+  negotiate TLS 1.0 outbound. Pinning it makes the floor identical everywhere.
+  Verification being off (above) is the only latitude this handshake has; the
+  protocol version is not negotiable downward.
+
+  The floor also bounds what the role can *detect*: an endpoint that cannot do
+  TLS 1.2 fails the handshake and is reported as an endpoint error, so
+  `cert_weak_tls_version` is how you raise the bar above TLS 1.2, not how you
+  find a server still serving TLS 1.0
+  ([#180](https://github.com/sameeralam3127/linux-vitals/issues/180)).
 
 **It reads directories that hold private keys.** The default
 `linux_vitals_cert_fs_paths` include `/etc/letsencrypt/live` and

@@ -1,0 +1,62 @@
+---
+# Evaluate the deleted-shared-library probe (deleted_libs.yml) (#36).
+- name: Parse the deleted-library probe
+  ansible.builtin.set_fact:
+    linux_vitals_deleted_libs_supported: >-
+      {{
+        linux_vitals_deleted_libs_cmd.rc | default(1) | int == 0
+        and (
+          linux_vitals_deleted_libs_cmd.stdout
+          | default('', true)
+          | regex_findall('(?m)^supported=(.*)$')
+          | first
+          | default('false', true)
+          | trim
+        ) == 'true'
+      }}
+    linux_vitals_deleted_libs_source: >-
+      {{
+        linux_vitals_deleted_libs_cmd.stdout
+        | default('', true)
+        | regex_findall('(?m)^source=(.*)$')
+        | first
+        | default('unavailable', true)
+        | trim
+      }}
+    linux_vitals_deleted_libs_detail: >-
+      {{
+        linux_vitals_deleted_libs_cmd.stdout
+        | default('', true)
+        | regex_findall('(?m)^detail=(.*)$')
+        | first
+        | default('', true)
+        | trim
+      }}
+    linux_vitals_deleted_libs_reason: >-
+      {%- if linux_vitals_deleted_libs_cmd.rc | default(1) | int != 0 -%}
+      the deleted-library probe exited {{ linux_vitals_deleted_libs_cmd.rc | default('unknown') }}:
+      {{ (linux_vitals_deleted_libs_cmd.stderr | default('', true)
+          or linux_vitals_deleted_libs_cmd.msg | default('no output', true)) | trim | truncate(200) }}
+      {%- endif -%}
+  tags:
+    - discovery
+    - security
+
+- name: Build the list of processes holding deleted libraries open
+  ansible.builtin.set_fact:
+    linux_vitals_deleted_libs_processes: >-
+      {%- set raw = linux_vitals_deleted_libs_cmd.stdout
+                     | default('', true)
+                     | regex_findall('(?m)^processes=(.*)$')
+                     | first | default('', true) | trim -%}
+      {%- set out = [] -%}
+      {%- for entry in raw.split(',') if entry -%}
+      {%- set parts = entry.split(':', 1) -%}
+      {%- if parts | length == 2 -%}
+      {%- set _ = out.append({'pid': parts[0] | trim, 'name': parts[1] | trim}) -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{ out }}
+  tags:
+    - discovery
+    - security

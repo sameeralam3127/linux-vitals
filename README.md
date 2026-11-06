@@ -115,7 +115,8 @@ That is the whole loop. Everything below is optional.
 | --- | --- |
 | **System** | CPU and platform discovery, virtualization type, uptime, last reboot, asset serial |
 | **Memory & load** | RAM usage; 5-minute load per CPU; pressure stalls (PSI) for CPU, memory and I/O; swap paging rate -- each against warning and critical thresholds |
-| **Services** | `sssd`, `systemd-journald`, and the resolved time-sync unit |
+| **Filesystems** | Used space and used inodes on **every real mount**, plus mounts that unexpectedly went read-only, and mounts whose capacity could not be read |
+| **Services** | `sssd`, `systemd-journald`, the resolved time-sync unit, **every enabled unit systemd reports as failed**, and any unit you name in `linux_vitals_required_services` |
 | **Logs** | Journal entries at priority `err` or worse (configurable) in a bounded window, plus kernel/bootloader install failures |
 | **Kernel & boot** | Running vs. latest installed kernel, bootloader default entry, reboot-required (per distro), `/boot` free space, rescue image |
 | **Security** | SELinux, AppArmor, recent failed logins |
@@ -124,6 +125,12 @@ That is the whole loop. Everything below is optional.
 Every finding carries a **severity**, and each host rolls up to the worst one it
 has. Results render as an HTML dashboard and a JSON report, with optional
 Slack, email, and generic-webhook summaries.
+
+A check that **could not run** -- a command missing, a log or mount table
+unreadable -- raises its finding as `unknown` with the reason, rather than
+leaving the host reading clean. A host where something could not be checked
+never counts towards the fleet health score, whatever your severity threshold
+is: see [Status](docs/report-guide.md#status-when-a-check-could-not-run).
 
 ---
 
@@ -166,13 +173,15 @@ to *do* about each one is in the [Operator Runbook](docs/runbook.md).
 
 ## Configuration
 
-Defaults are conservative and safe. The four most people change:
+Defaults are conservative and safe. The ones most people change:
 
 ```yaml
 linux_vitals_ram_critical_threshold: 95   # RAM % that fails a host
+linux_vitals_disk_critical_threshold: 95  # filesystem used % that is critical
 linux_vitals_fail_on_severity: info       # severity that fails a host
 linux_vitals_heal_enabled: false          # opt in to service restarts
 linux_vitals_certs_enabled: false         # opt in to TLS checks
+linux_vitals_required_services: []        # your own must-run units
 ```
 
 Set them in `group_vars`, inventory, or with `-e`.
@@ -222,8 +231,36 @@ reported `Fixed` once the unit has settled and stayed up through a short
 stability window; one that could not be verified is reported as `unknown`,
 not as fixed.
 
-There is no allowlist: it restarts whatever is enabled and failed. Enable it
-per group rather than globally, and see
+Three guardrails bound what it may touch, all off by default so a run that
+sets none of them behaves exactly as before:
+
+```yaml
+# Which units are in scope. Globs, with `.service` optional.
+linux_vitals_heal_include_services: ["*"]        # default: everything
+linux_vitals_heal_exclude_services:              # wins over the include list
+  - postgresql
+  - "*-backup"
+
+# Leave the host alone entirely if this many units are in scope at once.
+linux_vitals_heal_max_restarts: 3                # 0 (default) = no limit
+
+# Only act inside this window, on the managed host's own clock.
+linux_vitals_heal_window_start: "22:00"          # "" (default) = any time
+linux_vitals_heal_window_end: "02:00"            # an end before the start spans midnight
+```
+
+Use the exclude list for anything you would not restart unattended — a
+database or clustered service, where an automatic restart can trigger recovery
+or failover at the wrong moment, or a `Type=oneshot` job, which a restart runs
+again from the start. The cap exists for the other failure mode: twenty units
+failing at once usually has one cause a restart will not fix, so over the
+limit the host is left entirely alone rather than having an arbitrary subset
+restarted.
+
+A unit the policy leaves alone is never silently dropped — it is reported
+under `self_healing.skipped_by_policy` with the reason, so the report says why
+a failed unit was not touched. Still enable the role per group rather than
+globally, and see
 [Enabling self-healing safely](docs/runbook.md#procedure-enabling-self-healing-safely)
 for the one command that shows what it *would* restart before you switch it on.
 
@@ -283,6 +320,16 @@ before/after panel. Hosts with no matching baseline are marked **New** rather
 than failing the run. Step-by-step:
 [Running a maintenance window](docs/runbook.md#procedure-a-maintenance-window).
 
+Each snapshot records when it was captured, and the postcheck reports that
+age — so a comparison against a baseline from three weeks ago says so instead
+of reading as a fresh before/after. Baselines older than
+`linux_vitals_baseline_max_age_hours` (72 by default; `0` disables the
+warning) are flagged in the dashboard header and per host.
+
+Maintenance ids are validated before anything is written: an id containing a
+path separator, a leading dot, or a control character is refused rather than
+writing a snapshot outside the snapshot directory.
+
 Splitting a large fleet across several runs? Every shard keeps the window's
 maintenance id and sets its own `linux_vitals_snapshot_shard`, so a shard id
 reused for a different set of hosts is refused rather than silently merged
@@ -296,10 +343,11 @@ Every task is tagged, so you can run a slice instead of the whole scan:
 
 | Tag | Runs |
 | --- | --- |
-| `discovery` | Facts, services, memory, logs, kernel, boot, security |
+| `discovery` | Facts, services, memory, saturation, filesystems, logs, kernel, boot, security |
 | `kernel` | Kernel and reboot-required checks |
 | `security` | SELinux, AppArmor, failed logins |
-| `boot` | Boot partition and rescue image |
+| `boot` | Boot partition, rescue image, and the per-mount filesystem checks |
+| `result` | Build the findings list, classify severity, and assemble each host's result |
 | `self_healing` | Restart attempts (only acts if enabled) |
 | `certs` | TLS certificate checks (only acts if enabled) |
 | `reporting`, `notifications` | Rebuild reports and send summaries |
@@ -340,7 +388,7 @@ flowchart TB
     subgraph OUT["What you get"]
         direction LR
         HTML["<b>Dashboard</b><br/>one HTML file"]
-        JSON["<b>JSON report</b><br/>schema 2.1"]
+        JSON["<b>JSON report</b><br/>schema 2.3"]
         SNAP["<b>Snapshots</b><br/>before → after"]
         MSG["<b>Notifications</b><br/>Slack · email<br/>webhook"]
         HTML ~~~ JSON ~~~ SNAP ~~~ MSG
@@ -365,10 +413,19 @@ Why the roles share one variable namespace, and why paths resolve from
 
 ### Consuming the JSON
 
-`reports/linux_vitals_report.json` is **schema 2.1**. Findings are objects
-(`{id, message, severity, status}`, plus a `reason` when `status` is
-`unknown`), not strings, and each carries a stable `id` you can join on —
-`message` wording may change between releases, ids will not.
+`reports/linux_vitals_report.json` is **schema 2.3**. Findings are objects
+(`{id, message, severity, status, references}`, plus a `reason` when `status`
+is `unknown`), not strings, and each carries a stable `id` you can join on —
+`message` wording may change between releases, ids will not. `references` is
+reserved for exact external control identifiers (a CIS or STIG rule number)
+and is an empty list on every finding today, so a consumer can join on it
+before any mapping is published.
+
+Each host also carries `filesystems` (per-mount space and inodes),
+`pressure` (load, PSI and swap), `failed_units`, `unknown_count`, and
+`self_healing.skipped_by_policy` (failed units a restart was never attempted
+on, with the reason).
+Full schema and every field: **[Report Guide](docs/report-guide.md#json-report)**.
 
 ---
 

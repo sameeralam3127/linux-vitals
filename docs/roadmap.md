@@ -37,7 +37,7 @@ waits for February.
 | Month | Theme | Release | Issues |
 | --- | --- | --- | --- |
 | [October 2026](#october-2026-ship-what-is-done-then-the-finding-contract) | Ship what is done; the finding contract | **2.1.0** (released 10 October) | 3 |
-| [November 2026](#november-2026-finish-trust-scale-and-safety) | Finish Trust: scale and safety | **2.2.0 -- Trust** (end of November) | 1 |
+| [November 2026](#november-2026-finish-trust-scale-and-safety) | Finish Trust: scale and safety | **2.2.0 -- Trust** (released 3 November) | 1 |
 | [December 2026](#december-2026-artefacts-and-the-task-tree) | Artefacts and the task tree | -- | 6 |
 | [January 2027](#january-2027-coverage-and-adoption) | Coverage and adoption | **2.3.0 -- Coverage** (end of January) | 3 |
 | [Any month](#any-month-community-issues) | `good first issue`s, for whoever picks them up | next release | 0 |
@@ -48,7 +48,7 @@ waits for February.
 | Release | When | What it is |
 | --- | --- | --- |
 | **2.1.0** | released 10 October | CI on the ansible-core 2.16 floor and the two 2.16 fixes it found, configurable report modes, one shared service-status task, golden-file tests for every finding, the opt-in fleet health gate, the check-mode refusal, an explicit fact cache timeout, and Debian 12 and Amazon Linux 2023 in CI. |
-| **2.2.0 -- Trust** | end of November | The report can be believed. Nothing new on the dashboard except filesystem capacity. |
+| **2.2.0 -- Trust** | released 3 November | The report can be believed: a check that could not run says so ([#62](https://github.com/sameeralam3127/linux-vitals/issues/62)) rather than reading clean, journal scans are bounded on the host ([#23](https://github.com/sameeralam3127/linux-vitals/issues/23)), self-healing only reports `Fixed` once a restart has held ([#24](https://github.com/sameeralam3127/linux-vitals/issues/24)), and the failed-login and AppArmor checks no longer pass a host they could not read ([#39](https://github.com/sameeralam3127/linux-vitals/issues/39)). New on the dashboard: filesystem capacity and inodes ([#30](https://github.com/sameeralam3127/linux-vitals/issues/30)), saturation ([#34](https://github.com/sameeralam3127/linux-vitals/issues/34)) and failed units ([#32](https://github.com/sameeralam3127/linux-vitals/issues/32)). Report schema moves to `2.2`. |
 | **2.3.0 -- Coverage** | end of January | The report is more complete, the task tree is one a contributor can navigate, and the fleet-size claim is measured. |
 
 2.1.0 shipped rather than waiting for Trust because it carried two fixes

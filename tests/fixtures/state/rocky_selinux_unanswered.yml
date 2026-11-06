@@ -106,3 +106,35 @@ state:
       stdout_lines:
         - /boot/initramfs-0-rescue-5b4c1d3f7d9f6a0c1e439f6a7b8c0d12.img
         - /boot/vmlinuz-0-rescue-5b4c1d3f7d9f6a0c1e439f6a7b8c0d12
+    # Security posture probes (#36), clean so they raise no finding of
+    # their own: these fixtures exist to pin the boot/kernel/SELinux
+    # unknown paths (#150), and tests/test_golden_findings.py shares one
+    # module-scoped inventory, so a fixture missing any required probe
+    # key fails every golden test, not just its own.
+    deleted_libs:
+      ran: true
+      rc: 0
+      supported: true
+      source: lsof
+      detail: ''
+      processes: []
+    firewall:
+      ran: true
+      rc: 0
+      supported: true
+      active: true
+      source: firewalld
+      detail: running
+    kernel_taint:
+      ran: true
+      rc: 0
+      stdout: '0'
+    ssh_hardening:
+      ran: true
+      rc: 0
+      supported: true
+      source: sshd-T
+      detail: ''
+      permitrootlogin: 'no'
+      passwordauthentication: 'no'
+      permitemptypasswords: 'no'

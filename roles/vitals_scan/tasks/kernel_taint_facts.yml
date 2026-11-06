@@ -1,0 +1,65 @@
+---
+# Evaluate the kernel taint probe (kernel_taint.yml) (#36): decode the
+# common bits documented in the kernel sources (Documentation/admin-guide/
+# tainted-kernels.rst) so a non-zero value explains itself rather than just
+# being a number to look up.
+- name: Decide whether the kernel taint probe answered
+  ansible.builtin.set_fact:
+    linux_vitals_kernel_tainted_supported: >-
+      {{
+        linux_vitals_kernel_taint_cmd.rc | default(1) | int == 0
+        and (linux_vitals_kernel_taint_cmd.stdout | default('', true) | trim) is match('^[0-9]+$')
+      }}
+    linux_vitals_kernel_taint_reason: >-
+      {%- if linux_vitals_kernel_taint_cmd.rc | default(1) | int != 0 -%}
+      could not read /proc/sys/kernel/tainted:
+      {{ (linux_vitals_kernel_taint_cmd.stderr | default('', true)
+          or linux_vitals_kernel_taint_cmd.msg | default('no output', true)) | trim | truncate(200) }}
+      {%- elif not (linux_vitals_kernel_taint_cmd.stdout | default('', true) | trim) is match('^[0-9]+$') -%}
+      /proc/sys/kernel/tainted did not contain a number:
+      {{ linux_vitals_kernel_taint_cmd.stdout | default('', true) | trim | truncate(100) }}
+      {%- endif -%}
+  tags:
+    - discovery
+    - security
+
+- name: Decode the kernel taint bitmask
+  ansible.builtin.set_fact:
+    linux_vitals_kernel_tainted: >-
+      {{
+        (linux_vitals_kernel_taint_cmd.stdout | default('0', true) | trim | int)
+        if linux_vitals_kernel_tainted_supported else 0
+      }}
+    linux_vitals_kernel_taint_reasons: >-
+      {%- set bit_meanings = {
+        0: 'a proprietary module was loaded',
+        1: 'a module was force loaded',
+        2: 'kernel ran on an SMP-incapable CPU',
+        3: 'a module was force unloaded',
+        4: 'a processor reported a machine check exception',
+        5: 'a bad page was referenced or an unexpected page flag was seen',
+        6: 'userspace requested the taint',
+        7: 'the kernel has died recently (OOPS or BUG)',
+        8: 'an ACPI table was overridden',
+        9: 'the kernel issued a warning',
+        10: 'a staging driver was loaded',
+        11: 'a workaround for a firmware bug is active',
+        12: 'an externally-built out-of-tree module was loaded',
+        13: 'an unsigned module was loaded',
+        14: 'a soft lockup occurred',
+        15: 'the kernel was live patched',
+        16: 'an auxiliary taint flag used by this distro is set',
+        17: 'the kernel was built with randomized structure layout',
+      } -%}
+      {%- set value = (linux_vitals_kernel_taint_cmd.stdout | default('0', true) | trim | int)
+                      if linux_vitals_kernel_tainted_supported else 0 -%}
+      {%- set reasons = [] -%}
+      {%- for bit in range(0, 18) -%}
+      {%- if (value // (2 ** bit)) % 2 == 1 -%}
+      {%- set _ = reasons.append(bit_meanings[bit]) -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{ reasons }}
+  tags:
+    - discovery
+    - security

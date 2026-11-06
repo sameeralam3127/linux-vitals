@@ -59,6 +59,54 @@ Hosts where nothing was restarted pay none of this. Raise
 after starting; raise the settle budget for units that take longer than 30 s
 to leave `activating` after a restart.
 
+### Bounding what may be restarted
+
+Failed-and-enabled is a statement about the host, not a policy. Three
+guardrails narrow it, all off by default so a run that sets none of them
+restarts exactly what it always did
+([#148](https://github.com/sameeralam3127/linux-vitals/issues/148)):
+
+```yaml
+linux_vitals_heal_include_services: ["*"]   # in scope; globs, `.service` optional
+linux_vitals_heal_exclude_services: []      # never restart these; wins over the include list
+linux_vitals_heal_max_restarts: 0           # 0 = no limit on restarts per host per run
+linux_vitals_heal_window_start: ""          # "" = any time; 24-hour HH:MM
+linux_vitals_heal_window_end: ""            # an end before the start spans midnight
+```
+
+Patterns match the unit name as `service_facts` reports it, with the
+`.service` suffix optional, so `nginx`, `nginx.service` and `nginx*` all match
+`nginx.service`. Use the exclude list for anything you would not restart
+unattended -- a database or clustered service, where an automatic restart can
+trigger recovery or failover at the wrong moment, or a `Type=oneshot` backup
+or migration job, which a restart runs again from the start.
+
+The include and exclude lists decide per unit. The window and the cap decide
+per host, and either stands the whole run down rather than letting part of it
+through:
+
+- **Outside the window**, nothing is restarted. The clock is read on the
+  managed host when the decision is made -- not from facts gathered at the
+  start of the play, which can be well before it. A host whose clock cannot
+  be read is left alone, because a window that cannot be evaluated must not
+  become no window at all.
+- **Over `linux_vitals_heal_max_restarts`**, nothing is restarted. The first
+  N of too many units is an arbitrary subset, and many units failing at once
+  usually has one cause a restart will not fix -- a full disk, a failed mount,
+  a bad config push -- which is when restarting everything is most likely to
+  make things worse.
+
+Setting one end of the window without the other fails the role with a message
+rather than being guessed at.
+
+Nothing a guardrail removes is dropped silently. Each skipped unit is reported
+under `self_healing.skipped_by_policy` with a `reason`
+(`excluded`, `not_included`, `outside_window`, `window_unknown`,
+`over_max_restarts`) and a sentence saying why, so the report distinguishes
+"self-healing tried and could not" from "self-healing never tried". Skipped
+units keep whatever findings the scan already raised for them -- a guardrail
+suppresses the restart, never the report.
+
 ## Maintenance workflow
 
 Owned by `vitals_report`, set via `-e` rather than `group_vars` (a

@@ -53,3 +53,72 @@
           }}
   tags:
     - discovery
+
+- name: Build operator-declared required service status map
+  # Additive on top of the three above (#32): each name in
+  # linux_vitals_required_services is checked the same way, by its exact
+  # unit name -- no candidate-list resolution, since the operator names the
+  # unit they mean. An empty list (the default) makes this an empty dict,
+  # which is why leaving the variable unset reproduces every earlier
+  # release's behaviour exactly: linux_vitals_service_status above is built
+  # unconditionally and untouched by this task.
+  ansible.builtin.set_fact:
+    linux_vitals_required_service_status: >-
+      {%- set out = {} -%}
+      {%- for name in linux_vitals_required_services | default([]) -%}
+      {%- set _ = out.update({
+            name: {
+              'service_name': name,
+              'state': ansible_facts.services.get(name, {}).state | default('missing'),
+            }
+          }) -%}
+      {%- endfor -%}
+      {{ out }}
+  tags:
+    - discovery
+
+- name: Build the fleet-wide failed-unit inventory
+  # Every unit systemd reports as failed, not just the handful of required
+  # services above (#32). Read from the same service_facts already gathered
+  # in facts.yml -- no new command. A unit is "failed" when its systemd
+  # status is literally `failed` (old ansible-core instead reports this on
+  # `state`; both are read, matching the check vitals_heal already uses to
+  # find restart candidates) -- not merely stopped, which is how a disabled,
+  # never-started service is excluded from a count that would otherwise be
+  # every stopped unit on the host.
+  #
+  # service_facts cannot always tell whether a failed unit is enabled: once
+  # systemd marks a unit `failed`, that overwrites the unit-file
+  # enabled/disabled state service_facts would otherwise report (ansible-core
+  # bug-for-bug compatible across versions). `enabled` is therefore `true`
+  # for a unit service_facts affirmatively reports as enabled, enabled at
+  # runtime, or indirectly enabled, and `false` otherwise -- including a
+  # failed unit whose enablement could not be read. That is a conservative
+  # under-count, not a guess: linux_vitals_failed_units still lists the unit
+  # either way, only the enabled-unit finding and count depend on knowing it.
+  ansible.builtin.set_fact:
+    linux_vitals_failed_units: >-
+      {%- set never_meant_to_run = ['disabled', 'static', 'masked', 'not-found', 'generated', 'transient'] -%}
+      {%- set enabled_statuses = ['enabled', 'enabled-runtime', 'indirect'] -%}
+      {%- set units = [] -%}
+      {%- for name, unit in (ansible_facts.services | default({})).items() -%}
+      {%- set state = unit.state | default('') -%}
+      {%- set status = unit.status | default('') -%}
+      {%- if (state == 'failed' or status == 'failed') and status not in never_meant_to_run -%}
+      {%- set _ = units.append({'name': name, 'enabled': status in enabled_statuses}) -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{ units | sort(attribute='name') }}
+  tags:
+    - discovery
+
+- name: Count the failed units
+  # A separate task: the counts read linux_vitals_failed_units, which the
+  # task above sets, and a set_fact cannot read a fact it sets itself.
+  ansible.builtin.set_fact:
+    linux_vitals_failed_unit_count: >-
+      {{ linux_vitals_failed_units | default([]) | length }}
+    linux_vitals_enabled_failed_unit_count: >-
+      {{ linux_vitals_failed_units | default([]) | selectattr('enabled') | list | length }}
+  tags:
+    - discovery

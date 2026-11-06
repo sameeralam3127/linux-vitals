@@ -223,17 +223,42 @@ def test_converge_playbook_opts_into_self_healing() -> None:
     assert document[0]["vars"]["linux_vitals_heal_enabled"] is True
 
 
-def test_prepare_playbook_plants_both_a_healable_and_an_unfixable_unit() -> None:
+def test_prepare_playbook_plants_a_healable_an_unfixable_and_an_excluded_unit() -> None:
     document = _load_yaml(RESOURCES_DIR / "prepare.yml")
     install_units_task = next(
         task for task in document[0]["tasks"] if task.get("name") == "Install the test units"
     )
-    unit_names = {item["name"] for item in install_units_task["loop"]}
+    units = {item["name"]: item for item in install_units_task["loop"]}
 
-    assert unit_names == {"molecule-flaky.service", "molecule-broken.service"}
+    assert set(units) == {
+        "molecule-flaky.service",
+        "molecule-broken.service",
+        "molecule-excluded.service",
+    }
 
-    broken = next(item for item in install_units_task["loop"] if item["name"] == "molecule-broken.service")
-    assert broken["exec_start"] == "/bin/false"
+    assert units["molecule-broken.service"]["exec_start"] == "/bin/false"
+    # The excluded unit (#148) must be genuinely healable, or "still failed
+    # after the run" would prove nothing about the exclusion: it shares the
+    # flaky unit's script, whose failure marker prepare.yml removes before the
+    # converge, so a restart of it would have succeeded.
+    assert (
+        units["molecule-excluded.service"]["exec_start"]
+        == units["molecule-flaky.service"]["exec_start"]
+    )
+
+
+def test_converge_excludes_one_planted_unit_from_self_healing() -> None:
+    # #148: the guardrails have to be exercised against a real host, and the
+    # exclusion is the one that can be without standing the rest of the heal
+    # path down.
+    document = _load_yaml(RESOURCES_DIR / "converge.yml")
+
+    assert document[0]["vars"]["linux_vitals_heal_exclude_services"] == ["molecule-excluded"]
+    # The other guardrails stay at their defaults so the scenario still proves
+    # the unnarrowed path restarts what it always did.
+    assert "linux_vitals_heal_include_services" not in document[0]["vars"]
+    assert "linux_vitals_heal_max_restarts" not in document[0]["vars"]
+    assert "linux_vitals_heal_window_start" not in document[0]["vars"]
 
 
 # Self-healing verification (#24): two more units, planted and checked by

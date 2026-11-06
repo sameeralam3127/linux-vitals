@@ -63,6 +63,29 @@
         fail_msg: "The saturation probe did not produce a full reading: {{ host_report.pressure }}"
 
     # ------------------------------------------------------------------
+    # Filesystem capacity/inode checks (#30)
+    # ------------------------------------------------------------------
+    - name: Assert the filesystem probe-free check produced a full reading
+      # Percentages depend on the CI runner's actual disk, so only the shape
+      # is asserted here: a non-empty mount list, a worst_status rollup that
+      # is one of the known values, and every mount that made it into the
+      # list carries a real status, never left as a placeholder. This does
+      # not require / or /boot by name: some container images this role is
+      # also expected to scan (and that Molecule itself runs its scenarios
+      # in) do not report a distinct ansible_facts.mounts entry for an
+      # overlay root at all, which is a fact-gathering gap outside this
+      # role's control, not a reason to leave the mount unreported if one
+      # exists. The /-is-always-in-scope rule (filesystems.yml) and the
+      # golden fixture (filesystem_findings) are what prove a present /
+      # with fstype overlay stays in scope.
+      ansible.builtin.assert:
+        that:
+          - host_report.filesystems.worst_status in ['OK', 'Warning', 'Critical', 'Unknown']
+          - host_report.filesystems.mounts | length > 0
+          - host_report.filesystems.mounts | rejectattr('status', 'in', ['OK', 'Warning', 'Critical', 'Unknown']) | list | length == 0
+        fail_msg: "The filesystem check did not produce a full reading: {{ host_report.filesystems }}"
+
+    # ------------------------------------------------------------------
     # Finding severity (#8)
     # ------------------------------------------------------------------
     - name: Assert every finding carries an id, a message, and a known severity
@@ -114,7 +137,7 @@
     - name: Assert discovery identified the platform correctly
       ansible.builtin.assert:
         that:
-          - report.schema_version == '2.1'
+          - report.schema_version == '2.3'
           - host_report.os.family == vitals_expected_os_family
           - host_report.os.package_manager == vitals_expected_package_manager
           - host_report.os.log_source == 'journald'
@@ -131,6 +154,76 @@
           - host_report.kernel.running | length > 0
           - host_report.boot_space.status in ['Healthy', 'Low', 'Not Available']
           - host_report.security.selinux_status | length > 0
+
+    # ------------------------------------------------------------------
+    # Security posture: firewall, SSH hardening, kernel taint, and
+    # reboot-blocking deleted libraries (#36)
+    # ------------------------------------------------------------------
+    - name: Assert the firewall probe answered on this container
+      # "No firewall tool found" is itself a confident answer (source=none),
+      # so supported is always true here; only a genuine probe error would
+      # make it false, which none of these images should hit.
+      ansible.builtin.assert:
+        that:
+          - host_report.security.firewall.detection_supported in [true, false]
+          - host_report.security.firewall.active in [true, false]
+          - host_report.security.firewall.source | length > 0
+        fail_msg: "Firewall probe: {{ host_report.security.firewall }}"
+
+    - name: Assert the SSH hardening probe reported a consistent shape
+      # These containers are driven over the Docker connection, not SSH, so
+      # sshd and root escalation are not guaranteed to be present -- this
+      # asserts "answered" and "did not answer" are told apart, not a
+      # specific value. detection_supported false must still carry values
+      # that read as absent (empty strings), never guessed at.
+      ansible.builtin.assert:
+        that:
+          - host_report.security.ssh_hardening.detection_supported in [true, false]
+          - >-
+            host_report.security.ssh_hardening.detection_supported
+            or (
+              host_report.security.ssh_hardening.permit_root_login == ''
+              and host_report.security.ssh_hardening.password_authentication == ''
+              and host_report.security.ssh_hardening.permit_empty_passwords == ''
+            )
+          - >-
+            host_report.findings
+            | selectattr('id', 'in', [
+                'ssh_permit_root_login_insecure',
+                'ssh_password_authentication_enabled',
+                'ssh_permit_empty_passwords_enabled',
+              ])
+            | selectattr('status', 'equalto', 'unknown')
+            | map(attribute='reason') | select('equalto', '') | list | length == 0
+        fail_msg: "SSH hardening probe: {{ host_report.security.ssh_hardening }}"
+
+    - name: Assert the kernel taint probe read the always-available file
+      # /proc/sys/kernel/tainted is a plain file read with no privilege or
+      # distro-specific tool involved, so this is the one check in this
+      # group expected to succeed on every container, every family.
+      ansible.builtin.assert:
+        that:
+          - host_report.security.kernel_taint.supported == true
+          - host_report.security.kernel_taint.value | int >= 0
+          - host_report.security.kernel_taint.reasons is sequence
+        fail_msg: "Kernel taint probe: {{ host_report.security.kernel_taint }}"
+
+    - name: Assert the deleted-library probe told absence from a real answer
+      # lsof may or may not be preinstalled in a given image; either way the
+      # shape must distinguish "not installed" from "checked, found none".
+      ansible.builtin.assert:
+        that:
+          - host_report.security.reboot_blocking_processes.supported in [true, false]
+          - host_report.security.reboot_blocking_processes.processes is sequence
+          - >-
+            host_report.security.reboot_blocking_processes.supported
+            or (
+              host_report.findings
+              | selectattr('id', 'equalto', 'reboot_blocking_deleted_libs')
+              | selectattr('status', 'equalto', 'unknown')
+              | list | length == 1
+            )
+        fail_msg: "Deleted-library probe: {{ host_report.security.reboot_blocking_processes }}"
 
     - name: Assert the time synchronization service was resolved
       # Asserted on finding id rather than message text: the id is the stable
@@ -213,6 +306,17 @@
       changed_when: false
       failed_when: flaky_state.stdout | trim != 'active'
 
+    - name: Assert the planted broken unit appears in the failed-unit inventory
+      # #32: every failed unit is reported, not just the three this
+      # collection names by default. molecule-broken.service is enabled and
+      # never recovers (prepare.yml), so it is in this list throughout the
+      # run, heal attempt included.
+      ansible.builtin.assert:
+        that:
+          - "'molecule-broken.service' in (host_report.failed_units.units | map(attribute='name') | list)"
+          - host_report.failed_units.count | int >= 1
+        fail_msg: "Failed units: {{ host_report.failed_units }}"
+
     - name: Assert the unfixable unit is still failed on the host
       ansible.builtin.command:
         argv:
@@ -222,6 +326,59 @@
       register: broken_state
       changed_when: false
       failed_when: broken_state.stdout | trim != 'failed'
+
+    - name: Assert the excluded unit was reported as skipped, not attempted
+      # #148: the guardrail's whole point is that a failed, enabled unit an
+      # operator has ruled out is left alone -- and that the report says so
+      # rather than leaving a gap where its outcome would be.
+      ansible.builtin.assert:
+        that:
+          - skipped_excluded | length == 1
+          - skipped_excluded | first == expected_skip
+          - >-
+            'molecule-excluded.service' not in (
+              host_report.self_healing.healing_results
+              | map(attribute='service') | list
+            )
+          - "'molecule-excluded.service' not in host_report.self_healing.services_healed"
+        fail_msg: "Self-healing outcomes: {{ host_report.self_healing }}"
+      vars:
+        skipped_excluded: >-
+          {{
+            host_report.self_healing.skipped_by_policy | default([])
+            | selectattr('service', 'equalto', 'molecule-excluded.service')
+            | list
+          }}
+        expected_skip:
+          service: molecule-excluded.service
+          reason: excluded
+          detail: it matches linux_vitals_heal_exclude_services
+
+    - name: Assert the excluded unit is still failed on the host
+      # It shares the flaky unit's script and the failure marker is gone
+      # (prepare.yml), so a restart would have fixed it. Still failed means
+      # no restart was attempted.
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-failed
+          - molecule-excluded.service
+      register: excluded_state
+      changed_when: false
+      failed_when: excluded_state.stdout | trim != 'failed'
+
+    - name: Assert the units policy did allow were still restarted
+      # The guardrails must not quietly narrow a run that did not ask them to.
+      # molecule-flaky matches the default include list and no exclusion, so
+      # it is in scope and must not appear among the skipped.
+      ansible.builtin.assert:
+        that:
+          - >-
+            host_report.self_healing.skipped_by_policy | default([])
+            | map(attribute='service') | list == ['molecule-excluded.service']
+        fail_msg: >-
+          Units skipped by policy:
+          {{ host_report.self_healing.skipped_by_policy | default([]) }}
 
     - name: Check self-healing verification (#24)
       ansible.builtin.include_tasks:
@@ -245,6 +402,7 @@
           - "'LinuxVitals Molecule Dashboard' in dashboard"
           - inventory_hostname in dashboard
           - "'molecule-flaky.service' in dashboard"
+          - "'molecule-broken.service' in dashboard"
 
     - name: Assert the run was archived
       # Snapshots are only written for the baseline/postcheck phases, so an
@@ -286,6 +444,22 @@
             journal_findings: >-
               {{ linux_vitals_result.findings
                  | selectattr('id', 'in', ['log_errors', 'kernel_install_failures']) | list }}
+
+        - name: Assert an unreadable btmp is unknown rather than a clean host
+          # btmp is 0600 or 0660 root:utmp on every supported family, or absent
+          # on a minimal image. Unprivileged, the check can never run, so it
+          # must say so with a reason -- never "No failed login attempts found"
+          # (#39). Which of the three reasons applies varies by image.
+          ansible.builtin.assert:
+            that:
+              - login_findings | length == 1
+              - login_findings[0].status == 'unknown'
+              - login_findings[0].reason | length > 0
+              - "linux_vitals_result.last_failed_login is match('Not checked: ')"
+            fail_msg: "Unprivileged failed-login result: {{ login_findings }} / {{ linux_vitals_result.last_failed_login }}"
+          vars:
+            login_findings: >-
+              {{ linux_vitals_result.findings | selectattr('id', 'equalto', 'failed_logins') | list }}
 
     # ------------------------------------------------------------------
     # Bounded journal scans (#23). Last, because it floods the journal.

@@ -372,6 +372,84 @@ def test_shard_id_pattern(shard: str, accepted: bool) -> None:
     assert bool(re.match(_shard_id_pattern(), shard)) is accepted
 
 
+@pytest.mark.parametrize(
+    "maintenance_id",
+    [
+        ".",
+        "..",
+        "../x",
+        ".hidden",
+        "a/b",
+        "a\\b",
+        "bad\x01id",
+        "\twindow",
+        "window\n",
+        "bad\u0080id",
+        "bad\u009fid",
+    ],
+)
+def test_an_unusable_maintenance_id_stops_before_writing(
+    tmp_path: Path, maintenance_id: str
+) -> None:
+    result = _snapshot(
+        tmp_path,
+        "--limit", "host-a",
+        "-e", json.dumps({"linux_vitals_maintenance_id": maintenance_id}),
+    )
+
+    assert result.returncode != 0
+    assert "linux_vitals_maintenance_id" in result.stdout
+    assert "path separators" in result.stdout
+    expected_id_message = f"got {json.dumps(maintenance_id)}"
+    # ansible-core 2.16 JSON-escapes quotes inside the assert result message.
+    escaped_id_message = json.dumps(expected_id_message)[1:-1]
+    assert expected_id_message in result.stdout or escaped_id_message in result.stdout
+    assert not (tmp_path / "snapshots").exists()
+
+
+@pytest.mark.parametrize("maintenance_id", ["", "   "])
+def test_a_blank_maintenance_id_fails_as_required(tmp_path: Path, maintenance_id: str) -> None:
+    result = _snapshot(
+        tmp_path,
+        "--limit", "host-a",
+        "-e", json.dumps({"linux_vitals_maintenance_id": maintenance_id}),
+    )
+
+    assert result.returncode != 0
+    assert "linux_vitals_maintenance_id is required" in result.stdout
+    assert not (tmp_path / "snapshots").exists()
+
+
+@pytest.mark.parametrize(
+    ("maintenance_id", "normalized_id"),
+    [
+        ("2026-10-17-patch", "2026-10-17-patch"),
+        ("monthly patch", "monthly patch"),
+        ("  monthly patch  ", "monthly patch"),
+        ("CHG-2026-1012", "CHG-2026-1012"),
+        ("release_2.1.0", "release_2.1.0"),
+        ("a..b", "a..b"),
+        (2026, "2026"),
+    ],
+)
+def test_maintenance_id_is_trimmed_and_keeps_valid_values(
+    tmp_path: Path, maintenance_id: object, normalized_id: str
+) -> None:
+    result = _snapshot(
+        tmp_path,
+        "--limit", "host-a",
+        "-e", json.dumps({"linux_vitals_maintenance_id": maintenance_id}),
+    )
+
+    _ok(result)
+    phase_dir = tmp_path / "snapshots" / normalized_id / "baseline"
+    assert (phase_dir / "host-a.json").is_file()
+    manifest = json.loads((phase_dir / ".shards" / "default.json").read_text(encoding="utf-8"))
+    assert manifest["maintenance_id"] == normalized_id
+    if str(maintenance_id) != normalized_id:
+        assert not (tmp_path / "snapshots" / str(maintenance_id) / "baseline").exists()
+
+
 def test_an_unusable_shard_id_stops_the_run_before_anything_is_written(tmp_path: Path) -> None:
     result = _snapshot(tmp_path, "--limit", "host-a", "-e", "linux_vitals_snapshot_shard=../escape")
 
