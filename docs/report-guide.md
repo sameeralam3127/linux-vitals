@@ -302,8 +302,8 @@ to avoid duplicate samples; CSV alone does not impose that identity check.
 | Gauge | Meaning |
 | --- | --- |
 | `linux_vitals_host_status` | `1` only for `Pass` with zero unknown checks; otherwise `0`. |
-| `linux_vitals_unknown_count` | Checks that could not run for this host. |
-| `linux_vitals_findings_total` | Current findings by `severity` (`info`, `warning`, `critical`) and `status` (`fail`, `unknown`), including zero-valued combinations. Despite its suffix, this is a gauge, not a cumulative counter. |
+| `linux_vitals_unknown_checks` | Checks that could not run for this host. |
+| `linux_vitals_findings` | Current findings by `severity` (`info`, `warning`, `critical`) and `status` (`fail`, `unknown`), including zero-valued combinations. A gauge of what the current report holds, not a cumulative counter -- hence no `_total` suffix. |
 | `linux_vitals_ram_used_pct` | RAM used percentage; `NaN` when unavailable. |
 | `linux_vitals_reboot_required` | `1` required, `0` not required, `NaN` for an explicit unknown reboot finding or null reboot result. An unsupported distro-specific detector still uses the existing kernel fallback; unsupported alone does not mean `NaN`. |
 | `linux_vitals_health_score_pct` | Fleet percentage of `Pass` hosts with zero unknown checks, rounded to one decimal; `0` for an empty fleet. Only the `phase` label is present. |

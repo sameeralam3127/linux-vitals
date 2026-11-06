@@ -11,13 +11,13 @@ host="{{ label(result.hostname) }}",ip_address="{{ label(result.ip_address) }}",
 {% for result in linux_vitals_result_list %}
 linux_vitals_host_status{ {{- labels(result) -}} } {{ 1 if result.final_status == 'Pass' and result.unknown_count | default(0) | int == 0 else 0 }}
 {% endfor %}
-# HELP linux_vitals_unknown_count Checks that could not run in this host's current report.
-# TYPE linux_vitals_unknown_count gauge
+# HELP linux_vitals_unknown_checks Checks that could not run in this host's current report.
+# TYPE linux_vitals_unknown_checks gauge
 {% for result in linux_vitals_result_list %}
-linux_vitals_unknown_count{ {{- labels(result) -}} } {{ result.unknown_count | default(0) | int }}
+linux_vitals_unknown_checks{ {{- labels(result) -}} } {{ result.unknown_count | default(0) | int }}
 {% endfor %}
-# HELP linux_vitals_findings_total Findings in the current report, not a cumulative counter.
-# TYPE linux_vitals_findings_total gauge
+# HELP linux_vitals_findings Findings in the current report, by severity and status.
+# TYPE linux_vitals_findings gauge
 {% for result in linux_vitals_result_list %}
 {% for severity in ['info', 'warning', 'critical'] %}
 {% for status in ['fail', 'unknown'] %}
@@ -27,7 +27,7 @@ linux_vitals_unknown_count{ {{- labels(result) -}} } {{ result.unknown_count | d
 {% set _ = matches.append(finding) %}
 {% endif %}
 {% endfor %}
-linux_vitals_findings_total{ {{- labels(result) -}},severity="{{ severity }}",status="{{ status }}"} {{ matches | length }}
+linux_vitals_findings{ {{- labels(result) -}},severity="{{ severity }}",status="{{ status }}"} {{ matches | length }}
 {% endfor %}
 {% endfor %}
 {% endfor %}

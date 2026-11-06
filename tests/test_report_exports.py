@@ -95,10 +95,10 @@ def test_exports_keep_unknown_checks_and_current_finding_counts(tmp_path: Path) 
     assert _value(samples, "host_status", host="known", **common) == 1
     assert _value(samples, "host_status", host="unchecked", **common) == 0
     assert _value(samples, "host_status", host="failed", **common) == 0
-    assert _value(samples, "unknown_count", host="unchecked", **common) == 2
-    assert _value(samples, "findings_total", host="unchecked", severity="info", status="unknown", **common) == 2
-    assert _value(samples, "findings_total", host="unchecked", severity="warning", status="fail", **common) == 2
-    assert _value(samples, "findings_total", host="known", severity="critical", status="unknown", **common) == 0
+    assert _value(samples, "unknown_checks", host="unchecked", **common) == 2
+    assert _value(samples, "findings", host="unchecked", severity="info", status="unknown", **common) == 2
+    assert _value(samples, "findings", host="unchecked", severity="warning", status="fail", **common) == 2
+    assert _value(samples, "findings", host="known", severity="critical", status="unknown", **common) == 0
     assert _value(samples, "ram_used_pct", host="known", **common) == 0
     assert _value(samples, "reboot_required", host="failed", **common) == 1
     assert _value(samples, "health_score_pct", phase="postcheck") == 33.3
