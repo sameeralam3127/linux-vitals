@@ -70,6 +70,10 @@ PROBE_FOR_REGISTER = {
     "linux_vitals_rescue_image_cmd": "rescue_images",
     "linux_vitals_audit_journalctl": "audit_logs",
     "linux_vitals_pressure_cmd": "pressure",
+    "linux_vitals_firewall_cmd": "firewall",
+    "linux_vitals_ssh_hardening_cmd": "ssh_hardening",
+    "linux_vitals_kernel_taint_cmd": "kernel_taint",
+    "linux_vitals_deleted_libs_cmd": "deleted_libs",
 }
 
 # The key=value blocks the shell probes print, in the order they print them.
@@ -84,6 +88,12 @@ KEY_VALUE_PROBES = {
         "psi_cpu_some", "psi_memory_some", "psi_memory_full", "psi_io_some", "psi_io_full",
         "swap_total_kb", "swap_free_kb", "swap_sample_seconds", "swap_in_per_sec", "swap_out_per_sec",
     ],
+    "firewall": ["supported", "active", "source", "detail"],
+    "ssh_hardening": [
+        "supported", "source", "detail",
+        "permitrootlogin", "passwordauthentication", "permitemptypasswords",
+    ],
+    "deleted_libs": ["supported", "source", "detail", "processes"],
 }
 LINE_PROBES = {"failed_logins", "rescue_images"}
 

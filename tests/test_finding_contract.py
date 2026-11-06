@@ -86,6 +86,18 @@ def test_unknown_host_count_counts_hosts_not_findings() -> None:
     assert int(_render(expr, linux_vitals_result_list=results)) == 2
 
 
+def test_baseline_age_summary_counts_stale_and_undated_hosts() -> None:
+    summary = _render_task("Build consolidated maintenance summary")["linux_vitals_summary"]
+    results = [
+        {"comparison": {"baseline_age_warning": True, "baseline_age_unknown": False}},
+        {"comparison": {"baseline_age_warning": False, "baseline_age_unknown": True}},
+        {"comparison": {"baseline_available": False}},
+    ]
+
+    assert int(_render(summary["stale_baseline_count"], linux_vitals_result_list=results)) == 1
+    assert int(_render(summary["unknown_baseline_age_count"], linux_vitals_result_list=results)) == 1
+
+
 # ---------------------------------------------------------------------------
 # Rendering
 # ---------------------------------------------------------------------------
@@ -128,15 +140,58 @@ def test_html_and_json_show_an_unknown_check_distinctly(tmp_path: Path) -> None:
     assert html.count("Could not check:") == 1
 
     # JSON: the counts, and the finding with its status and reason.
-    assert report["schema_version"] == "2.1"
+    assert report["schema_version"] == "2.3"
     assert report["summary"]["unknown_host_count"] == 1
     host = report["hosts"][0]
     assert host["unknown_count"] == 1
     unknown = [f for f in host["findings"] if f.get("status") == "unknown"]
-    assert unknown == [UNKNOWN_FINDING]
+    assert unknown == [{**UNKNOWN_FINDING, "references": []}]
 
     assert webhook["summary"]["unknown_host_count"] == 1
     assert webhook["hosts"][0]["unknown_count"] == 1
+
+
+def test_html_and_json_show_finding_references(tmp_path: Path) -> None:
+    # references (#43): an exact mapping to an external control id, such as
+    # a CIS or STIG rule number. Additive -- every finding gets the field,
+    # whether or not a mapping exists for it.
+    fixture_vars = yaml.safe_load(PLAYBOOK.read_text(encoding="utf-8"))[0]["vars"]
+    result = dict(fixture_vars["fixture_linux_vitals_result"])
+    mapped, unmapped = result["findings"]
+    result["findings"] = [
+        {**mapped, "references": ["CIS-DIL-1.2.3", "STIG-V-000001"]},
+        unmapped,
+    ]
+    extra_vars = tmp_path / "references_case.json"
+    extra_vars.write_text(
+        json.dumps({"fixture_linux_vitals_result": result}), encoding="utf-8"
+    )
+
+    subprocess.run(
+        [_ansible_playbook_bin(), str(PLAYBOOK), "-e", f"@{extra_vars}"],
+        check=True,
+        cwd=REPO_ROOT,
+        env=_base_env(tmp_path),
+    )
+
+    html = (tmp_path / "report.html").read_text(encoding="utf-8")
+    report = json.loads((tmp_path / "report.json").read_text(encoding="utf-8"))
+    webhook = json.loads((tmp_path / "generic_webhook.json").read_text(encoding="utf-8"))
+
+    # HTML: each reference is its own badge next to the finding it maps.
+    assert "<span class=\"pill pill--muted\">CIS-DIL-1.2.3</span>" in html
+    assert "<span class=\"pill pill--muted\">STIG-V-000001</span>" in html
+
+    # JSON and the webhook: the mapped finding carries both references, the
+    # unmapped one gets an empty list rather than a missing field.
+    host_findings = report["hosts"][0]["findings"]
+    assert host_findings[0]["references"] == ["CIS-DIL-1.2.3", "STIG-V-000001"]
+    assert host_findings[1]["references"] == []
+    assert webhook["hosts"][0]["findings"][0]["references"] == [
+        "CIS-DIL-1.2.3",
+        "STIG-V-000001",
+    ]
+    assert webhook["hosts"][0]["findings"][1]["references"] == []
 
 
 # ---------------------------------------------------------------------------
@@ -145,15 +200,18 @@ def test_html_and_json_show_an_unknown_check_distinctly(tmp_path: Path) -> None:
 
 # Scan probes that set `failed_when: false`, recorded when the contract landed
 # (#62). Ignoring a probe's failure is how a check that could not run ends up
-# reading as clean, so each of these is to be audited against the contract --
-# the failed-login probe first (#39). The two journal probes now handle
-# unknown results (#118); the remaining probes still need their audit.
+# reading as clean, so each of these is to be audited against the contract.
+# The two journal probes (#118), the failed-login probe and the AppArmor probe
+# (#39) now handle unknown results; the remaining probes still need their
+# audit.
 #
 # Adding a name here is a review decision, not a way to make this test pass:
 # the probe must tell "ran and found nothing" from "could not run", and raise
 # an `unknown` finding with a reason for the second (docs/architecture.md).
 REVIEWED_PROBES_THAT_IGNORE_FAILURE = {
     "Collect recent systemd log errors",
+    # Exit 3/4/5 (no lastb, no btmp, btmp unreadable) and any lastb failure
+    # become an unknown failed_logins finding in extended_facts.yml (#39).
     "Collect recent failed login attempts",
     "Collect last reboot information",
     "Collect latest installed kernel version",
@@ -162,12 +220,23 @@ REVIEWED_PROBES_THAT_IGNORE_FAILURE = {
     "Check if reboot is recommended on RedHat family",
     "Check if reboot is recommended on SUSE family",
     "Collect SELinux mode",
+    # A missing aa-status (127) or an unreadable state becomes an unknown
+    # apparmor_disabled finding on Debian-family hosts (#39).
     "Collect AppArmor status",
     "Collect rescue image presence",
     "Collect kernel install failures from logs",
     # Handles its own failure: a probe that could not run, and any value it
     # could not read, become `unknown` findings in pressure_facts.yml (#34).
     "Collect CPU load, pressure stalls and swap activity",
+    # Security posture (#36). Each handles its own failure the same way:
+    # firewall_facts.yml, ssh_hardening_facts.yml, kernel_taint_facts.yml and
+    # deleted_libs_facts.yml all check rc (and, for SSH, a become failure)
+    # and raise an `unknown` finding with a reason rather than reading a
+    # failed probe as clean.
+    "Collect firewall state",
+    "Collect effective SSH daemon configuration",
+    "Collect kernel taint flags",
+    "Collect processes holding deleted shared libraries open",
 }
 
 

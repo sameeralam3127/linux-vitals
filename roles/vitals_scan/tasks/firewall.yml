@@ -1,0 +1,91 @@
+---
+# Probe: firewall state (#36). Tries firewalld, then ufw, then a raw
+# nftables/iptables ruleset check, in that priority -- the same "ask each
+# distro's own tool, fall back to the generic layer" pattern reboot_probes.yml
+# uses for reboot detection. firewall_facts.yml parses the result.
+#
+# "No firewall tool answered" and "a tool answered but is inactive" are both
+# reported as supported=true, active=false: a host with nothing filtering
+# traffic is a real, confident finding (firewall_inactive), not an unknown.
+# supported=false is reserved for a tool that is present but could not be
+# asked -- e.g. a permission error -- which is genuinely "could not check".
+- name: Collect firewall state
+  ansible.builtin.command:
+    argv:
+      - sh
+      - -c
+      - |
+          if command -v firewall-cmd >/dev/null 2>&1; then
+            detail="$(firewall-cmd --state 2>&1 | head -n 1)"
+            rc=$?
+            case "$rc" in
+              0)
+                printf 'supported=true\nactive=true\nsource=firewalld\ndetail=%s\n' "$detail"
+                ;;
+              252)
+                # firewalld's own exit code for "daemon not running".
+                printf 'supported=true\nactive=false\nsource=firewalld\ndetail=%s\n' "$detail"
+                ;;
+              *)
+                printf 'supported=false\nactive=false\nsource=firewalld\ndetail=firewall-cmd exited %s: %s\n' "$rc" "$detail"
+                ;;
+            esac
+            exit 0
+          fi
+
+          if command -v ufw >/dev/null 2>&1; then
+            out="$(ufw status verbose 2>&1)"
+            rc=$?
+            first_line="$(printf '%s\n' "$out" | head -n 1)"
+            if [ "$rc" -eq 0 ]; then
+              if [ "$first_line" = "Status: active" ]; then
+                printf 'supported=true\nactive=true\nsource=ufw\ndetail=%s\n' "$first_line"
+              else
+                printf 'supported=true\nactive=false\nsource=ufw\ndetail=%s\n' "$first_line"
+              fi
+            else
+              printf 'supported=false\nactive=false\nsource=ufw\ndetail=ufw status exited %s: %s\n' "$rc" "$first_line"
+            fi
+            exit 0
+          fi
+
+          if command -v nft >/dev/null 2>&1; then
+            out="$(nft list ruleset 2>&1)"
+            rc=$?
+            if [ "$rc" -eq 0 ]; then
+              if [ -n "$(printf '%s' "$out" | tr -d '[:space:]')" ]; then
+                printf 'supported=true\nactive=true\nsource=nftables\ndetail=ruleset is non-empty\n'
+              else
+                printf 'supported=true\nactive=false\nsource=nftables\ndetail=ruleset is empty\n'
+              fi
+            else
+              printf 'supported=false\nactive=false\nsource=nftables\ndetail=nft list ruleset exited %s: %s\n' \
+                "$rc" "$(printf '%s\n' "$out" | head -n 1)"
+            fi
+            exit 0
+          fi
+
+          if command -v iptables >/dev/null 2>&1; then
+            out="$(iptables -S 2>&1)"
+            rc=$?
+            if [ "$rc" -eq 0 ]; then
+              rule_count="$(printf '%s\n' "$out" | grep -c '^-A ')"
+              if [ "$rule_count" -gt 0 ]; then
+                printf 'supported=true\nactive=true\nsource=iptables\ndetail=%s rule(s) beyond the default chains\n' "$rule_count"
+              else
+                printf 'supported=true\nactive=false\nsource=iptables\ndetail=no rules beyond the default chains\n'
+              fi
+            else
+              printf 'supported=false\nactive=false\nsource=iptables\ndetail=iptables -S exited %s: %s\n' \
+                "$rc" "$(printf '%s\n' "$out" | head -n 1)"
+            fi
+            exit 0
+          fi
+
+          printf 'supported=true\nactive=false\nsource=none\ndetail=no firewall tool found (firewalld, ufw, nft, iptables)\n'
+  register: linux_vitals_firewall_cmd
+  changed_when: false
+  failed_when: false
+  tags:
+    - discovery
+    - security

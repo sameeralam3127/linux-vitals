@@ -44,13 +44,13 @@ state:
     pressure:
       ran: true
       rc: 0
-      load: "0.42 0.37 0.30"
+      load: 0.42 0.37 0.30
       cpus: 4
       psi: supported
-      psi_reason: ""
+      psi_reason: ''
       psi_cpu_some: 0.85
-      psi_memory_some: 0.00
-      psi_memory_full: 0.00
+      psi_memory_some: 0.0
+      psi_memory_full: 0.0
       psi_io_some: 0.42
       psi_io_full: 0.11
       swap_total_kb: 2097148
@@ -114,3 +114,30 @@ state:
       ran: true
       rc: 0
       stdout_lines: []
+    firewall:
+      ran: true
+      rc: 0
+      supported: true
+      active: true
+      source: ufw
+      detail: 'Status: active'
+    ssh_hardening:
+      ran: true
+      rc: 0
+      supported: true
+      source: sshd-T
+      detail: ''
+      permitrootlogin: 'no'
+      passwordauthentication: 'no'
+      permitemptypasswords: 'no'
+    kernel_taint:
+      ran: true
+      rc: 0
+      stdout: '0'
+    deleted_libs:
+      ran: true
+      rc: 0
+      supported: true
+      source: lsof
+      detail: ''
+      processes: []

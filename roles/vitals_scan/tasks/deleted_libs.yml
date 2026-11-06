@@ -1,0 +1,45 @@
+---
+# Probe: processes still holding a deleted shared library open (#36), the
+# `lsof +L1` style check for "do I need to restart something" that is
+# distinct from reboot_required -- a process can hold a deleted library open
+# for reasons unrelated to a pending kernel update, and a deleted library is
+# the case worth restarting for, not just any deleted file.
+#
+# `lsof` is often not installed by default; its absence is reported as
+# unsupported rather than as "nothing found".
+- name: Collect processes holding deleted shared libraries open
+  ansible.builtin.command:
+    argv:
+      - sh
+      - -c
+      - |
+          if ! command -v lsof >/dev/null 2>&1; then
+            printf 'supported=false\nsource=lsof-missing\ndetail=lsof is not installed\nprocesses=\n'
+            exit 0
+          fi
+
+          out="$(lsof +L1 2>/dev/null)"
+          rc=$?
+          # lsof's exit code is unreliable when it cannot inspect every
+          # process (e.g. without become it skips other users' processes
+          # rather than failing outright); only a hard failure is treated
+          # as unsupported.
+          if [ "$rc" -ge 2 ]; then
+            printf 'supported=false\nsource=lsof\ndetail=lsof +L1 exited %s\nprocesses=\n' "$rc"
+            exit 0
+          fi
+
+          processes="$(
+            printf '%s\n' "$out" |
+              awk 'NR > 1 && $NF ~ /\.so(\.[0-9]+)*$/ { print $2 ":" $1 }' |
+              sort -u |
+              tr '\n' ',' |
+              sed 's/,$//'
+          )"
+          printf 'supported=true\nsource=lsof\ndetail=\nprocesses=%s\n' "$processes"
+  register: linux_vitals_deleted_libs_cmd
+  changed_when: false
+  failed_when: false
+  tags:
+    - discovery
+    - security

@@ -54,6 +54,9 @@ could not run.
 - Recent log errors and kernel/bootloader-related failures (with excerpts)
 - Self-healing actions taken this run, with why any restart was not fixed.
   One that could not be verified is marked `unknown`
+- Failed units ([#32](https://github.com/sameeralam3127/linux-vitals/issues/32)): every systemd unit `service_facts` reports as
+  failed, next to self-healing since that is what a self-healing attempt
+  would have acted on
 - Findings -- the specific reasons a host failed, if any. A check that could
   not run is marked `unknown`, followed by why
 - On `postcheck` runs with a baseline available: status/RAM/kernel/reboot
@@ -76,28 +79,32 @@ keep the working view small even when the underlying table is large. What the
 
 ## JSON report
 
-`reports/linux_vitals_report.json` -- schema `2.1`, intended for ingestion
+`reports/linux_vitals_report.json` -- schema `2.3`, intended for ingestion
 by log shippers, SIEMs, or your own dashboards.
 
 ```json
 {
-  "schema_version": "2.1",
+  "schema_version": "2.3",
   "generated_at": "20260712T120000Z",
   "report": { "title": "...", "html_output_path": "...", "json_output_path": "..." },
   "maintenance": { "phase": "postcheck", "maintenance_id": "2026-07-12-patch-window" },
   "summary": {
-    "overall_status": "PASS",
+    "overall_status": "FAIL",
     "servers_checked": 5,
     "auto_fixed_count": 1,
     "critical_error_count": 1,
+    "failing_host_count": 1,
     "health_score_pct": 80.0,
     "health_score_band": "Good",
     "unknown_host_count": 0,
     "comparison_active": true,
+    "baseline_max_age_hours": 72,
+    "stale_baseline_count": 1,
+    "unknown_baseline_age_count": 0,
     "regressed_count": 1,
     "improved_count": 1,
     "new_hosts_count": 2,
-    "snippet": "5 Servers Checked, 1 Auto-Fixed, 1 Critical Error"
+    "snippet": "5 Servers Checked, 1 Auto-Fixed, 1 Failing Host"
   },
   "hosts": [
     {
@@ -110,15 +117,24 @@ by log shippers, SIEMs, or your own dashboards.
       "kernel": { "running": "6.8.0-60-generic", "latest_installed": "6.8.0-60-generic", "latest_selected": true, "install_failures": 0, "install_failure_excerpt": [] },
       "bootloader": { "supported": true, "default_status": "resolved", "default_matches_latest": true, "validation_message": "Default boot entry selects the latest installed kernel" },
       "reboot": { "required": false, "detection_supported": true, "source": "reboot-required-file", "pending_packages": [], "reason": "No reboot required (reboot-required-file)" },
-      "security": { "selinux_status": "not-installed", "apparmor_status": "enabled", "failed_login_count": 0, "last_failed_login": "No failed login attempts found" },
+      "security": { "selinux_status": "not-installed", "apparmor_status": "enabled", "failed_login_count": 0, "last_failed_login": "No failed login attempts found", "firewall": {"active": true, "detection_supported": true, "source": "ufw", "detail": "Status: active"}, "ssh_hardening": {"detection_supported": true, "source": "sshd-T", "permit_root_login": "no", "password_authentication": "no", "permit_empty_passwords": "no"}, "kernel_taint": {"value": 0, "supported": true, "reasons": []}, "reboot_blocking_processes": {"supported": true, "source": "lsof", "processes": []} },
       "boot_space": { "mount": "/boot", "free_pct": 65.3, "status": "Healthy", "rescue_image_available": true, "rescue_image_paths": ["..."] },
       "memory": { "status": "OK", "used_pct": 42.5, "used_mb": 3480.0, "total_mb": 8192.0 },
+      "filesystems": { "worst_status": "Warning", "worst_mount": "/var", "mounts": [
+        { "mount": "/", "fstype": "ext4", "size_used_pct": 42.5, "size_used_mb": 8500.0, "size_total_mb": 20000.0, "inode_used_pct": 12.0, "inode_total": 1310720, "inode_available": 1153433, "read_only": false, "expected_readonly": false, "status": "OK", "reason": null },
+        { "mount": "/var", "fstype": "ext4", "size_used_pct": 88.1, "size_used_mb": 8810.0, "size_total_mb": 10000.0, "inode_used_pct": 15.0, "inode_total": 655360, "inode_available": 557056, "read_only": false, "expected_readonly": false, "status": "Warning", "reason": null }
+      ] },
       "pressure": { "cpu_count": 4, "load": {"1m": 0.4, "5m": 0.36, "15m": 0.3}, "load_per_cpu": {"1m": 0.1, "5m": 0.09, "15m": 0.08}, "load_status": "OK", "psi_supported": true, "psi": {"cpu_some": 0.85, "memory_some": 0.0, "memory_full": 0.0, "io_some": 0.42, "io_full": 0.11}, "psi_status": "OK", "stalled": [], "swap_total_mb": 2048.0, "swap_used_mb": 0.0, "swap_used_pct": 0.0, "swap_sample_seconds": 2, "swap_in_per_sec": 0, "swap_out_per_sec": 0, "swap_rate_per_sec": 0, "swap_status": "OK", "load_reason": "", "psi_reason": "", "swap_reason": "" },
       "logs": { "error_count": 0, "excerpt": [] },
-      "self_healing": { "services_healed": ["chronyd.service"], "healing_results": [{ "service": "chronyd.service", "result": "Fixed", "outcome": "fixed", "reason": "stayed_active", "detail": "it stayed active for 5 s after the restart" }] },
+      "self_healing": { "services_healed": ["chronyd.service"], "healing_results": [{ "service": "chronyd.service", "result": "Fixed", "outcome": "fixed", "reason": "stayed_active", "detail": "it stayed active for 5 s after the restart" }], "skipped_by_policy": [{ "service": "postgresql.service", "reason": "excluded", "detail": "it matches linux_vitals_heal_exclude_services" }] },
+      "failed_units": { "count": 1, "units": [{"name": "payments-api.service", "enabled": true}] },
       "asset_serial": "VMware-56 4d 2a",
       "comparison": {
         "baseline_available": true,
+        "baseline_captured_at": "2026-07-11T10:00:00Z",
+        "baseline_age_hours": 26.0,
+        "baseline_age_unknown": false,
+        "baseline_age_warning": false,
         "status_before": "Fail",
         "status_after": "Pass",
         "status_improved": true,
@@ -141,12 +157,42 @@ by log shippers, SIEMs, or your own dashboards.
 }
 ```
 
-Schema `2.1` is additive over `2.0`: every finding gains `status` (and
+`critical_error_count` remains for compatibility and continues to count hosts
+whose final status is `Fail`, regardless of finding severity. The clearer
+`failing_host_count` alias reports the same number. Use
+`findings_by_severity.critical` to count critical findings.
+
+Schema `2.1` was additive over `2.0`: every finding gains `status` (and
 `reason` when the status is `unknown`), each host gains `unknown_count`, the
-summary gains `unknown_host_count`, and each `healing_results` entry gains
-`outcome`, `reason` and `detail`. Each host also gains `pressure`
-([#34](https://github.com/sameeralam3127/linux-vitals/issues/34)). Nothing was removed or renamed, and no existing field changed
-type or meaning.
+summary gains `unknown_host_count`, `failing_host_count` (an alias for the
+existing `critical_error_count`), `baseline_max_age_hours`,
+`stale_baseline_count` and `unknown_baseline_age_count`, and each
+`healing_results` entry gains `outcome`, `reason` and `detail`. A postcheck
+comparison with a baseline gains its capture timestamp, age and age flags.
+Each host also gains `pressure`
+([#34](https://github.com/sameeralam3127/linux-vitals/issues/34)),
+`filesystems` ([#30](https://github.com/sameeralam3127/linux-vitals/issues/30))
+and `failed_units`
+([#32](https://github.com/sameeralam3127/linux-vitals/issues/32)). Nothing
+was removed or renamed, and no existing field changed type or meaning.
+
+`2.2` is additive over `2.1`: every finding gains `references`
+([#43](https://github.com/sameeralam3127/linux-vitals/issues/43)), a list of
+exact external control identifiers the finding maps to, such as a CIS or STIG
+rule number -- see [Findings](#findings) below. It is `[]` on every finding
+that has no exact mapping, which as of this release is every finding this
+collection ships: the field exists so a consumer can join on it, but no
+mapping is populated yet, deliberately -- an approximate or guessed control
+number would be worse than none on something an audit might quote.
+
+`2.3` is additive over `2.2`: `self_healing` gains `skipped_by_policy`
+([#148](https://github.com/sameeralam3127/linux-vitals/issues/148)), the
+failed, enabled units a restart was never attempted on because a guardrail
+ruled them out -- see
+[Units self-healing did not attempt](#units-self-healing-did-not-attempt). It
+is `[]` on a run that configured no guardrails, which is every run before
+this release. Nothing was removed or renamed, and `healing_results` keeps its
+shape and its three `result` values.
 
 `pressure` holds the CPU load, pressure stall and swap values the scan read,
 and a status for each of the three checks:
@@ -165,10 +211,47 @@ and a status for each of the three checks:
 
   A value that could not be measured is `null`, never `0`.
 
+`filesystems` ([#30](https://github.com/sameeralam3127/linux-vitals/issues/30))
+holds one entry per in-scope mount -- every real filesystem except the
+pseudo/network ones listed in `linux_vitals_disk_exclude_fstypes` (`tmpfs`,
+`proc`, `nfs`, and the like), plus/minus anything named in
+`linux_vitals_disk_include_mounts` / `_exclude_mounts`:
+
+- `worst_status`, `worst_mount`: the single worst entry below, for a
+  dashboard or alert that only wants one number per host. `worst_status` is
+  `None` only when `mounts` is empty; `worst_mount` is an empty string in
+  that case, by design, never `null` -- a bare top-level `null` leaf is
+  rendered as an empty string on ansible-core 2.16's default templating
+  anyway, so the report standardises on empty string for this one field
+  rather than depending on which core produced the report.
+- `mounts[]`: `mount`, `fstype`, `size_used_pct`/`size_used_mb`/`size_total_mb`,
+  `inode_used_pct`/`inode_total`/`inode_available`, `read_only`,
+  `expected_readonly`, a per-mount `status` (`OK`, `Warning`, `Critical` or
+  `Unknown`), and `reason` when `status` is `Unknown`.
+- As with `pressure`, a value that could not be read is `null`, never `0`.
+
+A `/boot` entry with no size data used to compute 0% free and wrongly raise
+`boot_space_low`; that case now resolves `boot_space.status` to the existing
+`Not Available` value instead, and the `filesystems` entry for `/boot` raises
+`filesystem_unavailable` so the gap is still visible.
+
 `comparison` is always present with at least `baseline_available`; on
 `adhoc`/`baseline` runs, or for a host with no matching baseline snapshot,
 it's `{"baseline_available": false}` and the rest of the comparison fields
 are absent.
+
+On a postcheck with a baseline, `comparison.baseline_captured_at` is its UTC
+capture time or `null` when the timestamp is missing or malformed;
+`baseline_age_hours` is its age rounded to one decimal place or `null` when
+unknown; `baseline_age_unknown` marks snapshots without a valid capture time;
+and `baseline_age_warning` marks ages over
+`linux_vitals_baseline_max_age_hours` (72 by default). The summary's
+`baseline_max_age_hours` reports that configured limit,
+`stale_baseline_count` counts baselines over a positive limit, and
+`unknown_baseline_age_count` counts baselines without a valid timestamp. An age
+warning appears in run output and in the dashboard; setting the limit to `0`
+disables warnings for dated baselines, while undated baselines remain explicitly
+unknown.
 
 ## Optional Prometheus textfile and CSV exports
 
@@ -305,20 +388,79 @@ and `result`.
 
 `auto_fixed_count` and `services_healed` count `Fixed` entries only.
 
+### Units self-healing did not attempt
+
+`self_healing.skipped_by_policy` lists the units that were failed and enabled
+at boot -- so a restart would otherwise have been attempted -- but that a
+guardrail ruled out
+([#148](https://github.com/sameeralam3127/linux-vitals/issues/148)). They have
+no `healing_results` entry, because nothing was attempted and there is no
+outcome to report.
+
+```json
+{"service": "postgresql.service", "reason": "excluded", "detail": "it matches linux_vitals_heal_exclude_services"}
+```
+
+| `reason` | Means |
+| --- | --- |
+| `excluded` | It matches `linux_vitals_heal_exclude_services` |
+| `not_included` | It matches nothing in `linux_vitals_heal_include_services` |
+| `outside_window` | The managed host's clock was outside `linux_vitals_heal_window_start`-`linux_vitals_heal_window_end`. Decided per host, so every in-scope unit on it is skipped |
+| `window_unknown` | A window is configured but the host's clock could not be read, so the host was left alone |
+| `over_max_restarts` | More units were in scope than `linux_vitals_heal_max_restarts` allows, so none was restarted -- not the first N |
+
+This is what tells "self-healing tried and could not" from "self-healing never
+tried", which the absence of a `healing_results` entry cannot. `detail` is a
+sentence for a human and may be reworded in any release; join on `reason`.
+The field is always present from schema 2.3 and is an empty list on a run that
+set no policy. A skipped unit keeps whatever findings the scan raised for it --
+a guardrail suppresses the restart, not the report, so it is still in
+`failed_units` and still fails its required-service check if it is one.
+
+## Failed units
+
+`failed_units.units` lists every systemd unit `service_facts` reports as
+failed, not just the required services this collection names by default
+([#32](https://github.com/sameeralam3127/linux-vitals/issues/32)). Units
+that are disabled, masked, static, or missing a unit file are excluded --
+those are intentionally not running, so they would otherwise make the count
+"every stopped unit on the host" rather than something operational.
+
+```json
+{"name": "payments-api.service", "enabled": true}
+```
+
+`enabled` is `true` only for a unit `service_facts` could affirmatively
+confirm is enabled, enabled at runtime, or indirectly enabled. A unit that
+crashed into systemd's `failed` state can lose its own unit-file
+enabled/disabled information in `service_facts` -- that is still listed in
+`failed_units.units` and counted in `failed_units.count`, but with
+`enabled: false`, since it could not be confirmed. The `failed_units_present`
+finding fires on the count of entries with `enabled: true`, so a fleet of
+disabled-but-stopped units never drowns out the ones worth paging on.
+
 ## Findings
 
 What to *do* about each of these is in the [Operator Runbook](runbook.md).
 
 Every finding is an object with a stable `id`, a human `message`, a
-`severity`, and a `status`:
+`severity`, a `status`, and a `references` list:
 
 ```json
-{"id": "reboot_required", "message": "System reboot is required", "severity": "warning", "status": "fail"}
+{"id": "reboot_required", "message": "System reboot is required", "severity": "warning", "status": "fail", "references": []}
 ```
 
 The `id` is the durable one. It is what severity is keyed on and what an
 external system should join against -- `message` wording can change in any
 release without that being a breaking change.
+
+`references` ([#43](https://github.com/sameeralam3127/linux-vitals/issues/43))
+names the exact external control identifiers this finding maps to, such as a
+CIS or STIG rule number, for example `["CIS-DIL-<section>"]`. It is populated
+only where a mapping is exact; most findings carry an empty list, and that is
+the correct, intended outcome, not a gap -- an approximate control number is
+worse than none on something an audit might quote. No mapping is published
+with this release; the field exists so a consumer can join on it once one is.
 
 A finding that can occur more than once on a host also carries `subject`: the
 unit for the self-healing finding, the path or `host:port` for certificate
@@ -334,10 +476,10 @@ A finding's `status` says which of two things it records:
 | `status` | Means | Extra field |
 | --- | --- | --- |
 | `fail` | The check ran and found something wrong | -- |
-| `unknown` | The check could not run, so nothing is known either way | `reason`: why, e.g. `lastb unavailable` |
+| `unknown` | The check could not run, so nothing is known either way | `reason`: why, e.g. `reading /var/log/btmp was denied; this check needs become` |
 
 ```json
-{"id": "failed_logins", "message": "Failed-login history could not be read", "severity": "info", "status": "unknown", "reason": "lastb unavailable"}
+{"id": "failed_logins", "message": "Failed login attempts could not be inspected", "severity": "info", "status": "unknown", "reason": "reading /var/log/btmp was denied; this check needs become"}
 ```
 
 A check that ran and found nothing raises no finding at all, so there is no
@@ -379,19 +521,36 @@ at its highest level, so the numbers partition the fleet) and
 | `kernel_not_latest` | warning | The running kernel is not the latest installed one |
 | `bootloader_mismatch` | warning | The default boot entry does not select the latest installed kernel |
 | `boot_space_low` | warning | Boot partition free space below `linux_vitals_boot_warning_threshold` |
+| `filesystem_space_low` | warning or critical | One per in-scope mount (`subject`: the mount path) whose used space is at or above `linux_vitals_disk_warning_threshold` / `_critical_threshold` |
+| `filesystem_inodes_low` | warning or critical | One per in-scope mount (`subject`: the mount path) whose used inodes are at or above `linux_vitals_disk_inode_warning_threshold` / `_critical_threshold` |
+| `filesystem_read_only` | critical | One per in-scope mount (`subject`: the mount path) that is mounted read-only and not listed in `linux_vitals_disk_expected_readonly_mounts` |
+| `filesystem_unavailable` | warning | One per in-scope mount (`subject`: the mount path) whose capacity could not be read; `status: unknown` with `reason` |
+| `filesystem_probe_degraded` | warning | Host-level, no `subject`, fires at most once: one or more mount entries returned unreadable facts; `status: unknown` with `reason` |
 | `kernel_install_failures` | warning | Kernel/bootloader failures in the audit log window |
 | `selinux_disabled` | warning | SELinux disabled/unavailable on a RedHat-family host |
-| `apparmor_disabled` | warning | AppArmor disabled/unavailable on a Debian-family host |
+| `apparmor_disabled` | warning | AppArmor is disabled on a Debian-family host. `unknown`, with a `reason`, when `aa-status` is not installed or could not read AppArmor's state; `apparmor_status` is then `not-installed` or `unknown` |
+| `firewall_inactive` | critical | No active firewall was detected (`firewalld`, `ufw`, or a non-empty `nft`/`iptables` ruleset). `unknown` when a firewall tool was present but could not be asked, e.g. a permission error |
+| `ssh_permit_root_login_insecure` | warning | `sshd -T` reports `PermitRootLogin` is not `no`/`prohibit-password`/`without-password`. `unknown` when the effective config could not be read |
+| `ssh_password_authentication_enabled` | warning | `sshd -T` reports `PasswordAuthentication yes`. A shop may run this intentionally -- see [#8](https://github.com/sameeralam3127/linux-vitals/issues/8) |
+| `ssh_permit_empty_passwords_enabled` | critical | `sshd -T` reports `PermitEmptyPasswords yes` |
+| `kernel_tainted` | warning | `/proc/sys/kernel/tainted` is non-zero; the message decodes the common taint bits |
+| `reboot_blocking_deleted_libs` | warning | A process is still holding a deleted shared library open (`lsof +L1`-style). `unknown` when `lsof` is not installed |
 | `cpu_load_high` | warning or critical | 5-minute load average per online CPU at or above `linux_vitals_load_warning_threshold` (warning) or `linux_vitals_load_critical_threshold` (critical). `unknown` when the load or CPU count could not be read |
 | `pressure_stall_high` | warning or critical | One per resource (`subject`: `cpu`, `memory` or `io`) whose PSI `some avg60` is at or above `linux_vitals_psi_warning_threshold` / `linux_vitals_psi_critical_threshold`. Nothing on a kernel without PSI; `unknown` when the probe could not run |
 | `swap_paging_high` | warning or critical | Pages swapped in plus out per second, over `linux_vitals_swap_sample_seconds`, at or above `linux_vitals_swap_rate_warning_threshold` / `linux_vitals_swap_rate_critical_threshold`. `unknown` when the counters could not be read |
+| `required_service_inactive` | warning | A unit named in `linux_vitals_required_services` is not running (`subject`: the unit name) -- additive to `sssd_inactive`/`time_sync_inactive`, not a replacement for them |
+| `failed_units_present` | warning | At least one unit `failed_units.units` could confirm is enabled is in systemd's failed state -- see [Failed units](#failed-units) |
 | `log_errors` | info | The journal has entries at priority `linux_vitals_log_priority` (default `err`) or worse in the log window |
-| `failed_logins` | info | Recent failed login attempts were detected |
+| `failed_logins` | info | Recent failed login attempts were detected. `unknown`, with a `reason`, when the check could not run: `lastb` not installed, `/var/log/btmp` absent, `/var/log/btmp` unreadable (a run without `become`), or `lastb` failing. `last_failed_login` then reads `Not checked: <reason>` |
 
 The three saturation findings ([#34](https://github.com/sameeralam3127/linux-vitals/issues/34)) also carry their own severity,
 from the threshold the value crossed. The map entry for each (`warning`) is
 only what an `unknown` one gets, and `linux_vitals_finding_severity_overrides`
-still overrides both.
+still overrides both. `filesystem_space_low` and `filesystem_inodes_low`
+([#30](https://github.com/sameeralam3127/linux-vitals/issues/30)) work the
+same way: their severity map entry is only what the `unknown` case gets, and
+the warning/critical case comes from whichever threshold the mount's usage
+crossed.
 
 Certificate findings, from the opt-in `vitals_certs` role. Their severity is
 computed rather than looked up, because it depends on the certificate rather
@@ -462,11 +621,11 @@ URL resolves. The shape, top to bottom:
 
 | Part | Content |
 | --- | --- |
-| Preview line | One short line above the card: `LinuxVitals: FAIL -- 3 host(s) checked, 1 critical, 0 auto-fixed` |
-| Colour bar | Green when everything passed, amber when the worst host severity is `warning`, red when there are critical errors or a critical-severity host |
+| Preview line | One short line above the card: `LinuxVitals: FAIL -- 3 host(s) checked, 1 failing host, 0 auto-fixed` |
+| Colour bar | Green when everything passed, amber when the worst host severity is `warning`, red when any host fails or has a critical-severity finding |
 | Header | `linux_vitals_slack_message_header` (default `LinuxVitals Health Check`) |
 | Verdict | `PASS`/`FAIL` with an emoji, then the one-line snippet |
-| Counters | Servers checked, auto-fixed, critical errors, health score -- laid out in two columns |
+| Counters | Servers checked, auto-fixed, failing hosts, health score -- laid out in two columns |
 | Findings roll-up | Counts by severity, for findings and for hosts |
 | Needs attention first | Up to 5 critical hosts, each with up to 3 of its critical findings |
 | Host breakdown | A fixed-width table: host, status, severity, kernel, bootloader, reboot, `/boot`, failed logins |
@@ -519,10 +678,10 @@ and a URL resolves:
 
 ```json
 {
-  "summary": { "header": "...", "overall_status": "PASS", "servers_checked": 5, "auto_fixed_count": 1, "critical_error_count": 1, "snippet": "..." },
+  "summary": { "header": "...", "overall_status": "FAIL", "servers_checked": 5, "auto_fixed_count": 1, "critical_error_count": 1, "failing_host_count": 1, "snippet": "..." },
   "message": "<the same text sent to Slack>",
   "hosts": [
-    { "hostname": "web01", "ip_address": "192.0.2.11", "status": "Pass", "platform_type": "Virtual Machine", "uptime": "12d 4h 21m", "running_kernel": "6.8.0-60-generic", "latest_kernel_selected": true, "reboot_required": false, "boot_space_status": "Healthy", "failed_login_count": 0, "unknown_count": 0, "findings": [] }
+    { "hostname": "web01", "ip_address": "192.0.2.11", "status": "Pass", "platform_type": "Virtual Machine", "uptime": "12d 4h 21m", "running_kernel": "6.8.0-60-generic", "latest_kernel_selected": true, "reboot_required": false, "boot_space_status": "Healthy", "filesystem_worst_status": "OK", "failed_login_count": 0, "unknown_count": 0, "findings": [] }
   ]
 }
 ```
@@ -532,8 +691,9 @@ and a URL resolves:
 `reports/snapshots/<maintenance_id>/<phase>/<hostname>.json` -- one file
 per host per phase, written whenever `linux_vitals_phase` is `baseline` or
 `postcheck`. Each file is exactly that host's `linux_vitals_result` object
-at snapshot time (schema matches a single entry in the JSON report's
-`hosts` array, minus the top-level `comparison` enrichment). These aren't
+at snapshot time, with an additive `captured_at` UTC ISO 8601 timestamp
+(schema matches a single entry in the JSON report's `hosts` array, minus the
+top-level `comparison` enrichment). These aren't
 pruned automatically -- clean them up per your own retention policy if you
 run many maintenance windows.
 

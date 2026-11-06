@@ -7,6 +7,7 @@
 linux_vitals_phase: "adhoc"
 linux_vitals_maintenance_id: ""
 linux_vitals_snapshot_dir: "{{ inventory_dir }}/reports/snapshots"
+linux_vitals_baseline_max_age_hours: 72
 # Names this run's part of a snapshot set shared by several runs (a sharded
 # fleet). Empty means one unsharded run. See docs/performance.md.
 linux_vitals_snapshot_shard: ""

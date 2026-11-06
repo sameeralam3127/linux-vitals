@@ -286,3 +286,48 @@ def test_the_trust_store_is_excluded_from_expiry_reporting_by_default() -> None:
     assert "/etc/ssl/certs" in trust
     # ...but it is still scanned, so an expired cert in the bundle is visible.
     assert "/etc/ssl/certs" in defaults["linux_vitals_cert_fs_paths"]
+
+
+# ---------------------------------------------------------------------------
+# What the endpoint probe will negotiate (CodeQL py/insecure-protocol)
+# ---------------------------------------------------------------------------
+
+def _cert_facts_module():
+    """Import the collection module by path, as a plain Python module."""
+    import importlib.util
+
+    path = REPO_ROOT / "plugins" / "modules" / "linux_vitals_cert_facts.py"
+    spec = importlib.util.spec_from_file_location("linux_vitals_cert_facts", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_the_endpoint_probe_refuses_tls_below_1_2() -> None:
+    # Pinned in the module rather than inherited from the interpreter. Python
+    # 3.10 on OpenSSL 1.1.1+ already floors PROTOCOL_TLS_CLIENT at TLS 1.2,
+    # but that is a property of how Python was built, not of this collection:
+    # an older interpreter, or one built against an older OpenSSL, floors it
+    # at TLS 1.0, and this probe would then negotiate TLS 1.0 outbound to a
+    # managed endpoint. Asserted here so the floor cannot regress by someone
+    # deleting a line that looks redundant on a modern host.
+    import ssl
+
+    context = _cert_facts_module()._endpoint_context()
+
+    assert context.minimum_version is ssl.TLSVersion.TLSv1_2
+
+
+def test_the_endpoint_probe_does_not_verify_what_it_measures() -> None:
+    # The other half of the same decision, and the reason the floor above is
+    # the only thing restricting the handshake: this probe reports what an
+    # endpoint serves, including a certificate that is expired, self-signed or
+    # for the wrong name. Verifying would turn each of those into a handshake
+    # failure with no detail -- exactly the findings worth having. Asserted so
+    # that stays a recorded choice rather than something to "fix" on sight.
+    import ssl
+
+    context = _cert_facts_module()._endpoint_context()
+
+    assert context.verify_mode is ssl.CERT_NONE
+    assert context.check_hostname is False

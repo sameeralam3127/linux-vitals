@@ -52,9 +52,13 @@ flowchart TB
   managed host.
 - **`vitals_heal`** is entirely gated by `linux_vitals_heal_enabled`
   (default `false`). When enabled, it attempts exactly one restart per
-  systemd-enabled service found in a `failed` state, verifies each restart
-  held (polled until the unit settles, then checked again after a stability
-  window), then re-checks the required-service status and rebuilds
+  systemd-enabled service found in a `failed` state *and* allowed by the
+  guardrails in `tasks/policy.yml` -- the include/exclude lists, the
+  maintenance window and the restart cap, all off by default
+  ([#148](https://github.com/sameeralam3127/linux-vitals/issues/148)). It
+  verifies each restart held (polled until the unit settles, then checked
+  again after a stability window), then re-checks the required-service status
+  and rebuilds
   `vitals_scan`'s `linux_vitals_result` so the report reflects the verified
   outcome -- the result object is built before this role runs, so without
   that rebuild the healing outcomes would never reach the dashboard. A
@@ -98,9 +102,9 @@ reason.
 If you're consuming just `vitals_scan` in your own playbook (for example,
 to build a different reporting pipeline), be aware that its
 `linux_vitals_result` fact assumes `vitals_heal` either ran first or its
-defaults are loaded -- `linux_vitals_healing_results` and
-`linux_vitals_services_healed` are read with `| default([])` specifically
-so `vitals_scan` stays safe to run standalone.
+defaults are loaded -- `linux_vitals_healing_results`,
+`linux_vitals_services_healed` and `linux_vitals_heal_skipped` are read with
+`| default([])` specifically so `vitals_scan` stays safe to run standalone.
 
 ## Security boundaries
 
@@ -199,7 +203,8 @@ The files run in three phases, in this order:
 | 15 | `reboot_facts.yml` (include) | whether a reboot is required, and why | `kernel` |
 | 16 | `bootloader_facts.yml` | whether the default entry boots the latest kernel | `kernel` |
 | 17 | `boot_space.yml` | the `/boot` mount and its free space | `boot` |
-| 18 | `services.yml` (include) | the required-service status map | -- |
+| 18 | `filesystems.yml` | capacity, inodes and read-only state across every scoped mount; the findings each raises | `boot` |
+| 19 | `services.yml` (include) | the required-service status map | -- |
 
 Where a file holds tasks with different tags, they are separated by `;` in
 the order of the tasks. Every task also carries `discovery`, applied by
@@ -214,10 +219,14 @@ the order of the tasks. Every task also carries `discovery`, applied by
   derive nothing. They read only `ansible_facts` and role variables, never
   another probe's result, so their relative order is not a dependency; it is
   kept as it was before the split.
-- **Derived facts (11-18)** each read facts set above them:
+- **Derived facts (11-19)** each read facts set above them:
   - `journal_facts.yml` reads both journal probes (2 and 9).
   - `pressure_facts.yml` reads the pressure probe (10), in three tasks:
     parse, values, then statuses.
+  - `filesystems.yml` reads `ansible_facts.mounts` directly -- it needs no
+    probe of its own, since the facts are already gathered -- and raises its
+    own findings in a dedicated task rather than in `result.yml`, to stay
+    under the per-file size ratchet (see below).
   - `extended_facts.yml` reads `linux_vitals_ram_used_pct` from
     `memory.yml` and the output of probes 3 to 8.
   - `reboot_facts.yml` reads `linux_vitals_reboot_probe_output` and
@@ -281,17 +290,26 @@ threshold a host with an unknown check can pass, so the fleet health score
 counts a host as healthy only if it passes **and** its `unknown_count` is
 zero.
 
+A `references` field -- a list of exact external control identifiers a
+finding maps to, such as a CIS or STIG rule number
+([#43](https://github.com/sameeralam3127/linux-vitals/issues/43)) -- is added
+at the report-template layer, not here: every finding gets `[]` unless
+`report.json.j2` is given one to carry through. No check in `vitals_scan` or
+`vitals_certs` sets it, so this layer's contract above is unchanged.
+
 **The rule for new checks.** A check that shells out must tell "ran and found
 nothing" from "could not run", and raise an `unknown` finding with a reason
 for the second. `failed_when: false` on a probe, or `2>/dev/null` on its
 command, is exactly how the two get conflated: the probe's failure becomes an
-empty result, and an empty result reads as clean. That is the bug in
+empty result, and an empty result reads as clean. That was the bug in
 [#39](https://github.com/sameeralam3127/linux-vitals/issues/39), where a
-missing `lastb` reports a host with no failed logins.
+`lastb` that could not read `/var/log/btmp` reported a host with no failed
+logins; `login_records.yml` now gives each way the check can fail its own
+exit code, and each becomes an `unknown` finding with its own reason.
 `tests/test_finding_contract.py` lists every scan probe that sets
 `failed_when: false`, and fails when a new one appears, so the rule is
 checked in review rather than remembered. The probes on that list predate
-the contract and are audited against it one at a time, starting with #39.
+the contract and are audited against it one at a time; the journal (#118), failed-login and AppArmor (#39) probes are done.
 
 ## Why paths resolve from `inventory_dir`, not `playbook_dir`
 

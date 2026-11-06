@@ -26,6 +26,13 @@ Both phases need `-e linux_vitals_maintenance_id=<id>`; the id has no
 sensible default because it's what correlates a baseline with its
 postcheck. Reuse the exact same id for both runs.
 
+**A `baseline` or `postcheck` run fails because
+`linux_vitals_maintenance_id` contains an invalid value.**
+The id cannot contain `/`, `\`, control characters, or start with `.` because
+it names a directory below `linux_vitals_snapshot_dir`. Leading and trailing
+spaces are ignored; control characters are refused even at the ends. Choose
+a valid id, then use the same id for the baseline and postcheck runs.
+
 **A `baseline` or `postcheck` run fails with "Snapshot shard '...' of
 maintenance id '...' (...) was recorded with N host(s), and this run also
 targets ...".**
@@ -146,6 +153,18 @@ An empty successful system-journal read is clean. Without `become` or journal
 group access, expect unknown findings rather than zero errors. Inspect the
 reason before changing journal permissions or the requested time window.
 See [the finding contract](report-guide.md#status-when-a-check-could-not-run).
+
+## Failed logins or AppArmor reported as unknown
+
+The failed-login check reads `/var/log/btmp`, which is `0600` or `0660
+root:utmp`, so **it needs `become`**: run without it and `failed_logins` is
+`unknown` with the reason `reading /var/log/btmp was denied`. It is also
+`unknown` when `lastb` is not installed or `/var/log/btmp` does not exist --
+the default on minimal and container images, where nothing records failed
+logins at all. On Debian-family hosts, `apparmor_disabled` is `unknown` when
+`aa-status` is missing or cannot read AppArmor's state. None of these is a
+clean host; the [runbook](runbook.md#failed_logins----recent-failed-login-attempts)
+says what to do for each reason.
 
 ## Tuning the journal scans for chatty hosts
 

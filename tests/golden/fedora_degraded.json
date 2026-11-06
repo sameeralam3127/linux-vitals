@@ -1,5 +1,5 @@
 {
-  "apparmor_status": "disabled",
+  "apparmor_status": "not-installed",
   "asset_serial": "PF3KX9QZ",
   "boot_free_mb": 560.0,
   "boot_free_pct": 57.5,
@@ -17,6 +17,41 @@
     "baseline_available": false
   },
   "failed_login_count": 0,
+  "failed_unit_count": 0,
+  "failed_units": [],
+  "filesystem_degraded_count": 0,
+  "filesystem_worst_mount": "/boot",
+  "filesystem_worst_status": "OK",
+  "filesystems": [
+    {
+      "expected_readonly": false,
+      "fstype": null,
+      "inode_available": null,
+      "inode_total": null,
+      "inode_used_pct": null,
+      "mount": "/boot",
+      "read_only": false,
+      "reason": null,
+      "size_total_mb": 973.4,
+      "size_used_mb": 413.4,
+      "size_used_pct": 42.5,
+      "status": "OK"
+    },
+    {
+      "expected_readonly": false,
+      "fstype": null,
+      "inode_available": null,
+      "inode_total": null,
+      "inode_used_pct": null,
+      "mount": "/boot/efi",
+      "read_only": false,
+      "reason": null,
+      "size_total_mb": 598.8,
+      "size_used_mb": 17.8,
+      "size_used_pct": 3.0,
+      "status": "OK"
+    }
+  ],
   "final_status": "Fail",
   "findings": [
     {
@@ -42,13 +77,32 @@
       "message": "Latest installed kernel is not currently running",
       "severity": "warning",
       "status": "fail"
+    },
+    {
+      "id": "reboot_blocking_deleted_libs",
+      "message": "Processes holding deleted libraries could not be checked",
+      "reason": "lsof is not installed",
+      "severity": "warning",
+      "status": "unknown"
     }
   ],
+  "firewall": {
+    "active": true,
+    "detail": "running",
+    "detection_supported": true,
+    "source": "firewalld"
+  },
+  "heal_skipped": [],
   "healing_results": [],
   "hostname": "ws-07",
   "ip_address": "10.0.5.37",
   "kernel_install_failure_excerpt": [],
   "kernel_install_failures": 0,
+  "kernel_taint": {
+    "reasons": [],
+    "supported": true,
+    "value": 0
+  },
   "last_failed_login": "No failed login attempts found",
   "last_reboot": "2026-09-12 08:30",
   "latest_installed_kernel": "6.10.12-200.fc40.x86_64",
@@ -103,6 +157,11 @@
   "ram_total_mb": 31845.0,
   "ram_used_mb": 13612.0,
   "ram_used_pct": 42.7,
+  "reboot_blocking_processes": {
+    "processes": [],
+    "source": "lsof-missing",
+    "supported": false
+  },
   "reboot_detection_supported": true,
   "reboot_reason": "Reboot required (dnf-needs-restarting): Reboot is required to fully utilize these updates.",
   "reboot_required": true,
@@ -119,9 +178,16 @@
   "severity_counts": {
     "critical": 0,
     "info": 1,
-    "warning": 3
+    "warning": 4
   },
-  "unknown_count": 0,
+  "ssh_hardening": {
+    "detection_supported": true,
+    "password_authentication": "no",
+    "permit_empty_passwords": "no",
+    "permit_root_login": "no",
+    "source": "sshd-T"
+  },
+  "unknown_count": 1,
   "uptime": "14d 0h 0m",
   "virtualization_type": "NA"
 }

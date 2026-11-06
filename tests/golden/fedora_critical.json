@@ -1,5 +1,5 @@
 {
-  "apparmor_status": "disabled",
+  "apparmor_status": "not-installed",
   "asset_serial": "unavailable",
   "boot_free_mb": 581.0,
   "boot_free_pct": 97.0,
@@ -17,6 +17,27 @@
     "baseline_available": false
   },
   "failed_login_count": 0,
+  "failed_unit_count": 0,
+  "failed_units": [],
+  "filesystem_degraded_count": 0,
+  "filesystem_worst_mount": "/boot/efi",
+  "filesystem_worst_status": "OK",
+  "filesystems": [
+    {
+      "expected_readonly": false,
+      "fstype": null,
+      "inode_available": null,
+      "inode_total": null,
+      "inode_used_pct": null,
+      "mount": "/boot/efi",
+      "read_only": false,
+      "reason": null,
+      "size_total_mb": 598.8,
+      "size_used_mb": 17.8,
+      "size_used_pct": 3.0,
+      "status": "OK"
+    }
+  ],
   "final_status": "Fail",
   "findings": [
     {
@@ -49,13 +70,31 @@
       "message": "SELinux is disabled or unavailable",
       "severity": "warning",
       "status": "fail"
+    },
+    {
+      "id": "reboot_blocking_deleted_libs",
+      "message": "1 process(es) are holding a deleted shared library open",
+      "severity": "warning",
+      "status": "fail"
     }
   ],
+  "firewall": {
+    "active": true,
+    "detail": "running",
+    "detection_supported": true,
+    "source": "firewalld"
+  },
+  "heal_skipped": [],
   "healing_results": [],
   "hostname": "build-04",
   "ip_address": "10.0.5.44",
   "kernel_install_failure_excerpt": [],
   "kernel_install_failures": 0,
+  "kernel_taint": {
+    "reasons": [],
+    "supported": true,
+    "value": 0
+  },
   "last_failed_login": "No failed login attempts found",
   "last_reboot": "2026-09-26 12:02",
   "latest_installed_kernel": "6.10.10-200.fc40.x86_64",
@@ -113,6 +152,16 @@
   "ram_total_mb": 8000.0,
   "ram_used_mb": 7600.0,
   "ram_used_pct": 95.0,
+  "reboot_blocking_processes": {
+    "processes": [
+      {
+        "name": "httpd",
+        "pid": 4821
+      }
+    ],
+    "source": "lsof",
+    "supported": true
+  },
   "reboot_detection_supported": true,
   "reboot_reason": "No reboot required (needs-restarting)",
   "reboot_required": false,
@@ -127,7 +176,14 @@
   "severity_counts": {
     "critical": 2,
     "info": 0,
-    "warning": 3
+    "warning": 4
+  },
+  "ssh_hardening": {
+    "detection_supported": true,
+    "password_authentication": "no",
+    "permit_empty_passwords": "no",
+    "permit_root_login": "no",
+    "source": "sshd-T"
   },
   "unknown_count": 0,
   "uptime": "0d 2h 0m",
