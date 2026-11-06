@@ -70,6 +70,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   removed or renamed, `healing_results` keeps its shape and its three `result`
   values, and the new field is `[]` on a run that configured no guardrails.
 
+- Optional controller-side Prometheus text 0.0.4 and 22-column CSV fleet
+  exports ([#35](https://github.com/sameeralam3127/linux-vitals/issues/35)).
+  Set `linux_vitals_metrics_output_path` and/or `linux_vitals_csv_output_path`
+  to enable them; both default to empty/off. They use already collected
+  results, retain unknown-check visibility and leave HTML/JSON unchanged.
+  Metrics work with node_exporter's textfile collector, without a new HTTP
+  endpoint. Exports use the report modes; disabling an export leaves its old
+  file in place for the operator to remove. CSV text formula prefixes are
+  escaped with an apostrophe.
+
 ## [2.2.0] - 2026-11-03
 
 ### Added
