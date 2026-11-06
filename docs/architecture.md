@@ -52,9 +52,13 @@ flowchart TB
   managed host.
 - **`vitals_heal`** is entirely gated by `linux_vitals_heal_enabled`
   (default `false`). When enabled, it attempts exactly one restart per
-  systemd-enabled service found in a `failed` state, verifies each restart
-  held (polled until the unit settles, then checked again after a stability
-  window), then re-checks the required-service status and rebuilds
+  systemd-enabled service found in a `failed` state *and* allowed by the
+  guardrails in `tasks/policy.yml` -- the include/exclude lists, the
+  maintenance window and the restart cap, all off by default
+  ([#148](https://github.com/sameeralam3127/linux-vitals/issues/148)). It
+  verifies each restart held (polled until the unit settles, then checked
+  again after a stability window), then re-checks the required-service status
+  and rebuilds
   `vitals_scan`'s `linux_vitals_result` so the report reflects the verified
   outcome -- the result object is built before this role runs, so without
   that rebuild the healing outcomes would never reach the dashboard. A
@@ -98,9 +102,9 @@ reason.
 If you're consuming just `vitals_scan` in your own playbook (for example,
 to build a different reporting pipeline), be aware that its
 `linux_vitals_result` fact assumes `vitals_heal` either ran first or its
-defaults are loaded -- `linux_vitals_healing_results` and
-`linux_vitals_services_healed` are read with `| default([])` specifically
-so `vitals_scan` stays safe to run standalone.
+defaults are loaded -- `linux_vitals_healing_results`,
+`linux_vitals_services_healed` and `linux_vitals_heal_skipped` are read with
+`| default([])` specifically so `vitals_scan` stays safe to run standalone.
 
 ## Security boundaries
 

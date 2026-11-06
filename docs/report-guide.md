@@ -78,12 +78,12 @@ keep the working view small even when the underlying table is large. What the
 
 ## JSON report
 
-`reports/linux_vitals_report.json` -- schema `2.2`, intended for ingestion
+`reports/linux_vitals_report.json` -- schema `2.3`, intended for ingestion
 by log shippers, SIEMs, or your own dashboards.
 
 ```json
 {
-  "schema_version": "2.2",
+  "schema_version": "2.3",
   "generated_at": "20260712T120000Z",
   "report": { "title": "...", "html_output_path": "...", "json_output_path": "..." },
   "maintenance": { "phase": "postcheck", "maintenance_id": "2026-07-12-patch-window" },
@@ -125,7 +125,7 @@ by log shippers, SIEMs, or your own dashboards.
       ] },
       "pressure": { "cpu_count": 4, "load": {"1m": 0.4, "5m": 0.36, "15m": 0.3}, "load_per_cpu": {"1m": 0.1, "5m": 0.09, "15m": 0.08}, "load_status": "OK", "psi_supported": true, "psi": {"cpu_some": 0.85, "memory_some": 0.0, "memory_full": 0.0, "io_some": 0.42, "io_full": 0.11}, "psi_status": "OK", "stalled": [], "swap_total_mb": 2048.0, "swap_used_mb": 0.0, "swap_used_pct": 0.0, "swap_sample_seconds": 2, "swap_in_per_sec": 0, "swap_out_per_sec": 0, "swap_rate_per_sec": 0, "swap_status": "OK", "load_reason": "", "psi_reason": "", "swap_reason": "" },
       "logs": { "error_count": 0, "excerpt": [] },
-      "self_healing": { "services_healed": ["chronyd.service"], "healing_results": [{ "service": "chronyd.service", "result": "Fixed", "outcome": "fixed", "reason": "stayed_active", "detail": "it stayed active for 5 s after the restart" }] },
+      "self_healing": { "services_healed": ["chronyd.service"], "healing_results": [{ "service": "chronyd.service", "result": "Fixed", "outcome": "fixed", "reason": "stayed_active", "detail": "it stayed active for 5 s after the restart" }], "skipped_by_policy": [{ "service": "postgresql.service", "reason": "excluded", "detail": "it matches linux_vitals_heal_exclude_services" }] },
       "failed_units": { "count": 1, "units": [{"name": "payments-api.service", "enabled": true}] },
       "asset_serial": "VMware-56 4d 2a",
       "comparison": {
@@ -183,6 +183,15 @@ that has no exact mapping, which as of this release is every finding this
 collection ships: the field exists so a consumer can join on it, but no
 mapping is populated yet, deliberately -- an approximate or guessed control
 number would be worse than none on something an audit might quote.
+
+`2.3` is additive over `2.2`: `self_healing` gains `skipped_by_policy`
+([#148](https://github.com/sameeralam3127/linux-vitals/issues/148)), the
+failed, enabled units a restart was never attempted on because a guardrail
+ruled them out -- see
+[Units self-healing did not attempt](#units-self-healing-did-not-attempt). It
+is `[]` on a run that configured no guardrails, which is every run before
+this release. Nothing was removed or renamed, and `healing_results` keeps its
+shape and its three `result` values.
 
 `pressure` holds the CPU load, pressure stall and swap values the scan read,
 and a status for each of the three checks:
@@ -278,6 +287,35 @@ release; join on `reason`. An entry written before 2.2.0 has only `service`
 and `result`.
 
 `auto_fixed_count` and `services_healed` count `Fixed` entries only.
+
+### Units self-healing did not attempt
+
+`self_healing.skipped_by_policy` lists the units that were failed and enabled
+at boot -- so a restart would otherwise have been attempted -- but that a
+guardrail ruled out
+([#148](https://github.com/sameeralam3127/linux-vitals/issues/148)). They have
+no `healing_results` entry, because nothing was attempted and there is no
+outcome to report.
+
+```json
+{"service": "postgresql.service", "reason": "excluded", "detail": "it matches linux_vitals_heal_exclude_services"}
+```
+
+| `reason` | Means |
+| --- | --- |
+| `excluded` | It matches `linux_vitals_heal_exclude_services` |
+| `not_included` | It matches nothing in `linux_vitals_heal_include_services` |
+| `outside_window` | The managed host's clock was outside `linux_vitals_heal_window_start`-`linux_vitals_heal_window_end`. Decided per host, so every in-scope unit on it is skipped |
+| `window_unknown` | A window is configured but the host's clock could not be read, so the host was left alone |
+| `over_max_restarts` | More units were in scope than `linux_vitals_heal_max_restarts` allows, so none was restarted -- not the first N |
+
+This is what tells "self-healing tried and could not" from "self-healing never
+tried", which the absence of a `healing_results` entry cannot. `detail` is a
+sentence for a human and may be reworded in any release; join on `reason`.
+The field is always present from schema 2.3 and is an empty list on a run that
+set no policy. A skipped unit keeps whatever findings the scan raised for it --
+a guardrail suppresses the restart, not the report, so it is still in
+`failed_units` and still fails its required-service check if it is one.
 
 ## Failed units
 

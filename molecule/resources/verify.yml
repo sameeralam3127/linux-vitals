@@ -137,7 +137,7 @@
     - name: Assert discovery identified the platform correctly
       ansible.builtin.assert:
         that:
-          - report.schema_version == '2.2'
+          - report.schema_version == '2.3'
           - host_report.os.family == vitals_expected_os_family
           - host_report.os.package_manager == vitals_expected_package_manager
           - host_report.os.log_source == 'journald'
@@ -326,6 +326,59 @@
       register: broken_state
       changed_when: false
       failed_when: broken_state.stdout | trim != 'failed'
+
+    - name: Assert the excluded unit was reported as skipped, not attempted
+      # #148: the guardrail's whole point is that a failed, enabled unit an
+      # operator has ruled out is left alone -- and that the report says so
+      # rather than leaving a gap where its outcome would be.
+      ansible.builtin.assert:
+        that:
+          - skipped_excluded | length == 1
+          - skipped_excluded | first == expected_skip
+          - >-
+            'molecule-excluded.service' not in (
+              host_report.self_healing.healing_results
+              | map(attribute='service') | list
+            )
+          - "'molecule-excluded.service' not in host_report.self_healing.services_healed"
+        fail_msg: "Self-healing outcomes: {{ host_report.self_healing }}"
+      vars:
+        skipped_excluded: >-
+          {{
+            host_report.self_healing.skipped_by_policy | default([])
+            | selectattr('service', 'equalto', 'molecule-excluded.service')
+            | list
+          }}
+        expected_skip:
+          service: molecule-excluded.service
+          reason: excluded
+          detail: it matches linux_vitals_heal_exclude_services
+
+    - name: Assert the excluded unit is still failed on the host
+      # It shares the flaky unit's script and the failure marker is gone
+      # (prepare.yml), so a restart would have fixed it. Still failed means
+      # no restart was attempted.
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-failed
+          - molecule-excluded.service
+      register: excluded_state
+      changed_when: false
+      failed_when: excluded_state.stdout | trim != 'failed'
+
+    - name: Assert the units policy did allow were still restarted
+      # The guardrails must not quietly narrow a run that did not ask them to.
+      # molecule-flaky matches the default include list and no exclusion, so
+      # it is in scope and must not appear among the skipped.
+      ansible.builtin.assert:
+        that:
+          - >-
+            host_report.self_healing.skipped_by_policy | default([])
+            | map(attribute='service') | list == ['molecule-excluded.service']
+        fail_msg: >-
+          Units skipped by policy:
+          {{ host_report.self_healing.skipped_by_policy | default([]) }}
 
     - name: Check self-healing verification (#24)
       ansible.builtin.include_tasks:

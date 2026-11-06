@@ -743,9 +743,39 @@ Before enabling it on a group, list what it *would* restart there:
 ansible -i inventory.ini web_tier -b -m ansible.builtin.shell \
   -a "systemctl list-units --state=failed --no-legend" 2>/dev/null
 ```
-`vitals_heal` restarts any unit that is both **enabled** and **failed**, with
-no allowlist. If that set contains something you would not restart unattended
-at 3am, do not enable it for that group. See
+By default `vitals_heal` restarts any unit that is both **enabled** and
+**failed**. If that set contains something you would not restart unattended at
+3am, name it before you enable the group
+([#148](https://github.com/sameeralam3127/linux-vitals/issues/148)):
+
+```yaml
+# group_vars/web_tier.yml, continued.
+linux_vitals_heal_exclude_services:   # never, whatever else is configured
+  - postgresql                        # restarting it can trigger failover
+  - "*-backup"                        # Type=oneshot: a restart runs the job again
+linux_vitals_heal_max_restarts: 3     # over this, leave the host alone entirely
+linux_vitals_heal_window_start: "01:00"
+linux_vitals_heal_window_end: "05:00"
+```
+
+Patterns are globs matched against the unit name, with `.service` optional.
+For a host you trust less, invert it -- set
+`linux_vitals_heal_include_services` to the short list you *do* want healed
+and leave everything else out of scope.
+
+Check the policy before you trust it. Run the group once with the lists set
+and read `self_healing.skipped_by_policy` in the JSON report: it names every
+failed unit a restart was not attempted on, and the `reason` says which
+guardrail stopped it.
+
+```bash
+jq '.hosts[] | {hostname, skipped: .self_healing.skipped_by_policy}' \
+  reports/linux_vitals_report.json
+```
+
+A unit that is skipped is still reported -- it stays in `failed_units` and
+still fails its required-service check if it is one. The guardrails suppress
+the restart, never the finding. See
 [threat-model.md](threat-model.md#self-healing-what-it-can-and-cannot-modify).
 
 ## When LinuxVitals is wrong
@@ -754,6 +784,10 @@ It sometimes is, and knowing where saves you chasing a phantom:
 
 - **A host missing from the report is not a passing host.** Check
   `summary.servers_checked` against your inventory count.
+- **A unit with no self-healing outcome was not necessarily attempted.**
+  `self_healing.skipped_by_policy` is where a unit a guardrail ruled out
+  appears; the absence of a `healing_results` entry on its own does not say
+  whether the role tried and could not, or never tried.
 - **A service reported `Fixed` stayed up for
   `linux_vitals_heal_stability_seconds` (5 s by default), not forever.** One
   that fails later than that is still reported `Fixed`. Trust `systemctl`

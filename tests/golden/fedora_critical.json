@@ -84,6 +84,7 @@
     "detection_supported": true,
     "source": "firewalld"
   },
+  "heal_skipped": [],
   "healing_results": [],
   "hostname": "build-04",
   "ip_address": "10.0.5.44",

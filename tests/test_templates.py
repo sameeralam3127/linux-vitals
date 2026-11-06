@@ -106,7 +106,7 @@ def test_templates_render_with_representative_health_data(tmp_path: Path) -> Non
     assert generic_webhook["summary"]["overall_status"] == "PASS"
     assert generic_webhook["hosts"][0]["hostname"] == "localhost"
     assert "Standard Maintenance Summary" in generic_webhook["message"]
-    assert json_report["schema_version"] == "2.2"
+    assert json_report["schema_version"] == "2.3"
     assert json_report["summary"]["health_score_pct"] == 100.0
     # Additive (#62): a result built without the unknown fields renders them
     # as zero rather than failing, so the shape never depends on who built it.

@@ -231,8 +231,36 @@ reported `Fixed` once the unit has settled and stayed up through a short
 stability window; one that could not be verified is reported as `unknown`,
 not as fixed.
 
-There is no allowlist: it restarts whatever is enabled and failed. Enable it
-per group rather than globally, and see
+Three guardrails bound what it may touch, all off by default so a run that
+sets none of them behaves exactly as before:
+
+```yaml
+# Which units are in scope. Globs, with `.service` optional.
+linux_vitals_heal_include_services: ["*"]        # default: everything
+linux_vitals_heal_exclude_services:              # wins over the include list
+  - postgresql
+  - "*-backup"
+
+# Leave the host alone entirely if this many units are in scope at once.
+linux_vitals_heal_max_restarts: 3                # 0 (default) = no limit
+
+# Only act inside this window, on the managed host's own clock.
+linux_vitals_heal_window_start: "22:00"          # "" (default) = any time
+linux_vitals_heal_window_end: "02:00"            # an end before the start spans midnight
+```
+
+Use the exclude list for anything you would not restart unattended — a
+database or clustered service, where an automatic restart can trigger recovery
+or failover at the wrong moment, or a `Type=oneshot` job, which a restart runs
+again from the start. The cap exists for the other failure mode: twenty units
+failing at once usually has one cause a restart will not fix, so over the
+limit the host is left entirely alone rather than having an arbitrary subset
+restarted.
+
+A unit the policy leaves alone is never silently dropped — it is reported
+under `self_healing.skipped_by_policy` with the reason, so the report says why
+a failed unit was not touched. Still enable the role per group rather than
+globally, and see
 [Enabling self-healing safely](docs/runbook.md#procedure-enabling-self-healing-safely)
 for the one command that shows what it *would* restart before you switch it on.
 
@@ -360,7 +388,7 @@ flowchart TB
     subgraph OUT["What you get"]
         direction LR
         HTML["<b>Dashboard</b><br/>one HTML file"]
-        JSON["<b>JSON report</b><br/>schema 2.2"]
+        JSON["<b>JSON report</b><br/>schema 2.3"]
         SNAP["<b>Snapshots</b><br/>before → after"]
         MSG["<b>Notifications</b><br/>Slack · email<br/>webhook"]
         HTML ~~~ JSON ~~~ SNAP ~~~ MSG
@@ -385,7 +413,7 @@ Why the roles share one variable namespace, and why paths resolve from
 
 ### Consuming the JSON
 
-`reports/linux_vitals_report.json` is **schema 2.2**. Findings are objects
+`reports/linux_vitals_report.json` is **schema 2.3**. Findings are objects
 (`{id, message, severity, status, references}`, plus a `reason` when `status`
 is `unknown`), not strings, and each carries a stable `id` you can join on —
 `message` wording may change between releases, ids will not. `references` is
@@ -394,7 +422,9 @@ and is an empty list on every finding today, so a consumer can join on it
 before any mapping is published.
 
 Each host also carries `filesystems` (per-mount space and inodes),
-`pressure` (load, PSI and swap), `failed_units`, and `unknown_count`.
+`pressure` (load, PSI and swap), `failed_units`, `unknown_count`, and
+`self_healing.skipped_by_policy` (failed units a restart was never attempted
+on, with the reason).
 Full schema and every field: **[Report Guide](docs/report-guide.md#json-report)**.
 
 ---

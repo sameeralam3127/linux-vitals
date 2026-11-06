@@ -19,3 +19,40 @@ linux_vitals_heal_enabled: false
 linux_vitals_heal_settle_retries: 10
 linux_vitals_heal_settle_delay: 3
 linux_vitals_heal_stability_seconds: 5
+
+# Which failed units self-healing may restart (#148). Patterns are matched
+# against the unit name as service_facts reports it, with `.service` optional,
+# and accept the globs `*` and `?`. The defaults are today's behaviour: every
+# unit that is failed and enabled at boot is in scope.
+#
+# linux_vitals_heal_exclude_services wins over the include list. A unit left
+# out by either is never restarted and gets no linux_vitals_healing_results
+# entry; it is listed in the report under self_healing.skipped_by_policy with
+# the reason it was left alone, so a skip is never silent.
+linux_vitals_heal_include_services:
+  - "*"
+linux_vitals_heal_exclude_services: []
+
+# The most units one run may restart on one host; 0 (the default) means no
+# limit. Over the limit, the host is left entirely alone rather than having an
+# arbitrary subset of its units restarted: twenty units failing at once is
+# usually one cause a restart will not fix -- a full disk, a failed mount, a
+# bad config push -- and that is exactly when restarting everything is most
+# likely to make things worse. Every in-scope unit is then reported as skipped
+# with reason `over_max_restarts`.
+linux_vitals_heal_max_restarts: 0
+
+# The time of day, on the managed host's own clock, when self-healing may act.
+# Both empty (the default) means any time. Both must be set together, as
+# 24-hour "HH:MM"; an end before the start spans midnight ("22:00" to "02:00").
+# Outside the window nothing is restarted and every in-scope unit is reported
+# as skipped with reason `outside_window`.
+#
+# The clock is read on the host at the moment the decision is made, not taken
+# from gathered facts, which are a snapshot from the start of the play. A host
+# whose clock cannot be read is left alone (reason `window_unknown`): a
+# configured window that cannot be evaluated must not become no window at all.
+# Note these are unrelated to linux_vitals_heal_stability_seconds above, which
+# is how long a restarted unit must stay up, not when a restart is permitted.
+linux_vitals_heal_window_start: ""
+linux_vitals_heal_window_end: ""

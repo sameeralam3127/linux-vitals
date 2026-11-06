@@ -54,6 +54,7 @@
     "detection_supported": true,
     "source": "ufw"
   },
+  "heal_skipped": [],
   "healing_results": [],
   "hostname": "app-03",
   "ip_address": "10.0.6.13",

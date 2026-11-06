@@ -55,6 +55,25 @@
 # linux_vitals_heal_settle_delay: 3
 # linux_vitals_heal_stability_seconds: 5
 
+# What self-healing may touch, and when. All off by default -- with none of
+# these set, every failed unit that is enabled at boot is restarted. Patterns
+# are globs against the unit name, with `.service` optional; the exclude list
+# wins over the include list. A unit left alone is reported under
+# self_healing.skipped_by_policy with the reason, never silently skipped.
+# linux_vitals_heal_include_services:        # default: ["*"] (everything)
+#   - nginx
+#   - "chronyd*"
+# linux_vitals_heal_exclude_services:        # never restart these
+#   - postgresql                             # a restart can trigger failover
+#   - "*-backup"                             # Type=oneshot: it runs the job again
+# Over this many units in scope at once, leave the host entirely alone rather
+# than restarting an arbitrary subset. 0 (the default) means no limit.
+# linux_vitals_heal_max_restarts: 3
+# Only restart inside this window, on the managed host's own clock. Both must
+# be set together; an end before the start spans midnight.
+# linux_vitals_heal_window_start: "01:00"
+# linux_vitals_heal_window_end: "05:00"
+
 # Finding severity. linux_vitals_fail_on_severity decides what fails a host:
 # `info` (the default) fails it on any finding at all; raise it to triage.
 # linux_vitals_fail_on_severity: warning

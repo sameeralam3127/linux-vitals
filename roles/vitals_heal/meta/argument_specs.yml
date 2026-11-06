@@ -61,3 +61,76 @@ argument_specs:
           - Waited out once per host, and only on a host where at least one
             restarted unit came up. A unit that dies later than this is still
             reported C(Fixed); raise it for services known to fail slowly.
+      linux_vitals_heal_include_services:
+        type: list
+        elements: str
+        default:
+          - "*"
+        description:
+          - Which failed units self-healing may restart (#148). A unit must
+            match one of these patterns to be in scope.
+          - Patterns are matched against the unit name as C(service_facts)
+            reports it, with the C(.service) suffix optional, and accept the
+            globs C(*) and C(?). C(nginx), C(nginx.service) and C(nginx*) all
+            match C(nginx.service).
+          - The default C(["*"]) is the role's long-standing behaviour, with
+            every unit that is both failed and enabled at boot in scope.
+          - An empty list puts nothing in scope, which disables restarts while
+            leaving the rest of the role's reporting in place.
+      linux_vitals_heal_exclude_services:
+        type: list
+        elements: str
+        default: []
+        description:
+          - Units self-healing must never restart, whatever
+            C(linux_vitals_heal_include_services) says. Matched the same way.
+          - Use this for anything that must not be restarted unattended -- a
+            database or clustered service whose automatic restart can trigger
+            recovery or failover at the wrong moment, or a C(Type=oneshot)
+            unit such as a backup or migration job, which a restart runs
+            again from the start.
+          - An excluded unit is never restarted and gets no
+            C(linux_vitals_healing_results) entry. It is reported under
+            C(self_healing.skipped_by_policy) with reason C(excluded), so the
+            report says why a failed unit was left alone.
+      linux_vitals_heal_max_restarts:
+        type: int
+        default: 0
+        description:
+          - The most units one run may restart on one host. C(0) (the default)
+            means no limit, which is the role's long-standing behaviour.
+          - Over the limit the host is left entirely alone and every in-scope
+            unit is reported as skipped with reason C(over_max_restarts),
+            rather than restarting the first N. The first N is an arbitrary
+            subset, and many units failing at once usually has one cause a
+            restart will not fix -- a full disk, a failed mount, a bad config
+            push -- which is when restarting everything is most likely to make
+            things worse.
+      linux_vitals_heal_window_start:
+        type: str
+        default: ""
+        description:
+          - Start of the time of day, on the managed host's own clock, when
+            self-healing may act. 24-hour C(HH:MM).
+          - Empty (the default) means any time. This and
+            C(linux_vitals_heal_window_end) must be set together; setting one
+            alone is a configuration error the role fails on rather than
+            guessing at.
+          - The clock is read on the host when the decision is made, not taken
+            from gathered facts, which are a snapshot from the start of the
+            play. A host whose clock cannot be read is left alone, with reason
+            C(window_unknown), because a window that cannot be evaluated must
+            not become no window at all.
+          - Unrelated to C(linux_vitals_heal_stability_seconds), which is how
+            long a restarted unit must stay up rather than when a restart is
+            permitted.
+      linux_vitals_heal_window_end:
+        type: str
+        default: ""
+        description:
+          - End of the self-healing window described under
+            C(linux_vitals_heal_window_start), as 24-hour C(HH:MM).
+          - An end before the start spans midnight, so C(22:00) to C(02:00) is
+            the four hours around it.
+          - Outside the window nothing is restarted and every in-scope unit is
+            reported as skipped with reason C(outside_window).

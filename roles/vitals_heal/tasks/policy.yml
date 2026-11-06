@@ -1,0 +1,147 @@
+---
+# Which of the failed, enabled units self-healing may actually restart (#148).
+#
+# Everything above this file narrows the set by what the host reports: a unit
+# has to be failed, and enabled at boot. That is a statement about the host,
+# not a policy -- it cannot say "restart nginx but never postgresql", and it
+# cannot say "not right now". The three guardrails here are that policy:
+#
+#   1. include/exclude patterns, per unit;
+#   2. a maintenance window, per host and per run;
+#   3. a cap on how many units one run may restart, per host.
+#
+# All three default to the role's long-standing behaviour, so a run that sets
+# none of them restarts exactly what it always did.
+#
+# A unit the policy removes is never silently dropped. It is recorded in
+# linux_vitals_heal_skipped with the reason and a sentence saying why, which
+# reaches the report as self_healing.skipped_by_policy. Adding a fourth
+# `result` value to linux_vitals_healing_results would have been a breaking
+# change (docs/compatibility.md), and a skipped unit has no restart outcome to
+# report anyway -- nothing was attempted.
+
+- name: Validate the self-healing policy variables
+  # A half-configured window is a configuration error, not a reason to guess.
+  # Caught here, before anything on the host has been touched.
+  ansible.builtin.assert:
+    that:
+      - "linux_vitals_heal_max_restarts | int >= 0"
+      - "(heal_window_start == '') == (heal_window_end == '')"
+      - "heal_window_start == '' or heal_window_start is match('^([01][0-9]|2[0-3]):[0-5][0-9]$')"
+      - "heal_window_end == '' or heal_window_end is match('^([01][0-9]|2[0-3]):[0-5][0-9]$')"
+    fail_msg: >-
+      Self-healing policy is not usable. linux_vitals_heal_max_restarts must be
+      0 (no limit) or more, and linux_vitals_heal_window_start /
+      linux_vitals_heal_window_end must either both be empty (any time) or both
+      be a 24-hour HH:MM time. Got max_restarts={{ linux_vitals_heal_max_restarts }},
+      window_start={{ heal_window_start | to_json }}, window_end={{ heal_window_end | to_json }}.
+    quiet: true
+  vars:
+    heal_window_start: "{{ linux_vitals_heal_window_start | default('', true) | string | trim }}"
+    heal_window_end: "{{ linux_vitals_heal_window_end | default('', true) | string | trim }}"
+
+- name: Read the host clock for the self-healing window
+  # The managed host's own clock, read at the moment the decision is made.
+  # ansible_facts.date_time would be cheaper but is a snapshot from the start
+  # of the play, which can be long before this and on the wrong side of a
+  # window boundary. Only run when a window is configured and there is
+  # something in scope to gate.
+  ansible.builtin.command:
+    argv:
+      - date
+      - +%H:%M
+  register: linux_vitals_heal_clock
+  changed_when: false
+  failed_when: false
+  when:
+    - linux_vitals_failed_enabled_services | length > 0
+    - (linux_vitals_heal_window_start | default('', true) | string | trim) != ''
+
+- name: Decide which failed units self-healing may restart
+  # One fact holding both halves of the answer, because both come out of the
+  # same pass and neither is derivable from the other. Read back into two
+  # plain lists by the next task.
+  ansible.builtin.set_fact:
+    linux_vitals_heal_policy: >-
+      {%- set win_start = linux_vitals_heal_window_start | default('', true) | string | trim -%}
+      {%- set win_end = linux_vitals_heal_window_end | default('', true) | string | trim -%}
+      {%- set cap = linux_vitals_heal_max_restarts | default(0) | int -%}
+      {%- set clock = linux_vitals_heal_clock.stdout | default('', true) | string | trim -%}
+      {%- set clock_rc = linux_vitals_heal_clock.rc | default(1) | int -%}
+      {#- Globs, not regexes, because an operator writing a service list
+          should not have to escape a dot. `.service` is optional on every
+          pattern, so `nginx`, `nginx.service` and `nginx*` all match the unit
+          service_facts calls `nginx.service`. -#}
+      {%- set include_rx = [] -%}
+      {%- set exclude_rx = [] -%}
+      {%- for pattern in linux_vitals_heal_include_services | default([], true) -%}
+      {%- set _ = include_rx.append('^' ~ (pattern | string | trim | regex_escape
+            | replace('\\*', '.*') | replace('\\?', '.')) ~ '(\\.service)?$') -%}
+      {%- endfor -%}
+      {%- for pattern in linux_vitals_heal_exclude_services | default([], true) -%}
+      {%- set _ = exclude_rx.append('^' ~ (pattern | string | trim | regex_escape
+            | replace('\\*', '.*') | replace('\\?', '.')) ~ '(\\.service)?$') -%}
+      {%- endfor -%}
+      {%- set ns = namespace(keep=[], skipped=[]) -%}
+      {%- for unit in linux_vitals_failed_enabled_services | default([], true) -%}
+      {%- set hit = namespace(inc=false, exc=false) -%}
+      {%- for rx in include_rx -%}
+      {%- if unit is match(rx) -%}{%- set hit.inc = true -%}{%- endif -%}
+      {%- endfor -%}
+      {%- for rx in exclude_rx -%}
+      {%- if unit is match(rx) -%}{%- set hit.exc = true -%}{%- endif -%}
+      {%- endfor -%}
+      {#- Exclude wins over include, so a broad include plus a narrow exclude
+          is a usable policy and not a contradiction. -#}
+      {%- if hit.exc -%}
+      {%- set _ = ns.skipped.append({'service': unit, 'reason': 'excluded',
+            'detail': 'it matches linux_vitals_heal_exclude_services'}) -%}
+      {%- elif not hit.inc -%}
+      {%- set _ = ns.skipped.append({'service': unit, 'reason': 'not_included',
+            'detail': 'it does not match linux_vitals_heal_include_services'}) -%}
+      {%- else -%}
+      {%- set _ = ns.keep.append(unit) -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {#- The window and the cap are decisions about the host, not about one
+          unit, so each either lets the whole run through or stands it down
+          entirely. Restarting the first N of too many units would be an
+          arbitrary subset of a host that is probably failing for one reason a
+          restart will not fix. -#}
+      {%- set stand_down = namespace(reason='', detail='') -%}
+      {%- if ns.keep and win_start -%}
+      {%- if clock_rc != 0 or clock is not match('^([01][0-9]|2[0-3]):[0-5][0-9]$') -%}
+      {%- set stand_down.reason = 'window_unknown' -%}
+      {%- set stand_down.detail = 'self-healing is restricted to ' ~ win_start ~ '-' ~ win_end
+            ~ ' and the clock on this host could not be read' -%}
+      {%- elif win_start <= win_end -%}
+      {%- if not (clock >= win_start and clock <= win_end) -%}
+      {%- set stand_down.reason = 'outside_window' -%}
+      {%- endif -%}
+      {%- elif not (clock >= win_start or clock <= win_end) -%}
+      {#- An end before the start spans midnight. -#}
+      {%- set stand_down.reason = 'outside_window' -%}
+      {%- endif -%}
+      {%- if stand_down.reason == 'outside_window' -%}
+      {%- set stand_down.detail = 'the clock on this host reads ' ~ clock
+            ~ ', outside the self-healing window ' ~ win_start ~ '-' ~ win_end -%}
+      {%- endif -%}
+      {%- endif -%}
+      {%- if not stand_down.reason and cap > 0 and ns.keep | length > cap -%}
+      {%- set stand_down.reason = 'over_max_restarts' -%}
+      {%- set stand_down.detail = (ns.keep | length) ~ ' units were in scope on this host, over the '
+            ~ 'linux_vitals_heal_max_restarts limit of ' ~ cap ~ ', so none of them was restarted' -%}
+      {%- endif -%}
+      {%- if stand_down.reason -%}
+      {%- for unit in ns.keep -%}
+      {%- set _ = ns.skipped.append({'service': unit,
+            'reason': stand_down.reason, 'detail': stand_down.detail}) -%}
+      {%- endfor -%}
+      {%- set ns.keep = [] -%}
+      {%- endif -%}
+      {{ {'restart': ns.keep | sort, 'skipped': ns.skipped | sort(attribute='service')} }}
+
+- name: Record which failed units self-healing may restart
+  ansible.builtin.set_fact:
+    linux_vitals_heal_restart_services: "{{ linux_vitals_heal_policy.restart }}"
+    linux_vitals_heal_skipped: "{{ linux_vitals_heal_policy.skipped }}"

@@ -80,6 +80,7 @@
     "detection_supported": false,
     "source": "firewalld"
   },
+  "heal_skipped": [],
   "healing_results": [],
   "hostname": "app-03",
   "ip_address": "10.0.6.13",

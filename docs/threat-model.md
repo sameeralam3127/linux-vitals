@@ -146,19 +146,34 @@ came up, once more after the stability window, with the unit name as its own
 - touch files, packages, users, or the network
 - reboot a host -- reboot-required is reported, never acted on
 
-**The residual risk is the enable bit.** Self-healing restarts whatever is
-enabled and failed. A local user who can get a unit into a failed state, on a
-host where they can also influence what that unit executes, gets a root-context
-restart of it at your next run. That is a compromised host either way, but it
-is the mechanism by which LinuxVitals could become part of a chain. Two
-consequences worth accepting deliberately:
+**The residual risk is the enable bit.** By default, self-healing restarts
+whatever is enabled and failed. A local user who can get a unit into a failed
+state, on a host where they can also influence what that unit executes, gets a
+root-context restart of it at your next run. That is a compromised host either
+way, but it is the mechanism by which LinuxVitals could become part of a chain.
+Three consequences worth deciding deliberately:
 
 - **Enable self-healing per group, not globally.** It is a per-host decision
   about how much you trust that host's unit files.
-- **There is no allowlist of healable services.** If you need one, do not
-  enable the role; run it against a group you have scoped instead. (Making the
-  required-service list configurable is tracked as
-  [#32](https://github.com/sameeralam3127/linux-vitals/issues/32).)
+- **Name what may be restarted.** `linux_vitals_heal_include_services` and
+  `linux_vitals_heal_exclude_services`
+  ([#148](https://github.com/sameeralam3127/linux-vitals/issues/148)) bound the
+  set by unit name, and the exclude list wins. The default is still every
+  failed, enabled unit, so this is a decision you have to make rather than one
+  the collection makes for you -- but on a host whose unit files you do not
+  fully trust, an allowlist is the narrower grant and is now available without
+  giving up the rest of the role.
+- **Bound when and how much it may act.** `linux_vitals_heal_max_restarts`
+  caps restarts per host per run, and
+  `linux_vitals_heal_window_start`/`_end` restrict them to a time of day on
+  the managed host's clock. Both stand the whole host down rather than letting
+  part of a run through, and a window that cannot be evaluated -- an unreadable
+  clock -- stands the host down too, so a guardrail that fails does not fail
+  open.
+
+None of this changes what `become` grants, and a skipped unit is still
+reported: `self_healing.skipped_by_policy` names it and says which guardrail
+ruled it out, so a narrowed policy does not hide a failing host.
 
 A remediation claim is stronger than a detection claim, so `Fixed` is only
 reported once a restart has held: the unit came up and was still active, on

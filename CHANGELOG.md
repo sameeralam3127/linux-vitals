@@ -6,6 +6,51 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Self-healing can be told what it may restart, when, and how much**
+  ([#148](https://github.com/sameeralam3127/linux-vitals/issues/148)).
+  `vitals_heal` previously restarted every unit that was failed and enabled at
+  boot, with nothing to narrow it -- the only scoping was by host group, all
+  units or none, which cannot express "restart nginx but never postgresql".
+  Four new variables bound it:
+
+  - `linux_vitals_heal_include_services` (default `["*"]`) and
+    `linux_vitals_heal_exclude_services` (default `[]`) scope it by unit name.
+    Patterns are globs (`*`, `?`) matched against the unit as `service_facts`
+    reports it, with `.service` optional, so `nginx`, `nginx.service` and
+    `nginx*` all match `nginx.service`. The exclude list wins, so a broad
+    include with narrow carve-outs works.
+  - `linux_vitals_heal_max_restarts` (default `0`, meaning no limit) caps
+    restarts per host per run. Over the cap the host is left **entirely**
+    alone rather than having an arbitrary first N restarted: many units
+    failing at once usually has one cause a restart will not fix.
+  - `linux_vitals_heal_window_start` / `linux_vitals_heal_window_end`
+    (both default `""`, meaning any time) restrict restarts to a time of day
+    on the managed host's own clock, read at the moment of the decision rather
+    than from facts gathered at the start of the play. An end before the start
+    spans midnight. A host whose clock cannot be read is left alone, so a
+    window that cannot be evaluated does not become no window at all. Setting
+    one end without the other fails the role with a message.
+
+  All four default to the role's previous behaviour, so an existing run
+  restarts exactly what it did before. These are unrelated to
+  `linux_vitals_heal_stability_seconds`, which is how long a restart must hold
+  rather than when one is permitted.
+
+- **The report says which failed units self-healing did not attempt**
+  ([#148](https://github.com/sameeralam3127/linux-vitals/issues/148)). The JSON
+  report's `self_healing` object gains `skipped_by_policy`, one entry per unit
+  a guardrail ruled out, with a stable `reason` (`excluded`, `not_included`,
+  `outside_window`, `window_unknown`, `over_max_restarts`) and a `detail`
+  sentence. This is what tells "self-healing tried and could not" from "it
+  never tried", which the absence of a `healing_results` entry cannot. The
+  dashboard lists them under the attempts. A skipped unit keeps every finding
+  the scan raised for it -- a guardrail suppresses the restart, not the
+  report. Report schema moves to `2.3`, additive over `2.2`: nothing was
+  removed or renamed, `healing_results` keeps its shape and its three `result`
+  values, and the new field is `[]` on a run that configured no guardrails.
+
 ## [2.2.0] - 2026-11-03
 
 ### Added
