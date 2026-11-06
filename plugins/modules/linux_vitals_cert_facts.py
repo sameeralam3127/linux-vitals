@@ -285,15 +285,38 @@ def _read_first_certificate(path):
     return content[begin : end + len("-----END CERTIFICATE-----")] + "\n"
 
 
-def _fetch_endpoint_certificate(host, port, server_name, timeout):
-    """Return the PEM the endpoint actually presents, or raise OSError."""
+def _endpoint_context():
+    """Return the SSL context the endpoint probe connects with.
+
+    Split out from the connection so what this probe will and will not
+    negotiate is assertable without reaching the network.
+    """
     # Verification is deliberately disabled: the job is to report what is
     # being served, including a cert that is expired, self-signed, or for the
     # wrong name. Verifying would turn exactly the cases worth reporting into
     # a handshake failure with no detail.
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    # The TLS floor is pinned rather than inherited. Python 3.10 built against
+    # OpenSSL 1.1.1 or newer already floors PROTOCOL_TLS_CLIENT at TLS 1.2, so
+    # on most hosts this changes nothing -- but the floor is a property of how
+    # the interpreter was built, not of this module, and an older interpreter
+    # or an older OpenSSL floors it at TLS 1.0 instead. On such a host this
+    # probe would quietly negotiate TLS 1.0 to a managed endpoint. Setting it
+    # here makes the floor the same everywhere and reviewable in one place
+    # (CodeQL py/insecure-protocol).
+    #
+    # It also means an endpoint that cannot do TLS 1.2 fails the handshake
+    # instead of being measured, which is why `cert_weak_tls_version` cannot
+    # fire at its default threshold -- see #180.
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.check_hostname = False
     context.verify_mode = ssl.CERT_NONE
+    return context
+
+
+def _fetch_endpoint_certificate(host, port, server_name, timeout):
+    """Return the PEM the endpoint actually presents, or raise OSError."""
+    context = _endpoint_context()
 
     with socket.create_connection((host, port), timeout=timeout) as raw:
         with context.wrap_socket(raw, server_hostname=server_name) as tls:

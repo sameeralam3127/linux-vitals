@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Security
+
+- **The TLS certificate probe's handshake floor is pinned to TLS 1.2**
+  (CodeQL `py/insecure-protocol`). `vitals_certs` built its client context
+  with `ssl.PROTOCOL_TLS_CLIENT` and left the minimum protocol version to the
+  interpreter. On Python 3.10 built against OpenSSL 1.1.1 or newer that is
+  already TLS 1.2, so most hosts are unaffected -- but the floor was a
+  property of how Python was built rather than of this collection, and an
+  older interpreter or OpenSSL floors it at TLS 1.0, which this probe would
+  then have negotiated outbound to a managed endpoint. It is now set
+  explicitly and asserted by a test.
+
+  While confirming this, `cert_weak_tls_version` turned out to be unable to
+  fire at its default threshold -- an endpoint serving obsolete TLS fails the
+  handshake and is reported as a connection error rather than as a weak-TLS
+  finding. That is tracked separately as
+  [#180](https://github.com/sameeralam3127/linux-vitals/issues/180); this
+  change documents the limit rather than hiding it.
+
 ### Added
 
 - **Self-healing can be told what it may restart, when, and how much**
