@@ -209,6 +209,20 @@ each configured endpoint. Consequences to accept deliberately:
   the socket is closed as soon as the peer certificate is read. **This is a
   reporting tool, not a trust decision.** Never use its output as evidence
   that a certificate chain validates.
+- **The handshake will not go below TLS 1.2.** That floor is set explicitly in
+  `plugins/modules/linux_vitals_cert_facts.py` rather than inherited from the
+  interpreter: Python 3.10 built against OpenSSL 1.1.1 or newer already floors
+  it there, but that is a property of how Python was built, and an older build
+  floors it at TLS 1.0 instead -- on such a control node the probe would
+  negotiate TLS 1.0 outbound. Pinning it makes the floor identical everywhere.
+  Verification being off (above) is the only latitude this handshake has; the
+  protocol version is not negotiable downward.
+
+  The floor also bounds what the role can *detect*: an endpoint that cannot do
+  TLS 1.2 fails the handshake and is reported as an endpoint error, so
+  `cert_weak_tls_version` is how you raise the bar above TLS 1.2, not how you
+  find a server still serving TLS 1.0
+  ([#180](https://github.com/sameeralam3127/linux-vitals/issues/180)).
 
 **It reads directories that hold private keys.** The default
 `linux_vitals_cert_fs_paths` include `/etc/letsencrypt/live` and
