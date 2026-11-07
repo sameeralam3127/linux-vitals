@@ -33,6 +33,18 @@ it names a directory below `linux_vitals_snapshot_dir`. Leading and trailing
 spaces are ignored; control characters are refused even at the ends. Choose
 a valid id, then use the same id for the baseline and postcheck runs.
 
+**A `baseline` or `postcheck` run fails with "inventory_hostname must be
+usable as a filename".**
+That host's snapshot is written as `<inventory_hostname>.json` inside
+`<linux_vitals_snapshot_dir>/<maintenance id>/<phase>/`, and the postcheck
+rebuilds the same path to read the baseline back, so the name has to be one
+path component: no `/` or `\`, no leading `.`, no control characters. A
+dynamic inventory is the usual source of such a name. Rename the inventory
+entry and give the host an `ansible_host` with its real address. Only the
+named host fails, so the rest of the fleet is still snapshotted; the run
+exits non-zero and the failed host is absent from the report rather than
+present in it and reading as healthy.
+
 **A `baseline` or `postcheck` run fails with "Snapshot shard '...' of
 maintenance id '...' (...) was recorded with N host(s), and this run also
 targets ...".**

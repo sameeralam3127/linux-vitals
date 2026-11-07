@@ -326,9 +326,11 @@ of reading as a fresh before/after. Baselines older than
 `linux_vitals_baseline_max_age_hours` (72 by default; `0` disables the
 warning) are flagged in the dashboard header and per host.
 
-Maintenance ids are validated before anything is written: an id containing a
-path separator, a leading dot, or a control character is refused rather than
-writing a snapshot outside the snapshot directory.
+Every name that becomes part of a snapshot path -- the maintenance id, the
+shard id, and the host's own `inventory_hostname` -- is validated before
+anything is written: a name containing a path separator, a leading dot, or a
+control character is refused rather than writing a snapshot outside the
+snapshot directory, where the postcheck would never find it again.
 
 Splitting a large fleet across several runs? Every shard keeps the window's
 maintenance id and sets its own `linux_vitals_snapshot_shard`, so a shard id
