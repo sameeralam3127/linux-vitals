@@ -32,10 +32,16 @@ The dashboard is a queue, not a list. Work it in this order:
    not individual incidents.
 4. **Info.** Read weekly. Never page on these.
 
-Two numbers worth checking before you start:
+A few numbers worth checking before you start:
 
-- `summary.servers_checked` against your expected host count. A host that
-  failed to connect is *absent from the report*, not failing in it.
+- `summary.unreported_host_count` (the *Not checked* tile). A host that
+  could not be scanned is named in `summary.unreported_hosts`, with a status of
+  `Unknown` and a reason. Read these first: nothing else in the report says
+  anything about them, and the health score and `overall_status` already count
+  them against you.
+- `summary.servers_checked` against your expected host count. It counts the
+  hosts that produced a result; add `unreported_host_count` for what the play
+  targeted.
 - `summary.fail_on_severity`. If someone raised it, hosts with warnings are
   reported as `Pass`. The severity column still tells the truth; the status
   column is answering a different question.
@@ -798,8 +804,15 @@ the restart, never the finding. See
 
 It sometimes is, and knowing where saves you chasing a phantom:
 
-- **A host missing from the report is not a passing host.** Check
-  `summary.servers_checked` against your inventory count.
+- **A host that could not be scanned is named, not omitted.** It is in
+  `summary.unreported_hosts` with a status of `Unknown`, counted by
+  `summary.unreported_host_count`, and it holds `overall_status` at `FAIL` and
+  lowers `health_score_pct`
+  ([#147](https://github.com/sameeralam3127/linux-vitals/issues/147)). What it
+  cannot tell you is *why*: Ansible reports an unreachable host and one that
+  failed mid-play the same way, so the reason names both. The play's own output
+  says which. A run where every host was unreachable writes no report at all,
+  because the rendering tasks have no host left to run on.
 - **A unit with no self-healing outcome was not necessarily attempted.**
   `self_healing.skipped_by_policy` is where a unit a guardrail ruled out
   appears; the absence of a `healing_results` entry on its own does not say

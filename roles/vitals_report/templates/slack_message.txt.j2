@@ -1,8 +1,15 @@
 {{ linux_vitals_slack_message_header }}
-Overall Status: {{ 'PASS' if linux_vitals_summary.critical_error_count | int == 0 else 'FAIL' }}
-Servers Checked: {{ linux_vitals_summary.servers_checked }} | Auto-Fixed: {{ linux_vitals_summary.auto_fixed_count }} | Failing Hosts: {{ linux_vitals_summary.critical_error_count }}
+Overall Status: {{ linux_vitals_summary.overall_status | default('PASS' if linux_vitals_summary.critical_error_count | int == 0 else 'FAIL', true) }}
+Servers Checked: {{ linux_vitals_summary.servers_checked }} | Auto-Fixed: {{ linux_vitals_summary.auto_fixed_count }} | Failing Hosts: {{ linux_vitals_summary.critical_error_count }}{% if linux_vitals_summary.unreported_host_count | default(0) | int > 0 %} | Not Checked: {{ linux_vitals_summary.unreported_host_count | int }}{% endif %}
 Summary: {{ linux_vitals_summary.snippet }}
 {% set fbs = linux_vitals_summary.findings_by_severity | default({}) %}{% set hbs = linux_vitals_summary.hosts_by_severity | default({}) %}Severity: {{ fbs.get('critical', 0) }} critical | {{ fbs.get('warning', 0) }} warning | {{ fbs.get('info', 0) }} info (across {{ hbs.get('critical', 0) }} critical / {{ hbs.get('warning', 0) }} warning host(s))
+{% if linux_vitals_summary.unreported_hosts | default([]) %}
+Not checked -- targeted but no health result (unreachable, or the play failed on them):
+{% for entry in linux_vitals_summary.unreported_hosts %}
+- {{ entry.inventory_name }}: {{ entry.reason }}{% if entry.baseline_available | default(false) %} (a baseline snapshot exists for this host, so its postcheck outcome is unknown){% endif %}
+
+{% endfor %}
+{% endif %}
 {% set critical_hosts = [] %}
 {% for host in linux_vitals_reporting_hosts | default(ansible_play_hosts_all) %}
 {% if hostvars[host]['linux_vitals_result'].severity | default('none') == 'critical' %}

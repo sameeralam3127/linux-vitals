@@ -344,6 +344,21 @@
   .pill--muted { background: var(--muted-wash); }
   .pill--muted .dot { background: var(--ink-muted); }
 
+  /* Hosts the play targeted that produced no result (#147). Washed like the
+     unknown-check pills rather than like a failing host: nobody looked. */
+  .not-checked {
+    background: var(--serious-wash);
+    border: 1px solid var(--serious);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    margin-bottom: 20px;
+  }
+
+  .not-checked h2 { font-size: 15px; margin: 0; }
+  .not-checked p { margin: 6px 0 0; font-size: 13px; color: var(--ink-secondary); }
+  .not-checked ul { margin: 10px 0 0; padding-left: 20px; }
+  .not-checked li { font-size: 13px; margin-bottom: 5px; }
+
   .meter { display: flex; align-items: center; gap: 8px; min-width: 130px; }
   .meter-track {
     flex: 1;
@@ -459,6 +474,9 @@
         {% endif %}
       </h1>
       <p class="meta">Generated {{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S UTC') }} for {{ linux_vitals_summary.servers_checked }} managed host(s). {{ linux_vitals_summary.snippet }}</p>
+      {% if linux_vitals_summary.unreported_host_count | default(0) | int > 0 %}
+      <p class="meta"><span class="pill pill--serious"><span class="dot"></span>{{ linux_vitals_summary.unreported_host_count | int }} targeted host(s) produced no health result and are not covered by anything below.</span></p>
+      {% endif %}
       {% if linux_vitals_summary.comparison_active %}
       <p class="meta">Baseline age limit: {{ linux_vitals_summary.baseline_max_age_hours | default(72) }} hours; {{ linux_vitals_summary.stale_baseline_count | default(0) }} older, {{ linux_vitals_summary.unknown_baseline_age_count | default(0) }} unknown.</p>
       {% endif %}
@@ -524,6 +542,12 @@
       <div class="tile-value">{{ linux_vitals_summary.unknown_host_count | default(0) | int }}</div>
       <div class="tile-label">Hosts with unknown checks</div>
     </div>
+    {#- Targeted but silent (#147). Always rendered, including as a zero, so a
+       reader can tell "every host answered" from "this report does not say". #}
+    <div class="tile{{ ' tile--critical' if linux_vitals_summary.unreported_host_count | default(0) | int > 0 else '' }}">
+      <div class="tile-value">{{ linux_vitals_summary.unreported_host_count | default(0) | int }}</div>
+      <div class="tile-label">Not checked</div>
+    </div>
     <div class="tile tile--critical">
       <div class="tile-value">{{ linux_vitals_summary.hosts_by_severity.critical | default(0) }}</div>
       <div class="tile-label">Critical hosts</div>
@@ -551,6 +575,23 @@
     </div>
     {% endif %}
   </section>
+
+  {% if linux_vitals_summary.unreported_hosts | default([]) %}
+  <section class="not-checked" id="not-checked">
+    <h2>Not checked &mdash; {{ linux_vitals_summary.unreported_hosts | length }} targeted host(s) produced no health result</h2>
+    <p>Each was in this play and never returned a result: unreachable, or the play failed on it before the scan finished. Nothing in the table below, and no number in it, covers these hosts. They are counted against the health score, which is computed over every targeted host.</p>
+    <ul>
+      {% for entry in linux_vitals_summary.unreported_hosts %}
+      <li>
+        <strong>{{ entry.inventory_name | e }}</strong>
+        <span class="pill pill--serious"><span class="dot"></span>{{ entry.status | default('Unknown') | e }}</span>
+        <span class="muted">{{ entry.reason | default('') | e }}</span>
+        {% if entry.baseline_available | default(false) %}<span class="muted">&mdash; a baseline snapshot exists for this host, so its postcheck outcome is unknown.</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
 
   <section class="toolbar">
     <input id="search" type="search" placeholder="Search hostname, IP, OS, serial...">

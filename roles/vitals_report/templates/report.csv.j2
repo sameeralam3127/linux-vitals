@@ -31,3 +31,20 @@
 {% for value in row %}{{ cell(value) }}{% if not loop.last %},{% endif %}{% endfor %}
 {{ '\n' -}}
 {% endfor %}
+{# A host the play targeted that produced no result still gets a row (#147):
+   a fleet table that silently drops it is the bug this fixes. Its `status` is
+   Unknown and every measured column is blank, because nothing was measured.
+   `hostname` carries the inventory name -- the only identity available for a
+   host nobody reached. #}
+{% for entry in linux_vitals_unreported_hosts | default([]) %}
+{% set row = [
+  entry.status | default('Unknown'), none,
+  entry.inventory_name, none, none, none,
+  none, linux_vitals_phase, none,
+  none, '', none, '', none, '', '',
+  'Unknown', '', '', none, none,
+  'Missing' if linux_vitals_phase == 'postcheck' else ''
+] %}
+{% for value in row %}{{ cell(value) }}{% if not loop.last %},{% endif %}{% endfor %}
+{{ '\n' -}}
+{% endfor %}

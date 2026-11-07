@@ -150,7 +150,14 @@ to modify.
    - `render.yml` aggregates all per-host results (delegated to
      `localhost`, `run_once`) into `linux_vitals_summary`, then renders
      `dashboard.html.j2` and `report.json.j2`, and manages archive
-     retention.
+     retention. It also compares the hosts the play targeted
+     (`ansible_play_hosts_all`) against the hosts that produced a result, and
+     carries the difference in `summary.unreported_hosts` -- each with a
+     status of `Unknown` and a reason, in the shape the finding contract uses
+     for a check that could not run. A host nobody could scan is in the health
+     score's denominator and never in its numerator, so it lowers the score
+     instead of leaving the report
+     ([#147](https://github.com/sameeralam3127/linux-vitals/issues/147)).
    - `notify.yml` sends the same summary through whichever channels are
      configured.
 

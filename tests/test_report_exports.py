@@ -90,7 +90,13 @@ def test_exports_keep_unknown_checks_and_current_finding_counts(tmp_path: Path) 
     completed = _render(tmp_path, hosts, fixture_phase="postcheck")
     assert completed.returncode == 0, completed.stdout + completed.stderr
     families, samples = _samples(tmp_path)
-    assert len(families) == 6
+    # host_status, unknown_checks, findings, ram_used_pct, reboot_required,
+    # unreported_hosts (#147) and health_score_pct. The count is pinned so a
+    # new family is a deliberate change, not a surprise in someone's scrape.
+    assert len(families) == 7
+    # No host went unreported here, and the gauge says so with a zero rather
+    # than by being absent (#147).
+    assert _value(samples, "unreported_hosts", phase="postcheck") == 0
     common = {"ip_address": "127.0.0.1", "os_family": "Debian", "phase": "postcheck"}
     assert _value(samples, "host_status", host="known", **common) == 1
     assert _value(samples, "host_status", host="unchecked", **common) == 0
@@ -164,8 +170,12 @@ def test_empty_results_have_a_csv_header_and_zero_fleet_score(tmp_path: Path) ->
     completed = _render(tmp_path, [])
     assert completed.returncode == 0, completed.stdout + completed.stderr
     _, samples = _samples(tmp_path)
-    assert len(samples) == 1
+    # Only the two fleet-level gauges; nothing per host, since there is no
+    # host. An empty fleet scores zero rather than 100 % of nothing, and
+    # nothing is reported as unreported either (#147).
+    assert len(samples) == 2
     assert _value(samples, "health_score_pct", phase="adhoc") == 0
+    assert _value(samples, "unreported_hosts", phase="adhoc") == 0
     assert _rows(tmp_path) == []
     assert (tmp_path / "csv" / "report.csv").read_text().startswith('"status","unknown_count"')
 
