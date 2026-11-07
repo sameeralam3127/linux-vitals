@@ -82,9 +82,30 @@
       # counts as started as soon as it has forked, so it can still die a
       # moment later -- which is why the outcome is verified below rather than
       # read off this result.
+      #
+      # That wait is bounded here (#151). Without `timeout`, the only bound is
+      # the unit's own TimeoutStartSec=, which systemd disables by default for
+      # Type=oneshot: an enabled oneshot that hangs on a mount, a lock or a
+      # metadata service blocks this task for as long as it hangs. The shipped
+      # playbooks use the linear strategy, so every other host waits at this
+      # task too, no host reaches vitals_report, and the run produces no
+      # dashboard, no JSON and no notification. `timeout` is applied per loop
+      # item, so the wait is bounded per unit whatever the unit declares;
+      # linux_vitals_heal_restart_timeout: 0 restores the unbounded wait.
+      # Cutting the wait short does not cancel the start job -- systemd carries
+      # on with it -- so the settle poll below still judges the unit, and a
+      # restart that timed out is reported unknown and never Fixed.
+      #
+      # Dispatching with systemd_service's `no_block` would bound the wait as
+      # well, but it would make the first settle look race the enqueued job: a
+      # unit that is still failed (which is why it is being restarted), or
+      # inactive (a oneshot), reads exactly as it did before the restart, and
+      # the poll below accepts failed and inactive as settled -- so a unit
+      # that was about to come up would be reported Failed to Fix.
       ansible.builtin.service:
         name: "{{ item | regex_replace('\\.service$', '') }}"
         state: restarted
+      timeout: "{{ [linux_vitals_heal_restart_timeout | int, 0] | max }}"
       loop: "{{ linux_vitals_heal_restart_services }}"
       register: linux_vitals_restart_attempts
       ignore_errors: true
@@ -116,7 +137,7 @@
         argv:
           - systemctl
           - show
-          - --property=LoadState,ActiveState,SubState,Result,InvocationID,NRestarts
+          - --property=LoadState,ActiveState,SubState,Result,Type,RemainAfterExit,InvocationID,NRestarts
           - --
           - "{{ item }}"
       loop: >-
@@ -165,7 +186,7 @@
         argv:
           - systemctl
           - show
-          - --property=LoadState,ActiveState,SubState,Result,InvocationID,NRestarts
+          - --property=LoadState,ActiveState,SubState,Result,Type,RemainAfterExit,InvocationID,NRestarts
           - --
           - "{{ item }}"
       loop: "{{ linux_vitals_heal_came_up }}"
