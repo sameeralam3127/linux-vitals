@@ -1,6 +1,11 @@
 ansible-core>=2.21.5,<2.22
 ansible-lint>=26.10.1
 pytest>=9.2.0
+# Used only by tests/test_report_exports.py, to parse the Prometheus text
+# output back and assert it is valid rather than eyeballing the template (#35).
+# Dev-only: no managed host ever needs it, and the exporters themselves are
+# Jinja templates with no Python dependency.
+prometheus-client>=0.20.0,<1.0
 PyYAML>=6.0.3
 molecule>=26.10.0
 # community.docker's docker_container module needs the Docker SDK for Python
