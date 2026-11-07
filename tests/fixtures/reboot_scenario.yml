@@ -3,6 +3,10 @@
   ansible.builtin.set_fact:
     linux_vitals_reboot_probe_output: "{{ scenario.probe }}"
     linux_vitals_latest_kernel_selected: "{{ scenario.latest_kernel_selected }}"
+    # The kernel comparison only answers when the latest-kernel probe did
+    # (#150): a scenario can turn it off to model /lib/modules being
+    # unreadable, and the reboot facts must not claim anything from it.
+    linux_vitals_latest_kernel_probe_answered: "{{ scenario.probe_answered | default(true) }}"
 
 - name: Derive reboot requirement facts for the scenario
   ansible.builtin.include_tasks: ../../roles/vitals_scan/tasks/reboot_facts.yml

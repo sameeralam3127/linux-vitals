@@ -14,16 +14,22 @@
 
 - name: Finalize bootloader validation message
   ansible.builtin.set_fact:
+    # When the latest-kernel probe gave no answer (#150), a resolved default
+    # entry cannot be validated against the latest kernel either, so the
+    # message says that instead of accusing the entry of not selecting it.
     linux_vitals_bootloader_validation_message: >-
       {{
         'Default boot entry selects the latest installed kernel'
         if linux_vitals_bootloader_default_status == 'resolved'
         and linux_vitals_bootloader_default_matches_latest
+        else ('Default boot entry resolved; the latest installed kernel could not be determined'
+        if linux_vitals_bootloader_default_status == 'resolved'
+        and not linux_vitals_latest_kernel_probe_answered
         else 'Default boot entry does not select the latest installed kernel'
         if linux_vitals_bootloader_default_status == 'resolved'
         else 'Default boot entry detected but the kernel could not be resolved'
         if linux_vitals_bootloader_default_status == 'entry-only'
-        else 'Bootloader default kernel validation is not available on this host'
+        else 'Bootloader default kernel validation is not available on this host')
       }}
   tags:
     - discovery

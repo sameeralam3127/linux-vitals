@@ -70,6 +70,21 @@
           ansible_facts['kernel'] | default('') | trim
         )
       }}
+    # False when the latest-kernel probe produced no answer: /lib/modules is
+    # unreadable or ends up empty on this host, so "is the running kernel the
+    # latest installed one?" is unknown rather than false (#150).
+    # result.yml then raises kernel_not_latest as an unknown finding, and
+    # reboot_facts.yml does not feed the reboot fallback from it.
+    linux_vitals_latest_kernel_probe_answered: >-
+      {{
+        linux_vitals_latest_kernel_cmd.stdout
+        | default('')
+        | regex_findall('(?m)^latest=(.*)$')
+        | first
+        | default('', true)
+        | trim
+        | length > 0
+      }}
     linux_vitals_bootloader_supported: >-
       {{
         (
@@ -111,6 +126,27 @@
         | first
         | default('unavailable')
         | trim
+      }}
+    # The stderr the bootloader probe captured when a boot environment was
+    # present but grubby/grub2-editenv could not read it (#150). Empty when
+    # nothing was printed -- most importantly for a host with no bootloader
+    # configuration at all, which result.yml must keep treating as clean.
+    linux_vitals_bootloader_probe_reason: >-
+      {{
+        linux_vitals_bootloader_default_cmd.stdout
+        | regex_findall('(?m)^reason=(.*)$')
+        | first
+        | default('', true)
+        | trim
+      }}
+    # True when getenforce answered: it ran (rc 0) and reported a mode. A
+    # missing or failing getenforce means nobody looked at SELinux (#150),
+    # which result.yml raises as an unknown selinux_disabled on RedHat-family
+    # hosts, as #39 did for aa-status on Debian-family ones.
+    linux_vitals_selinux_probe_ok: >-
+      {{
+        (linux_vitals_selinux_cmd.rc | default(127)) == 0
+        and (linux_vitals_selinux_cmd.stdout | default('', true) | trim | length > 0)
       }}
     linux_vitals_reboot_probe_output: >-
       {{

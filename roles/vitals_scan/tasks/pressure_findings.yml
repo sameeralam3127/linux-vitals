@@ -1,0 +1,65 @@
+---
+# Saturation findings: CPU load, PSI stalls and swap activity
+# ([#34](https://github.com/sameeralam3127/linux-vitals/issues/34)), split out
+# of result.yml to stay inside that file's review-size budget (#27).
+#
+# Every fact it reads is defaulted, deliberately. result.yml is where a missing
+# scan fact is meant to be loud, but this file is imported ahead of it, and a
+# task that raises first would move where a partial `--tags` run stops --
+# which tests/test_tagged_scan.py pins through KNOWN_TAG_GAPS.
+#
+# A kernel without PSI, and a swap rate that was not sampled, raise nothing:
+# the report says unsupported or not sampled. A probe that could not run at
+# all raises `unknown` with a reason instead, per the finding contract (#62).
+#
+# result.yml extends this list in the exact position these findings were
+# appended, so the order the golden fixtures pin does not move.
+- name: Build the saturation findings
+  ansible.builtin.set_fact:
+    linux_vitals_pressure_findings: >-
+      {%- set findings = [] -%}
+      {#- Saturation (#34), from pressure_facts.yml. Each finding carries the
+          severity its threshold gives it; an unknown one takes the map's. A
+          kernel without PSI, and a swap rate that was not sampled, raise
+          nothing: the report says unsupported or not sampled. -#}
+      {%- set pressure = linux_vitals_pressure | default({}) -%}
+      {%- set pressure_status = linux_vitals_pressure_status | default({}) -%}
+      {%- set not_run = 'the load and pressure probe did not run' -%}
+      {%- if pressure_status.load_status | default('Unknown') == 'Unknown' -%}
+      {%- set _ = findings.append({
+        'id': 'cpu_load_high', 'message': 'CPU load could not be measured',
+        'status': 'unknown', 'reason': pressure.load_reason | default('', true) or not_run}) -%}
+      {%- elif pressure_status.load_status in ['Warning', 'Critical'] -%}
+      {%- set _ = findings.append({
+        'id': 'cpu_load_high', 'severity': pressure_status.load_status | lower,
+        'message': '5-minute load average is ' ~ pressure.load_per_cpu['5m'] ~ ' per CPU ('
+                   ~ pressure.load['5m'] ~ ' across ' ~ pressure.cpu_count ~ ' CPUs)'}) -%}
+      {%- endif -%}
+      {%- if pressure_status.psi_status | default('Unknown') == 'Unknown' -%}
+      {%- set _ = findings.append({
+        'id': 'pressure_stall_high', 'message': 'Pressure stall information could not be read',
+        'status': 'unknown', 'reason': pressure.psi_reason | default('', true) or not_run}) -%}
+      {%- else -%}
+      {%- set label = {'cpu': 'CPU', 'memory': 'Memory', 'io': 'I/O'} -%}
+      {%- for stall in pressure_status.stalled | default([]) -%}
+      {%- set _ = findings.append({
+        'id': 'pressure_stall_high', 'subject': stall.resource, 'severity': stall.severity,
+        'message': label[stall.resource] ~ ' pressure: tasks stalled ' ~ stall.some_avg60
+                   ~ '% of the last minute'}) -%}
+      {%- endfor -%}
+      {%- endif -%}
+      {%- if pressure_status.swap_status | default('Unknown') == 'Unknown' -%}
+      {%- set _ = findings.append({
+        'id': 'swap_paging_high', 'message': 'Swap activity could not be measured',
+        'status': 'unknown', 'reason': pressure.swap_reason | default('', true) or not_run}) -%}
+      {%- elif pressure_status.swap_status in ['Warning', 'Critical'] -%}
+      {%- set _ = findings.append({
+        'id': 'swap_paging_high', 'severity': pressure_status.swap_status | lower,
+        'message': 'Swapping ' ~ pressure.swap_rate_per_sec ~ ' pages/s (' ~ pressure.swap_in_per_sec
+                   ~ ' in, ' ~ pressure.swap_out_per_sec ~ ' out) over a '
+                   ~ pressure.swap_sample_seconds ~ ' s sample'}) -%}
+      {%- endif -%}
+      {{ findings }}
+  tags:
+    - result
+    - reporting

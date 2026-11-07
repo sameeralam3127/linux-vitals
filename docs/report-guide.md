@@ -518,8 +518,8 @@ at its highest level, so the numbers partition the fleet) and
 | `time_sync_absent` | warning | No `chronyd`/`ntp` service is installed |
 | `time_sync_inactive` | warning | The resolved time-sync service is not running |
 | `reboot_required` | warning | Per-distro reboot detection fired -- see [kernel-reboot-detection.md](kernel-reboot-detection.md) |
-| `kernel_not_latest` | warning | The running kernel is not the latest installed one |
-| `bootloader_mismatch` | warning | The default boot entry does not select the latest installed kernel |
+| `kernel_not_latest` | warning | The running kernel is not the latest installed one. `unknown` when the latest-kernel probe produced no answer (`/lib/modules` unreadable or empty); then no reboot is inferred from the comparison either (#150) |
+| `bootloader_mismatch` | warning | The default boot entry does not select the latest installed kernel. `unknown` when the boot environment is present but unreadable (e.g. no privileges to read it), with the tools' stderr as the reason; nothing on a host with no boot configuration at all (#150) |
 | `boot_space_low` | warning | Boot partition free space below `linux_vitals_boot_warning_threshold` |
 | `filesystem_space_low` | warning or critical | One per in-scope mount (`subject`: the mount path) whose used space is at or above `linux_vitals_disk_warning_threshold` / `_critical_threshold` |
 | `filesystem_inodes_low` | warning or critical | One per in-scope mount (`subject`: the mount path) whose used inodes are at or above `linux_vitals_disk_inode_warning_threshold` / `_critical_threshold` |
@@ -527,7 +527,7 @@ at its highest level, so the numbers partition the fleet) and
 | `filesystem_unavailable` | warning | One per in-scope mount (`subject`: the mount path) whose capacity could not be read; `status: unknown` with `reason` |
 | `filesystem_probe_degraded` | warning | Host-level, no `subject`, fires at most once: one or more mount entries returned unreadable facts; `status: unknown` with `reason` |
 | `kernel_install_failures` | warning | Kernel/bootloader failures in the audit log window |
-| `selinux_disabled` | warning | SELinux disabled/unavailable on a RedHat-family host |
+| `selinux_disabled` | warning | SELinux disabled/unavailable on a RedHat-family host. `unknown` when `getenforce` is missing or failed to report a mode (#150) |
 | `apparmor_disabled` | warning | AppArmor is disabled on a Debian-family host. `unknown`, with a `reason`, when `aa-status` is not installed or could not read AppArmor's state; `apparmor_status` is then `not-installed` or `unknown` |
 | `firewall_inactive` | critical | No active firewall was detected (`firewalld`, `ufw`, or a non-empty `nft`/`iptables` ruleset). `unknown` when a firewall tool was present but could not be asked, e.g. a permission error |
 | `ssh_permit_root_login_insecure` | warning | `sshd -T` reports `PermitRootLogin` is not `no`/`prohibit-password`/`without-password`. `unknown` when the effective config could not be read |
@@ -717,3 +717,23 @@ expect unknown findings. Unknown findings contribute to `unknown_count` and are
 excluded from the healthy-host score even when a raised severity threshold lets
 the host pass. Legacy log-count fields count matched lines only; zero is not a
 successful check when the corresponding finding is unknown.
+
+## Unreadable boot environment and SELinux probes
+
+Three more probes tell "could not run" from "ran and found nothing" (#150):
+
+- `bootloader_mismatch` is `unknown` when a boot environment exists but
+  `grubby`/`grub2-editenv` cannot read it -- the usual unprivileged-scan case.
+  The finding's `reason` is the tools' own stderr. A host with no boot
+  configuration at all (container, EFI-stub, cloud boot) still raises nothing:
+  there is nothing to check, and that is expected there.
+- `kernel_not_latest` is `unknown` when the latest-kernel probe printed no
+  `latest=` at all (`/lib/modules` unreadable or empty). While that probe is
+  unanswered, no reboot is inferred from the kernel comparison either; the
+  `reboot_reason` on such a host carries both the distro probe's detail (the
+  `needs-restarting` error, if any) and a note that the comparison could not
+  run.
+- `selinux_disabled` is `unknown` on a RedHat-family host whose `getenforce` is
+  missing or fails to report a mode (e.g. `libselinux-utils` trimmed from the
+  image). A `getenforce` that ran and said `Disabled` is still a plain failure:
+  the check ran and found the control off.

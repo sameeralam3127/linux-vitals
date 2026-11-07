@@ -145,7 +145,7 @@
 {%- for result in shown -%}
 {%- set level = result.severity | default('none') -%}
 {%- if result.bootloader_default_status | default('') == 'resolved' -%}
-{%- set bootloader = 'latest' if result.bootloader_default_matches_latest else 'NOT latest' -%}
+{%- set bootloader = 'unknown' if result.latest_installed_kernel | default('', true) == 'unknown' else ('latest' if result.bootloader_default_matches_latest else 'NOT latest') -%}
 {%- elif result.bootloader_default_status | default('') == 'entry-only' -%}
 {%- set bootloader = 'unresolved' -%}
 {%- else -%}

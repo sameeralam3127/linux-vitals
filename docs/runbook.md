@@ -230,6 +230,16 @@ grub2-editenv list               # RHEL family
 in this state boots the old kernel and leaves you believing you patched it.
 Fix the default entry first (`grubby --set-default`), then reboot.
 
+As an `unknown` finding ([#150](https://github.com/sameeralam3127/linux-vitals/issues/150)),
+`bootloader_mismatch` means the boot environment is there but could not be
+read -- usually a scan without privileges -- and `kernel_not_latest` with no
+`latest` means nobody could list the installed kernels. The finding's `reason`
+carries what the tools printed. Fix the privileges, not the kernel:
+grant the automation user read access (`/boot` and `/lib/modules`) or run with
+`become`. `kernel_not_latest` `unknown` also stops the reboot fallback from
+speaking: the report will show `reboot_required_source: unavailable` until the
+read works.
+
 ### `boot_space_low` -- boot partition free space is low
 
 **Means:** `/boot` free space is below `linux_vitals_boot_warning_threshold`
@@ -412,6 +422,12 @@ linux_vitals_finding_severity_overrides:
 ```
 A permanent warning that everyone ignores is worse than no warning.
 
+As an `unknown` finding ([#150](https://github.com/sameeralam3127/linux-vitals/issues/150)),
+`selinux_disabled` means `getenforce` could not answer -- the binary is
+missing (an image trimmed without `libselinux-utils`) or it failed to report a
+mode. The finding's `reason` says so. Install the package; do not encode an
+override for it -- an unreadable mode is not "allowed off" the way a disabled
+one can be.
 ### `ssh_permit_root_login_insecure` -- sshd allows root login
 
 **Means:** `sshd -T` reports `PermitRootLogin` is something other than `no`,
