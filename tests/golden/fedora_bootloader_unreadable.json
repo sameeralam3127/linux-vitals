@@ -17,6 +17,41 @@
     "baseline_available": false
   },
   "failed_login_count": 0,
+  "failed_unit_count": 0,
+  "failed_units": [],
+  "filesystem_degraded_count": 0,
+  "filesystem_worst_mount": "/boot",
+  "filesystem_worst_status": "OK",
+  "filesystems": [
+    {
+      "expected_readonly": false,
+      "fstype": null,
+      "inode_available": null,
+      "inode_total": null,
+      "inode_used_pct": null,
+      "mount": "/boot",
+      "read_only": false,
+      "reason": null,
+      "size_total_mb": 973.4,
+      "size_used_mb": 301.4,
+      "size_used_pct": 31.0,
+      "status": "OK"
+    },
+    {
+      "expected_readonly": false,
+      "fstype": null,
+      "inode_available": null,
+      "inode_total": null,
+      "inode_used_pct": null,
+      "mount": "/boot/efi",
+      "read_only": false,
+      "reason": null,
+      "size_total_mb": 598.8,
+      "size_used_mb": 17.8,
+      "size_used_pct": 3.0,
+      "status": "OK"
+    }
+  ],
   "final_status": "Fail",
   "findings": [
     {
@@ -27,11 +62,23 @@
       "status": "unknown"
     }
   ],
+  "firewall": {
+    "active": true,
+    "detail": "running",
+    "detection_supported": true,
+    "source": "firewalld"
+  },
+  "heal_skipped": [],
   "healing_results": [],
   "hostname": "ws-08",
   "ip_address": "10.0.5.38",
   "kernel_install_failure_excerpt": [],
   "kernel_install_failures": 0,
+  "kernel_taint": {
+    "reasons": [],
+    "supported": true,
+    "value": 0
+  },
   "last_failed_login": "No failed login attempts found",
   "last_reboot": "2026-09-26 02:01",
   "latest_installed_kernel": "6.10.10-200.fc40.x86_64",
@@ -83,6 +130,11 @@
   "ram_total_mb": 31845.0,
   "ram_used_mb": 10035.0,
   "ram_used_pct": 31.5,
+  "reboot_blocking_processes": {
+    "processes": [],
+    "source": "lsof",
+    "supported": true
+  },
   "reboot_detection_supported": true,
   "reboot_reason": "No reboot required (dnf-needs-restarting)",
   "reboot_required": false,
@@ -100,6 +152,13 @@
     "critical": 0,
     "info": 0,
     "warning": 1
+  },
+  "ssh_hardening": {
+    "detection_supported": true,
+    "password_authentication": "no",
+    "permit_empty_passwords": "no",
+    "permit_root_login": "no",
+    "source": "sshd-T"
   },
   "unknown_count": 1,
   "uptime": "0d 12h 33m",

@@ -20,12 +20,10 @@ MAX_LINES = 250
 TASK_FILES = sorted(SCAN_TASKS_DIR.glob("*.yml"))
 
 # Over MAX_LINES when the ratchet landed, pinned at that exact length.
-PINNED = {
-    # A single task: the bootloader probe's POSIX sh script is 287 lines by
-    # itself, and one task cannot be split across files. Moving the script to
-    # a file under files/ is what would bring this under the limit.
-    "bootloader.yml": 302,
-}
+# Empty, and worth keeping that way. bootloader.yml was the last entry: its
+# POSIX sh probe moved to files/bootloader_probe.sh, which is what this
+# ratchet's note had said all along would bring it under the limit.
+PINNED: dict[str, int] = {}
 
 
 def _lines(path: Path) -> int:

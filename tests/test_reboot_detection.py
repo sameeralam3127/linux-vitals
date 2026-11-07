@@ -102,9 +102,28 @@ def test_an_unanswered_kernel_probe_leaves_no_reboot_answer(tmp_path: Path) -> N
     assert "(and the latest-kernel comparison could not run here)" in unanswered["reason"]
 
 
+SCAN_FILES_DIR = REPO_ROOT / "roles" / "vitals_scan" / "files"
+FILE_LOOKUP = re.compile(
+    r"^\{\{\s*lookup\(\s*'ansible\.builtin\.file',\s*'([^']+)'\s*\)\s*\}\}$"
+)
+
+
+def _probe_script(argv_text: str) -> str:
+    """The shell text a probe runs, whether inline or read from files/.
+
+    The bootloader probe's script lives in files/bootloader_probe.sh because
+    at ~350 lines it dominated its task file. It is still handed to `sh -c`
+    as text, so resolving the lookup here runs exactly what the probe runs.
+    """
+    match = FILE_LOOKUP.match(argv_text.strip())
+    if match is None:
+        return argv_text
+    return (SCAN_FILES_DIR / match.group(1)).read_text(encoding="utf-8")
+
+
 def _discovery_scripts() -> dict[str, str]:
     return {
-        task["name"]: task["ansible.builtin.command"]["argv"][2]
+        task["name"]: _probe_script(task["ansible.builtin.command"]["argv"][2])
         for task in discovery_tasks()
         if "ansible.builtin.command" in task
         and task["ansible.builtin.command"].get("argv", [])[:2] == ["sh", "-c"]
@@ -221,6 +240,9 @@ def _run_rooted_with_bins(script: str, root: Path, bin_dir: Path) -> dict[str, s
 
 
 def _write_tool(path: Path, body: str) -> None:
+    # mkdir like _write does: both callers pass tmp_path/"bin", which nothing
+    # else creates, so without this the fake tool cannot be written at all.
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(f"#!/bin/sh\n{body}\n", encoding="utf-8")
     path.chmod(0o755)
 
