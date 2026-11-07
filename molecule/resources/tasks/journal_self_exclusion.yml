@@ -28,14 +28,17 @@
     vitals_self_baseline_rc: "{{ linux_vitals_audit_journalctl.rc }}"
 
 - name: Write lines shaped exactly like this probe's own invocation log
-  # python3 as the identifier and `ansible-<module> Invoked with` as the
-  # message is how Ansible records a module start. These carry the probe's
-  # marker and its grep pattern as literals, so the pattern matches them
-  # exactly as it matches the real thing.
+  # `ansible-<module> Invoked with <args>` as the message is how Ansible
+  # records a module start. These carry the probe's marker and its grep
+  # pattern as literals, so the pattern matches them exactly as it matches
+  # the real thing. The identifier is this scenario's own rather than
+  # `python3` so the check below can find these lines and only these; the
+  # exclusion keys on the message, not the identifier, and the unit tests
+  # cover both identifier forms.
   ansible.builtin.command:
     argv:
       - systemd-cat
-      - --identifier=python3
+      - --identifier=vitals-selfcount
     stdin: |
       ansible-ansible.legacy.command Invoked with argv=['bash', '-c', 'linux-vitals-audit-scan', '(kernel|grub|dracut|initramfs).*(fail|error)'] 1
       ansible-ansible.legacy.command Invoked with argv=['bash', '-c', 'linux-vitals-audit-scan', '(kernel|grub|dracut|initramfs).*(fail|error)'] 2
@@ -61,15 +64,16 @@
       - --sync
   changed_when: false
 
-- name: Confirm the journal really holds every injected line
+- name: Confirm the journal really holds the injected invocation lines
   # Without this the assertion below could hold because journald dropped the
-  # lines rather than because the scan excluded them.
+  # lines (rate limiting, say) rather than because the scan excluded them.
+  # Filtered by this scenario's identifier, so it cannot be satisfied by the
+  # real probe invocations, which carry the same marker.
   ansible.builtin.command:
     argv:
       - journalctl
       - --system
-      - --since
-      - "{{ linux_vitals_audit_log_window }}"
+      - --identifier=vitals-selfcount
       - --output=cat
       - --no-pager
   environment:
@@ -80,7 +84,22 @@
     vitals_self_stored.rc != 0
     or vitals_self_stored.stdout_lines
     | select('search', 'linux-vitals-audit-scan') | list | length < 3
-    or vitals_self_stored.stdout_lines
+
+- name: Confirm the journal really holds the genuine failure line
+  ansible.builtin.command:
+    argv:
+      - journalctl
+      - --system
+      - --identifier=vitals-kernel-install
+      - --output=cat
+      - --no-pager
+  environment:
+    LC_ALL: C
+  register: vitals_genuine_stored
+  changed_when: false
+  failed_when: >-
+    vitals_genuine_stored.rc != 0
+    or vitals_genuine_stored.stdout_lines
     | select('search', '50-dracut.install failed') | list | length < 1
 
 - name: Scan the journal again, now that it holds those lines
