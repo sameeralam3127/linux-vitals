@@ -95,9 +95,86 @@
   when:
     - linux_vitals_archive_html_reports or linux_vitals_archive_json_reports
 
+# ansible_play_hosts drops a host the moment it fails or goes unreachable, so
+# building the report from it alone made a host nobody could scan vanish
+# entirely -- the report read clean, the score was computed over the survivors,
+# and nothing named the host (#147). ansible_play_hosts_all is every host the
+# play targeted after --limit, the same list snapshot.yml records a shard with,
+# so the two together say who was asked and who answered.
+#
+# Membership of ansible_play_hosts is not enough on its own: ignore_unreachable
+# keeps a host that never answered in the play, and a narrowly tagged run can
+# reach this file with no result built. A host is reported only when it is
+# still in the play *and* vitals_scan left a linux_vitals_result behind.
 - name: Determine hosts with completed health results
   ansible.builtin.set_fact:
-    linux_vitals_reporting_hosts: "{{ ansible_play_hosts | list }}"
+    linux_vitals_reporting_hosts: >-
+      {%- set reported = [] -%}
+      {%- for host in ansible_play_hosts_all -%}
+      {%- if host in ansible_play_hosts and hostvars[host].linux_vitals_result is defined -%}
+      {%- set _ = reported.append(host) -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{ reported }}
+  delegate_to: localhost
+  run_once: true
+
+# Built with a loop rather than the difference filter, which is a set operation
+# and returns its result in whatever order the set iterates. Report order has
+# to be stable across runs, so inventory order is kept.
+- name: Determine which targeted hosts produced no health result
+  ansible.builtin.set_fact:
+    linux_vitals_unreported_host_names: >-
+      {%- set missing = [] -%}
+      {%- for host in ansible_play_hosts_all -%}
+      {%- if host not in linux_vitals_reporting_hosts -%}
+      {%- set _ = missing.append(host) -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{ missing }}
+  delegate_to: localhost
+  run_once: true
+
+# The postcheck case this matters most for: ten hosts baselined, patched and
+# rebooted, three never come back. A host with a baseline under this
+# maintenance id and no postcheck result is the one whose outcome is least
+# known, so it is counted separately from a host that simply has no baseline.
+- name: Check whether each unreported host has a baseline snapshot
+  ansible.builtin.stat:
+    path: >-
+      {{ linux_vitals_snapshot_dir }}/{{ linux_vitals_maintenance_id | string | trim }}/baseline/{{ item }}.json
+  loop: "{{ linux_vitals_unreported_host_names }}"
+  register: linux_vitals_unreported_baseline_stats
+  delegate_to: localhost
+  run_once: true
+  when: linux_vitals_phase == 'postcheck'
+
+# An unreachable host is represented the way an unreadable probe is (#62): a
+# status of Unknown plus a reason, never as absent and never as clean. It is
+# deliberately not a row in `hosts`: that array's `status` is the host's
+# final_status, and adding a third value to it would silently misread in every
+# consumer that branches on Pass/Fail (docs/compatibility.md). It is also kept
+# out of linux_vitals_result_list, which holds real results that the exports
+# and the comparison read field by field.
+- name: Describe each targeted host that produced no health result
+  ansible.builtin.set_fact:
+    linux_vitals_unreported_hosts: >-
+      {%- set with_baseline = [] -%}
+      {%- for entry in linux_vitals_unreported_baseline_stats.results | default([]) -%}
+      {%- if entry.stat.exists | default(false) -%}
+      {%- set _ = with_baseline.append(entry.item) -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {%- set out = [] -%}
+      {%- for host in linux_vitals_unreported_host_names -%}
+      {%- set _ = out.append({
+            'inventory_name': host,
+            'status': 'Unknown',
+            'reason': 'no health result was produced for this host; it was unreachable, or the play failed on it before vitals_scan built one',
+            'baseline_available': host in with_baseline
+          }) -%}
+      {%- endfor -%}
+      {{ out }}
   delegate_to: localhost
   run_once: true
 
@@ -117,6 +194,12 @@
   # could run (#62). Under a raised linux_vitals_fail_on_severity a host with
   # an unknown check can still pass, but nobody looked at what that check
   # covers, so it must not make the fleet look healthier.
+  #
+  # The denominator is every host the play targeted, not every host that
+  # answered (#147). Scoring over the survivors alone meant three unreachable
+  # hosts out of ten raised the score from 70 % to 100 %: the worst hosts in
+  # the window left the sum and the report read Excellent. A host nobody could
+  # scan can never be in the numerator, so it now lowers the score.
   ansible.builtin.set_fact:
     linux_vitals_pass_ratio_pct: >-
       {%- set healthy = [] -%}
@@ -125,9 +208,12 @@
       {%- set _ = healthy.append(result) -%}
       {%- endif -%}
       {%- endfor -%}
+      {%- set targeted =
+            (linux_vitals_result_list | length)
+            + (linux_vitals_unreported_hosts | default([]) | length) -%}
       {{
-        (((healthy | length) / (linux_vitals_result_list | length)) * 100) | round(1)
-        if linux_vitals_result_list | length > 0
+        (((healthy | length) / targeted) * 100) | round(1)
+        if targeted > 0
         else 0
       }}
   delegate_to: localhost
@@ -148,6 +234,20 @@
 - name: Build consolidated maintenance summary
   ansible.builtin.set_fact:
     linux_vitals_summary:
+      # The one verdict every consumer reads. Derived here rather than in each
+      # template so the JSON report, the webhook payload and both Slack
+      # messages cannot disagree. It stays PASS/FAIL -- a host that was
+      # targeted and produced nothing makes it FAIL, because a report that
+      # says PASS while part of the fleet went unscanned is the failure mode
+      # of #147. Those runs already exit non-zero; only what a person reads
+      # changes.
+      overall_status: >-
+        {{
+          'FAIL'
+          if linux_vitals_failing_host_count | int > 0
+          or linux_vitals_unreported_hosts | default([]) | length > 0
+          else 'PASS'
+        }}
       servers_checked: "{{ linux_vitals_reporting_hosts | length }}"
       auto_fixed_count: >-
         {{
@@ -203,6 +303,21 @@
         {%- endif -%}
         {%- endfor -%}
         {{ hosts | length }}
+      # Hosts the play targeted that produced no result at all (#147). Each
+      # carries inventory_name, a status of Unknown, a reason, and whether a
+      # baseline snapshot exists for it. servers_checked plus
+      # unreported_host_count is what the play set out to scan.
+      unreported_host_count: "{{ linux_vitals_unreported_hosts | default([]) | length }}"
+      unreported_hosts: "{{ linux_vitals_unreported_hosts | default([]) }}"
+      # The postcheck subset: baselined before the window, silent after it.
+      missing_postcheck_count: >-
+        {{
+          linux_vitals_unreported_hosts
+          | default([])
+          | selectattr('baseline_available')
+          | list
+          | length
+        }}
       fail_on_severity: "{{ linux_vitals_fail_on_severity | default('info') }}"
       comparison_active: "{{ linux_vitals_phase == 'postcheck' }}"
       baseline_max_age_hours: "{{ linux_vitals_baseline_max_age_hours | int }}"
@@ -266,6 +381,12 @@
           ~ (linux_vitals_failing_host_count | int | string)
           ~ ' Failing Host'
           ~ ('s' if linux_vitals_failing_host_count | int != 1 else '')
+          ~ (
+            ', ' ~ (linux_vitals_unreported_hosts | default([]) | length | string)
+            ~ ' Not Checked'
+            if linux_vitals_unreported_hosts | default([]) | length > 0
+            else ''
+          )
         }}
   delegate_to: localhost
   run_once: true
