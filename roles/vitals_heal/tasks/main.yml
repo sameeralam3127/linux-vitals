@@ -82,9 +82,30 @@
       # counts as started as soon as it has forked, so it can still die a
       # moment later -- which is why the outcome is verified below rather than
       # read off this result.
+      #
+      # That wait is bounded here (#151). Without `timeout`, the only bound is
+      # the unit's own TimeoutStartSec=, which systemd disables by default for
+      # Type=oneshot: an enabled oneshot that hangs on a mount, a lock or a
+      # metadata service blocks this task for as long as it hangs. The shipped
+      # playbooks use the linear strategy, so every other host waits at this
+      # task too, no host reaches vitals_report, and the run produces no
+      # dashboard, no JSON and no notification. `timeout` is applied per loop
+      # item, so the wait is bounded per unit whatever the unit declares;
+      # linux_vitals_heal_restart_timeout: 0 restores the unbounded wait.
+      # Cutting the wait short does not cancel the start job -- systemd carries
+      # on with it -- so the settle poll below still judges the unit, and a
+      # restart that timed out is reported unknown and never Fixed.
+      #
+      # Dispatching with systemd_service's `no_block` would bound the wait as
+      # well, but it would make the first settle look race the enqueued job: a
+      # unit that is still failed (which is why it is being restarted), or
+      # inactive (a oneshot), reads exactly as it did before the restart, and
+      # the poll below accepts failed and inactive as settled -- so a unit
+      # that was about to come up would be reported Failed to Fix.
       ansible.builtin.service:
         name: "{{ item | regex_replace('\\.service$', '') }}"
         state: restarted
+      timeout: "{{ [linux_vitals_heal_restart_timeout | int, 0] | max }}"
       loop: "{{ linux_vitals_heal_restart_services }}"
       register: linux_vitals_restart_attempts
       ignore_errors: true
@@ -102,9 +123,14 @@
     #      systemd restarted it in between, which is a crash that recovered,
     #      not a fix that held.
     #
-    # A unit whose restart command errored gets the first look only -- it is
-    # never Fixed, so there is nothing for the window to confirm -- which is
-    # what tells a start job that failed from a restart that never ran.
+    # A unit whose restart command errored, or whose wait ran out, gets the
+    # first look only -- it is never Fixed, so there is nothing for the window
+    # to confirm -- which is what tells a start job that failed from a restart
+    # that never ran, and both from a restart nobody waited out (#151).
+    #
+    # The window does not apply to a Type=oneshot unit either: it is inactive
+    # when it succeeds, so there is nothing left running to watch. Type and
+    # RemainAfterExit are read here so the outcome can say so (#152).
     #
     # Both polls stop on their own when the budget is spent instead of letting
     # `retries` run out, because running out marks the task failed and a unit
@@ -116,7 +142,7 @@
         argv:
           - systemctl
           - show
-          - --property=LoadState,ActiveState,SubState,Result,InvocationID,NRestarts
+          - --property=LoadState,ActiveState,SubState,Result,Type,RemainAfterExit,InvocationID,NRestarts
           - --
           - "{{ item }}"
       loop: >-
@@ -165,7 +191,7 @@
         argv:
           - systemctl
           - show
-          - --property=LoadState,ActiveState,SubState,Result,InvocationID,NRestarts
+          - --property=LoadState,ActiveState,SubState,Result,Type,RemainAfterExit,InvocationID,NRestarts
           - --
           - "{{ item }}"
       loop: "{{ linux_vitals_heal_came_up }}"
@@ -196,10 +222,11 @@
       # correctly: only a verified fix is Fixed.
       #
       #   result                        outcome       reason
-      #   Fixed                         fixed         stayed_active
+      #   Fixed                         fixed         stayed_active, ran_successfully
       #   Failed to Fix                 still_failed  failed, restarted_during_check
       #   Manual Intervention Required  still_failed  restart_error, inactive
-      #   Manual Intervention Required  unknown       not_settled, check_failed
+      #   Manual Intervention Required  unknown       not_settled, check_failed,
+      #                                               restart_timeout
       #
       # `failed` includes a restart whose command errored because the start
       # job failed (a Type=notify or forking unit that cannot start): the unit
@@ -207,11 +234,20 @@
       # only a restart that errored without leaving a failed unit behind -- the
       # unit not found, permission denied, its state unreadable.
       #
+      # `ran_successfully` is a Type=oneshot unit that ran to completion (#152).
+      # Such a unit is inactive when it succeeds, not active, so judging it by
+      # ActiveState alone reported a fix as a critical manual follow-up. It is
+      # told from a long-running unit that died by Type=oneshot with no
+      # RemainAfterExit=yes, plus Result=success: a oneshot whose command
+      # exited non-zero, or that was killed or timed out, is failed or carries
+      # a Result other than success, and anything that is not a oneshot keeps
+      # the `inactive` outcome it always had.
+      #
       # `unknown` is the answer when the check itself could not complete: the
-      # unit was still changing state when the budget ran out, or
-      # `systemctl show` could not be read. It never reads as Fixed, and
-      # vitals_scan turns it into an `unknown` finding with the detail as its
-      # reason (#62).
+      # unit was still changing state when the budget ran out, `systemctl show`
+      # could not be read, or the restart's own wait ran out before systemd
+      # finished the start job (#151). It never reads as Fixed, and vitals_scan
+      # turns it into an `unknown` finding with the detail as its reason (#62).
       ansible.builtin.set_fact:
         linux_vitals_healing_results: >-
           {%- set observed = {'first': {}, 'final': {}} -%}
@@ -236,10 +272,19 @@
           {%- endfor -%}
           {%- set window = linux_vitals_heal_stability_seconds | int -%}
           {%- set budget = (linux_vitals_heal_settle_retries | int) * (linux_vitals_heal_settle_delay | int) -%}
+          {%- set bound = [linux_vitals_heal_restart_timeout | int, 0] | max -%}
           {%- set outcomes = [] -%}
           {%- for attempt in linux_vitals_restart_attempts.results | default([]) -%}
           {%- set key = attempt.item -%}
           {%- set errored = attempt.failed | default(false) -%}
+          {#- A restart the task's own `timeout` cut short, told apart from a
+              restart the module reported an error for (#151). ansible-core
+              2.17 and newer add a `timedout` key to the result; 2.16 says so
+              in the message only. A bare "timed out" is deliberately not
+              matched: a module error such as "Connection timed out" is a
+              restart that really did fail. -#}
+          {%- set timed_out = errored and ('timedout' in attempt
+                or 'failed to execute in the expected time frame' in (attempt.msg | default('', true))) -%}
           {%- set error_line = (attempt.msg | default('', true) | trim).splitlines() | first | default('no error message', true) -%}
           {%- set first = observed.first.get(key, {}) -%}
           {%- set came_up = not errored and first.rc | default(1) == 0 and first.ActiveState | default('') == 'active' -%}
@@ -257,8 +302,19 @@
           {%- if errored and final.rc | default(1) == 0 and state == 'failed'
                 and final.LoadState | default('') != 'not-found' -%}
           {%- set entry = ('Failed to Fix', 'still_failed', 'failed',
-                'the restart reported an error and it failed again'
+                ('the restart did not return within ' ~ bound ~ ' s and it failed again'
+                 if timed_out else 'the restart reported an error and it failed again')
                 ~ (' (result: ' ~ why ~ ')' if why else '') ~ ': ' ~ error_line) -%}
+          {#- The wait ran out before systemd finished the start job, so the
+              job is still running and nobody knows how it ended. That is
+              unknown, not a restart that errored: nothing went wrong with the
+              restart itself. It is never Fixed, because the stability window
+              never confirmed anything. -#}
+          {%- elif timed_out -%}
+          {%- set entry = ('Manual Intervention Required', 'unknown', 'restart_timeout',
+                'the restart did not return within ' ~ bound ~ ' s, so its start job was left running'
+                ~ ((' and it was ' ~ state ~ ' (' ~ final.SubState | default('') ~ ')'
+                    ~ ' at the last of the ' ~ budget ~ ' s settle budget') if state else '')) -%}
           {%- elif errored -%}
           {%- set entry = ('Manual Intervention Required', 'still_failed', 'restart_error',
                 'the restart command failed: ' ~ error_line) -%}
@@ -270,6 +326,18 @@
           {%- set entry = ('Failed to Fix', 'still_failed', 'failed',
                 ('it came up, then failed within ' ~ window ~ ' s' if came_up else 'it failed again after the restart')
                 ~ (' (result: ' ~ why ~ ')' if why else '')) -%}
+          {#- A Type=oneshot unit with no RemainAfterExit=yes is inactive once
+              it has run, so inactive plus Result=success is the success (#152).
+              Type is what tells it from a long-running unit that died and is
+              now inactive, and Result from a oneshot that was killed or timed
+              out. Read inline, out of the props dict: a bare top-level
+              Jinja result of "no" or "yes" is what ansible-core 2.16 coerces
+              to a bool. -#}
+          {%- elif state == 'inactive' and final.Type | default('') == 'oneshot'
+                and final.RemainAfterExit | default('') != 'yes' and why == 'success' -%}
+          {%- set entry = ('Fixed', 'fixed', 'ran_successfully',
+                'it ran to completion and exited successfully, which for a Type=oneshot'
+                ~ ' unit without RemainAfterExit=yes leaves it inactive') -%}
           {%- elif state == 'inactive' -%}
           {%- set entry = ('Manual Intervention Required', 'still_failed', 'inactive',
                 'it is inactive after the restart' ~ (' (result: ' ~ why ~ ')' if why else '')) -%}

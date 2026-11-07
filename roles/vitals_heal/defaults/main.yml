@@ -20,6 +20,25 @@ linux_vitals_heal_settle_retries: 10
 linux_vitals_heal_settle_delay: 3
 linux_vitals_heal_stability_seconds: 5
 
+# The longest one restart may block the run before the role stops waiting for
+# it and lets the settle poll above judge the unit (#151). `state: restarted`
+# runs `systemctl start`, which waits for the start job, and the only other
+# bound is the unit's own TimeoutStartSec= -- which systemd disables by default
+# for Type=oneshot. One enabled oneshot that hangs on a mount, a lock or a
+# metadata service otherwise blocks this role forever, and with the linear
+# strategy the whole fleet waits at that task: no host reaches vitals_report,
+# so the run produces no dashboard, no JSON report and no notification.
+#
+# 120 s is above systemd's own 90 s default start timeout, so a unit with any
+# finite TimeoutStartSec= still reaches its own verdict first and nothing that
+# completes today is cut short. Cutting the wait short does not cancel the
+# start job: systemd carries on with it, and the unit is reported
+# `unknown`/`restart_timeout` rather than fixed or failed. Raise it for hosts
+# with legitimately long-running oneshot jobs, or put those units in
+# linux_vitals_heal_exclude_services; 0 waits as long as it takes, which is
+# what the role did before this bound existed.
+linux_vitals_heal_restart_timeout: 120
+
 # Which failed units self-healing may restart (#148). Patterns are matched
 # against the unit name as service_facts reports it, with `.service` optional,
 # and accept the globs `*` and `?`. The defaults are today's behaviour: every

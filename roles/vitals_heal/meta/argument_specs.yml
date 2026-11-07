@@ -61,6 +61,31 @@ argument_specs:
           - Waited out once per host, and only on a host where at least one
             restarted unit came up. A unit that dies later than this is still
             reported C(Fixed); raise it for services known to fail slowly.
+      linux_vitals_heal_restart_timeout:
+        type: int
+        default: 120
+        description:
+          - Seconds one restart may block the run before the role stops
+            waiting for it and lets the settle poll judge the unit (#151).
+          - A restart runs C(systemctl start), which waits for the start job.
+            The only other bound is the unit's own
+            C(TimeoutStartSec=), which systemd disables by default for
+            C(Type=oneshot), so one enabled oneshot that hangs -- on a mount,
+            a lock, a metadata service -- blocks the role for as long as it
+            hangs. The shipped playbooks use the linear strategy, so every
+            other host waits at that task too and no host reaches
+            C(vitals_report).
+          - The default 120 is above systemd's own 90 second default start
+            timeout, so a unit with any finite C(TimeoutStartSec=) still
+            reaches its own verdict first.
+          - Cutting the wait short does not cancel the start job. systemd
+            carries on with it, and the unit is reported
+            C(Manual Intervention Required) with outcome C(unknown) and reason
+            C(restart_timeout), never C(Fixed) and never a plain failure.
+          - C(0) waits as long as it takes, which is what the role did before
+            this bound existed. Raise it for hosts with legitimately
+            long-running oneshot jobs, or list those units in
+            C(linux_vitals_heal_exclude_services).
       linux_vitals_heal_include_services:
         type: list
         elements: str

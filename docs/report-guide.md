@@ -359,7 +359,12 @@ When `vitals_heal` is enabled, each restart it attempts is one entry in
 each unit is polled until it is active, failed or inactive, and a unit that
 came up must still be active, on the same run, after
 `linux_vitals_heal_stability_seconds` (see
-[configuration-reference.md](configuration-reference.md#self-healing)).
+[configuration-reference.md](configuration-reference.md#self-healing)). A
+`Type=oneshot` unit is the exception: it is inactive once it has run, so it is
+judged on `Result=` instead. Each restart is also waited on for at most
+`linux_vitals_heal_restart_timeout`, so one unit that never finishes starting
+cannot hold the run open
+([the wait self-healing can add](configuration-reference.md#the-wait-self-healing-can-add-to-a-run)).
 
 ```json
 {"service": "app.service", "result": "Failed to Fix", "outcome": "still_failed", "reason": "failed", "detail": "it came up, then failed within 5 s (result: exit-code)"}
@@ -372,12 +377,14 @@ came up must still be active, on the same run, after
 | `result` | `outcome` | `reason` | Means |
 | --- | --- | --- | --- |
 | `Fixed` | `fixed` | `stayed_active` | Active after the restart and still on the same run after the stability window |
+| `Fixed` | `fixed` | `ran_successfully` | A `Type=oneshot` unit without `RemainAfterExit=yes` that ended `inactive` with `Result=success`: it ran to completion. Such a unit is inactive when it succeeds, so there is no stability window to apply |
 | `Failed to Fix` | `still_failed` | `failed` | Failed again: at once, within the stability window, or because its start job failed and the restart command reported it (`detail` then says so) |
 | `Failed to Fix` | `still_failed` | `restarted_during_check` | Active at both looks, but systemd restarted it in between: it crashed and its `Restart=` policy brought it back |
 | `Manual Intervention Required` | `still_failed` | `restart_error` | The restart command failed without leaving a failed unit behind -- the unit was not found, or its state could not be read. `detail` carries the error |
-| `Manual Intervention Required` | `still_failed` | `inactive` | It is not running after the restart, but did not fail either |
+| `Manual Intervention Required` | `still_failed` | `inactive` | It is not running after the restart, but did not fail either -- a long-running unit whose process exited, or a oneshot that did not end in `Result=success` |
 | `Manual Intervention Required` | `unknown` | `not_settled` | Still activating, deactivating or reloading when the settle budget ran out |
 | `Manual Intervention Required` | `unknown` | `check_failed` | Its state could not be read after the restart |
+| `Manual Intervention Required` | `unknown` | `restart_timeout` | The restart did not return within `linux_vitals_heal_restart_timeout`, so the role stopped waiting. systemd was left running the start job, so nobody knows how it ended |
 
 `unknown` means the check could not complete, so nobody knows whether the
 restart worked. It is never reported as `Fixed`, and its
@@ -385,6 +392,12 @@ restart worked. It is never reported as `Fixed`, and its
 `reason`. `detail` is a sentence for a human and may be reworded in any
 release; join on `reason`. An entry written before 2.2.0 has only `service`
 and `result`.
+
+`result` and `outcome` keep the three values each that they have always had.
+`reason` can gain a value in a minor release -- `ran_successfully` and
+`restart_timeout` arrived that way -- always inside one of those existing
+`outcome` values, so a consumer that joins on a `reason` it does not know
+still reads the entry correctly from `result` and `outcome`.
 
 `auto_fixed_count` and `services_healed` count `Fixed` entries only.
 

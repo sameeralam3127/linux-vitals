@@ -1,0 +1,85 @@
+---
+# Assertions for the Type=oneshot self-healing outcome (#152), included by
+# verify.yml after it has set `report`, `host_report`, `dashboard` and
+# `finding_ids`. The units are planted by tasks/heal_oneshot_prepare.yml.
+- name: Index this host's healing outcomes by unit for the oneshot checks
+  ansible.builtin.set_fact:
+    heal_oneshot_records: >-
+      {{
+        dict(
+          host_report.self_healing.healing_results | map(attribute='service')
+          | zip(host_report.self_healing.healing_results)
+        )
+      }}
+
+- name: Assert a oneshot job that re-ran successfully is reported as fixed
+  # #152: the unit is inactive because it finished, so judging it on
+  # ActiveState alone reported this success as a critical manual follow-up.
+  ansible.builtin.assert:
+    that:
+      - ok.result == 'Fixed'
+      - ok.outcome == 'fixed'
+      - ok.reason == 'ran_successfully'
+      - "'molecule-oneshot-ok.service' in host_report.self_healing.services_healed"
+      - >-
+        host_report.findings
+        | selectattr('id', 'equalto', 'service_manual_followup')
+        | selectattr('subject', 'equalto', 'molecule-oneshot-ok.service')
+        | list | length == 0
+    fail_msg: "Self-healing outcomes: {{ host_report.self_healing }}"
+  vars:
+    ok: "{{ heal_oneshot_records['molecule-oneshot-ok.service'] }}"
+
+- name: Assert a oneshot job that failed again is still not fixed
+  # The other half of the rule: Result= is what tells a run that succeeded
+  # from one that did not, so a oneshot that cannot work still fails its host.
+  ansible.builtin.assert:
+    that:
+      - bad.result == 'Failed to Fix'
+      - bad.outcome == 'still_failed'
+      - bad.reason == 'failed'
+      - "'molecule-oneshot-fail.service' not in host_report.self_healing.services_healed"
+      - >-
+        host_report.findings
+        | selectattr('id', 'equalto', 'service_manual_followup')
+        | selectattr('subject', 'equalto', 'molecule-oneshot-fail.service')
+        | selectattr('status', 'equalto', 'fail')
+        | list | length == 1
+    fail_msg: "Self-healing outcomes: {{ host_report.self_healing }}"
+  vars:
+    bad: "{{ heal_oneshot_records['molecule-oneshot-fail.service'] }}"
+
+- name: Assert the dashboard reports the oneshot job as fixed
+  ansible.builtin.assert:
+    that:
+      - "'molecule-oneshot-ok.service: Fixed' in dashboard"
+      - "'molecule-oneshot-fail.service: Failed to Fix' in dashboard"
+
+- name: Read the oneshot units' state on the host
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - show
+      - --property=ActiveState,Result
+      - --
+      - "{{ item }}"
+  register: heal_oneshot_state
+  changed_when: false
+  loop:
+    - molecule-oneshot-ok.service
+    - molecule-oneshot-fail.service
+
+- name: Assert the fixed oneshot job really is inactive and really succeeded
+  # The point of #152 in one assertion: inactive is the shape of a successful
+  # oneshot on the host, and the report has to agree with it.
+  ansible.builtin.assert:
+    that:
+      - "'ActiveState=inactive' in ok_state.stdout_lines"
+      - "'Result=success' in ok_state.stdout_lines"
+      - "'ActiveState=failed' in bad_state.stdout_lines"
+      - "'Result=exit-code' in bad_state.stdout_lines"
+    fail_msg: >-
+      oneshot unit states: {{ heal_oneshot_state.results | map(attribute='stdout') | list }}
+  vars:
+    ok_state: "{{ heal_oneshot_state.results[0] }}"
+    bad_state: "{{ heal_oneshot_state.results[1] }}"

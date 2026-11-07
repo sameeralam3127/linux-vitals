@@ -26,3 +26,27 @@
     - role: sameeralam3127.linux_vitals.vitals_scan
     - role: sameeralam3127.linux_vitals.vitals_heal
     - role: sameeralam3127.linux_vitals.vitals_report
+
+- name: Converge the bounded restart wait (#151)
+  # A second play, after the report above has been written, so a unit whose
+  # start job never completes cannot slow the run the #24 scenario times. The
+  # include list puts nothing but the hung unit in scope, and the budgets are
+  # cut down so a bound that used to be missing entirely can be proven in
+  # seconds rather than in the two minutes the defaults allow.
+  hosts: all
+  gather_facts: true
+  vars:
+    linux_vitals_heal_enabled: true
+    linux_vitals_heal_include_services:
+      - molecule-hang
+    # Long enough that the bound is what fires rather than a slow runner
+    # transferring and starting the module, short enough to prove in seconds.
+    linux_vitals_heal_restart_timeout: 15
+    linux_vitals_heal_settle_retries: 2
+    linux_vitals_heal_settle_delay: 1
+  tasks:
+    - name: Plant and heal a unit whose start job never completes
+      ansible.builtin.include_tasks:
+        file: tasks/heal_timeout_converge.yml
+      vars:
+        heal_timeout_marker: /run/molecule-hang-fail

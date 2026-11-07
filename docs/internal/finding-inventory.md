@@ -78,10 +78,17 @@ All 15 are map-classified; none computes its own severity.
 | `failed_logins` | map: info | `failed_login_attempts \| length > 0` | R4 | `discovery.yml:835` (filter), `result.yml:42` | **2 files** |
 | `selinux_disabled` | map: warning | `selinux_status not in ['Enforcing','Permissive'] and os_family == 'RedHat'` (plain fail), or `unknown` when `getenforce` could not answer on a RedHat-family host (#150) | R11, R1 `os_family` | `security.yml` (probe), `extended_facts.yml` (parse), `result.yml` | **3 files** |
 | `apparmor_disabled` | map: warning | `os_family == 'Debian' and apparmor_status != 'enabled'` | R12 (rc), R1 `os_family` | `discovery.yml:829`, `result.yml:48` | **2 files** |
-| `service_manual_followup` | map: critical | per `healing_results` entry where `result != 'Fixed'` | R2, R16, R17 | `vitals_heal/tasks/main.yml:77`, `result.yml:51` | **2 roles** |
+| `service_manual_followup` | map: critical | per `healing_results` entry where `result != 'Fixed'` | R2, R16, R17 | `vitals_heal/tasks/main.yml` (restart, verification, outcome), `result.yml` (finding) | **2 roles** |
 
 `service_manual_followup` is the only core finding that repeats within a host
 and the only one carrying a `subject` (the service name).
+
+Which entries are `result != 'Fixed'` moved twice without the finding
+changing: a `Type=oneshot` unit that ran to completion is `Fixed`
+(`ran_successfully`) and so raises nothing, and a restart the role stopped
+waiting for raises the finding as `unknown`/`restart_timeout`
+([#152](https://github.com/sameeralam3127/linux-vitals/issues/152),
+[#151](https://github.com/sameeralam3127/linux-vitals/issues/151)).
 
 ## The 8 certificate findings
 

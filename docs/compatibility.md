@@ -67,6 +67,12 @@ Not breaking:
 
 - **Adding** a variable whose default keeps the existing behaviour, a field,
   a finding `id`, or a role that is off by default.
+- **Adding a `reason` value to a self-healing outcome**, where `result` and
+  `outcome` keep their existing values. `result` and `outcome` are the
+  enumerated fields a consumer branches on; `reason` is the join key for the
+  detail behind one of them, and a consumer that does not know a new `reason`
+  still reads the entry correctly from the two fields that do not grow
+  ([self-healing outcomes](report-guide.md#self-healing-outcomes)).
 - **A new check firing on a host it did not fire on before.** Finding
   problems is the collection's job, and a host that newly fails because a new
   check found something is the release working. It is listed under *Added*.
