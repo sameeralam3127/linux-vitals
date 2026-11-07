@@ -8,6 +8,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Security
 
+- **A host's `inventory_hostname` is validated before it becomes a snapshot
+  filename** ([#176](https://github.com/sameeralam3127/linux-vitals/issues/176)).
+  `snapshot.yml` already refused a `linux_vitals_maintenance_id` or
+  `linux_vitals_snapshot_shard` that was not a single path component (#153),
+  but then wrote each host's snapshot to
+  `<maintenance id>/<phase>/{{ inventory_hostname }}.json` with no check on
+  the hostname. A host named `../host-x`, or any name holding a `/` -- which a
+  dynamic inventory can produce from a cloud tag or a container name without
+  anyone typing it -- wrote its snapshot above the phase directory, and the
+  postcheck then looked for its baseline inside that directory, found nothing,
+  and reported the host as having no baseline rather than as an error. A
+  `baseline` or `postcheck` run now fails that host, before writing anything,
+  with a message naming the host and what is wrong with the name.
+
+  The name is refused rather than rewritten: sanitising would map `web/01` and
+  `web_01` onto one filename and let one host's snapshot overwrite another's,
+  and the filename is the identity the postcheck reads a baseline back by, so
+  it has to stay equal to the inventory name. Only the badly named host fails,
+  so the rest of the fleet still gets its snapshots. Ordinary hostnames,
+  including fully qualified ones such as `web01.example.com`, are unaffected.
+
 - **The TLS certificate probe's handshake floor is pinned to TLS 1.2**
   (CodeQL `py/insecure-protocol`). `vitals_certs` built its client context
   with `ssl.PROTOCOL_TLS_CLIENT` and left the minimum protocol version to the

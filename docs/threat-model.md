@@ -122,6 +122,52 @@ is a command-injection bug, because the values available at that point --
 hostnames, mount paths, kernel strings, unit names -- are all attacker-
 influenceable on a compromised host.
 
+## Paths built from names you supply
+
+The snapshot layer is the only part of the collection that turns a supplied
+name into a filesystem path:
+`<linux_vitals_snapshot_dir>/<maintenance id>/<phase>/<inventory_hostname>.json`,
+with the shard manifest at `.../.shards/<shard id>.json`. Every component of
+that path other than the phase is checked in
+[roles/vitals_report/tasks/snapshot.yml](../roles/vitals_report/tasks/snapshot.yml)
+before anything is written:
+
+| Component | Checked |
+| --- | --- |
+| `linux_vitals_maintenance_id` | No `/` or `\`, no leading `.`, no control characters; trimmed ([#153](https://github.com/sameeralam3127/linux-vitals/issues/153)) |
+| `linux_vitals_snapshot_shard` | Empty, or letters, digits, `.`, `_`, `-` starting with a letter or digit |
+| `inventory_hostname` | No `/` or `\`, no leading `.`, no control characters ([#176](https://github.com/sameeralam3127/linux-vitals/issues/176)) |
+
+The maintenance id is the one of the three that typically arrives on a command
+line, which is why it was validated first. A hostname is weaker as an attack
+path: it comes from your own inventory, and anyone who can edit that inventory
+can already run arbitrary plays from the control node. It is checked anyway for
+two reasons. A dynamic inventory can produce a name nobody typed -- a cloud tag
+or a container name with a `/` in it -- and the consequence is a snapshot
+written above the phase directory where `compare.yml` then looks for a baseline
+that is not there, which reads as "this host has no baseline" rather than as an
+error. And the trust boundary that carries weight here is a *non-root user on a
+managed host*: nothing a host returns should be able to steer a control-node
+write, and keeping the whole path under one rule is what makes that checkable.
+
+**Each name is refused, not rewritten.** Sanitising would map two distinct
+hostnames onto one filename -- `web/01` and `web_01` both becoming
+`web_01.json` -- and one host's snapshot would silently overwrite another's,
+which is a worse outcome than a run that stops and says the name is unusable.
+The filename is also the host's identity when the postcheck reads the baseline
+back, so it has to stay equal to the inventory name.
+
+The hostname check fails only the host it names, in the same way the shard
+conflict does, so one badly named host does not cost the rest of the fleet its
+snapshots. That host then has no result in the report at all, and the run exits
+non-zero (see
+[#147](https://github.com/sameeralam3127/linux-vitals/issues/147) for the wider
+question of how a host that could not be snapshotted should be reported).
+
+`linux_vitals_snapshot_dir` itself is not validated: it is a path you choose,
+not a name interpolated into one, and pointing it somewhere is the whole point
+of the variable.
+
 ## Self-healing: what it can and cannot modify
 
 `vitals_heal` is the only component that writes to a managed host. Its

@@ -456,3 +456,85 @@ def test_an_unusable_shard_id_stops_the_run_before_anything_is_written(tmp_path:
     assert result.returncode != 0
     assert "linux_vitals_snapshot_shard must be empty, or a name of letters" in result.stdout
     assert not (tmp_path / "snapshots").exists()
+
+
+# ---------------------------------------------------------------------------
+# The hostname as a snapshot filename
+# ---------------------------------------------------------------------------
+
+HOSTNAME_REFUSED = "inventory_hostname must be usable as a filename"
+
+
+def _fleet_inventory(tmp_path: Path, *hosts: str) -> Path:
+    # The fixture playbook targets the `fleet` group; these hosts are never
+    # connected to, exactly as in snapshot_shards.ini. Written as YAML, not
+    # INI: the INI parser splits a host line with shlex and drops a backslash
+    # in a name, so an INI fixture cannot express the names under test.
+    directory = tmp_path / "inventory"
+    directory.mkdir(exist_ok=True)
+    path = directory / "fleet.yml"
+    path.write_text(
+        json.dumps({"fleet": {"hosts": {host: None for host in hosts}}}), encoding="utf-8"
+    )
+    return path
+
+
+def _files_under(root: Path) -> list[str]:
+    return sorted(str(path.relative_to(root)) for path in root.rglob("*") if path.is_file())
+
+
+@pytest.mark.parametrize(
+    "hostname",
+    [
+        # The phase directory's parent exists, so this one wrote a snapshot
+        # one level above the set -- successfully, and silently.
+        "../host-x",
+        "../../etc-host",
+        "a/b",
+        "a\\b",
+        ".hidden",
+        "..",
+        "bad\x01host",
+    ],
+)
+def test_an_unusable_hostname_stops_before_writing_a_snapshot(
+    tmp_path: Path, hostname: str
+) -> None:
+    # The hostname is the snapshot's filename. A name that is not a single
+    # path component puts the file outside <maintenance_id>/<phase>/, where
+    # the postcheck will not look for it.
+    inventory = _fleet_inventory(tmp_path, "host-a", hostname)
+
+    result = _run(["-i", str(inventory), str(SHARD_PLAYBOOK)], tmp_path)
+
+    assert result.returncode != 0
+    assert HOSTNAME_REFUSED in result.stdout
+    # The well-named host is still snapshotted: the check is per host, like
+    # the name it checks. Nothing else is written anywhere.
+    assert _files_under(tmp_path) == [
+        "inventory/fleet.yml",
+        str(SHARDS_DIR / "default.json"),
+        str(PHASE_DIR / "host-a.json"),
+    ]
+
+
+@pytest.mark.parametrize(
+    "hostname",
+    [
+        "web01.example.com",
+        "db_02",
+        "cache-03",
+        "host.with.many.dots",
+        "HOST-UPPER",
+        "10.0.0.7",
+    ],
+)
+def test_ordinary_hostnames_are_still_snapshotted(tmp_path: Path, hostname: str) -> None:
+    inventory = _fleet_inventory(tmp_path, hostname)
+
+    _no_warnings(_ok(_run(["-i", str(inventory), str(SHARD_PLAYBOOK)], tmp_path)))
+
+    snapshot = json.loads((tmp_path / PHASE_DIR / f"{hostname}.json").read_text(encoding="utf-8"))
+    assert snapshot["hostname"] == hostname
+    assert _snapshotted_hosts(tmp_path) == [hostname]
+    assert _manifest(tmp_path, "default")["hosts"] == [hostname]
