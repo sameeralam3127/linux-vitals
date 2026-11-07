@@ -193,6 +193,15 @@ no longer grows what reaches the control node. What may still need tuning:
   syslog priority prefix is stored at `info`, and only `info` -- every entry --
   would count it, so check such a service directly, or have it prefix its
   error lines with `<3>`, which journald reads as `err` by default.
+- **A kernel-failure line you expected is not counted.** The scan drops
+  Ansible module-invocation log lines -- `ansible-<module> Invoked with
+  <args>`, written to the target journal by every module as it starts -- since
+  [#133](https://github.com/sameeralam3127/linux-vitals/issues/133), because
+  two of its own probes carry text in their arguments that the pattern
+  matches. The `Confirm` command under
+  [`kernel_install_failures`](runbook.md#kernel_install_failures) shows the
+  exact pipeline; drop its last `grep` to see what is being ignored. Nothing a
+  kernel install, dracut, initramfs or bootloader tool logs is affected.
 - **The kernel-failure scan is slow.** It reads the whole
   `linux_vitals_audit_log_window` (default 7 days) on the host and sends only
   the matching lines, so on a large journal it can be the slowest probe.

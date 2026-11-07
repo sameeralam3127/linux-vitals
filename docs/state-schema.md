@@ -232,9 +232,11 @@ strings, same reasoning as `reboot_required.packages` above.
 [#23](https://github.com/sameeralam3127/linux-vitals/issues/23) both filter
 on the host: `logs` holds only entries at `linux_vitals_log_priority` or
 worse, newest first (`journalctl --reverse`), and `audit_logs` only lines
-matching the kernel-failure pattern, oldest first. Each holds at most
-`linux_vitals_log_max_lines` lines, the newest ones. A fixture holds the
-same, so it never carries a line the probe would not have returned.
+matching the kernel-failure pattern, oldest first, less Ansible's own
+`ansible-<module> Invoked with <args>` log lines
+([#133](https://github.com/sameeralam3127/linux-vitals/issues/133)). Each
+holds at most `linux_vitals_log_max_lines` lines, the newest ones. A fixture
+holds the same, so it never carries a line the probe would not have returned.
 
 ### `healing`, `certificates`
 

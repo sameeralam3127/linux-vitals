@@ -79,22 +79,23 @@ def test_error_scan_filters_by_priority_and_caps_on_the_host() -> None:
 # The kernel-failure scan: a grep pipeline on the host
 # ---------------------------------------------------------------------------
 
-def _audit_argv() -> tuple[str, str, str, str]:
+def _audit_argv() -> tuple[str, str, str, str, str]:
     argv = _task(AUDIT_PROBE)["ansible.builtin.command"]["argv"]
     assert argv[:2] == ["bash", "-c"], "the pipeline needs bash for pipefail"
-    script, name, window, pattern, cap = argv[2:]
+    script, name, window, pattern, exclude, cap = argv[2:]
     assert window == "{{ linux_vitals_audit_log_window }}"
     assert cap == "{{ linux_vitals_log_max_lines | int }}"
-    return script, name, pattern, cap
+    return script, name, pattern, exclude, cap
 
 
 def test_audit_script_takes_every_templated_value_as_a_parameter() -> None:
     # docs/threat-model.md: a shell script with a {{ }} in it is a
     # command-injection bug. Values go in their own argv elements.
-    script, _, pattern, _ = _audit_argv()
+    script, _, pattern, exclude, _ = _audit_argv()
 
     assert "{{" not in script and "{%" not in script
     assert "{{" not in pattern
+    assert "{{" not in exclude
     assert "set -o pipefail" in script
 
 
@@ -108,7 +109,7 @@ def _run_audit_probe(
     grep_rc: int | None = None,
 ) -> subprocess.CompletedProcess:
     """Run the real probe script against a stub journalctl."""
-    script, name, pattern, _ = _audit_argv()
+    script, name, pattern, exclude, _ = _audit_argv()
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     (tmp_path / "journal.out").write_text(journal, encoding="utf-8")
@@ -132,7 +133,7 @@ def _run_audit_probe(
     assert bash, "bash is required to run the kernel-failure probe script"
     env = dict(os.environ, PATH=f"{bin_dir}{os.pathsep}{os.environ['PATH']}", LC_ALL="C")
     return subprocess.run(
-        [bash, "-c", script, name, "7 days ago", pattern, str(cap)],
+        [bash, "-c", script, name, "7 days ago", pattern, exclude, str(cap)],
         capture_output=True,
         text=True,
         env=env,
@@ -241,6 +242,125 @@ def test_audit_probe_keeps_only_the_newest_matches_up_to_the_cap(tmp_path: Path)
 
     assert completed.returncode == 0
     assert completed.stdout.splitlines() == journal.splitlines()[-3:]
+
+
+# ---------------------------------------------------------------------------
+# The scan's own footprint in the journal (#133)
+# ---------------------------------------------------------------------------
+
+def _invocation_line(timestamp: str, argv: list[str], *, via_syslog: bool = False) -> str:
+    """How Ansible records a module start in the target's journal.
+
+    With systemd's python bindings present, `AnsibleModule.log` sends
+    `ansible-<module> Invoked with <args>` and the identifier is the
+    interpreter. Without them it falls back to syslog, which puts
+    `ansible-<module>` in the identifier and starts the message at
+    `Invoked with`. The command module reprs its argv either way, so even a
+    multi-line script is logged on one physical line.
+    """
+    head = (
+        f"{timestamp} db-02 ansible-ansible.legacy.command[7564]: "
+        if via_syslog
+        else f"{timestamp} db-02 python3[7564]: ansible-ansible.legacy.command "
+    )
+    return (
+        f"{head}Invoked with argv={argv!r} _uses_shell=False "
+        "stdin_add_newline=True strip_empty_ends=True _raw_params=None"
+    )
+
+
+def _audit_probe_invocation(timestamp: str, **kwargs: bool) -> str:
+    """This probe's own invocation line, built from its real argv."""
+    script, name, pattern, exclude, _ = _audit_argv()
+    return _invocation_line(
+        timestamp,
+        ["bash", "-c", script, name, "7 days ago", pattern, exclude, "2000"],
+        **kwargs,
+    )
+
+
+def _bootloader_probe_invocation(timestamp: str, **kwargs: bool) -> str:
+    """The bootloader probe's invocation line: its script mentions GRUB and failure."""
+    script = (
+        REPO_ROOT / "roles" / "vitals_scan" / "files" / "bootloader_probe.sh"
+    ).read_text(encoding="utf-8")
+    return _invocation_line(timestamp, ["sh", "-c", script], **kwargs)
+
+
+def _self_lines() -> list[str]:
+    return [
+        _audit_probe_invocation("2026-09-23T18:37:04+0000"),
+        _bootloader_probe_invocation("2026-09-23T18:37:02+0000"),
+        # An earlier run's lines are in the window too, and are what made the
+        # count grow by one per run.
+        _audit_probe_invocation("2026-09-25T18:37:04+0000"),
+        _bootloader_probe_invocation("2026-09-25T18:37:02+0000"),
+        # A host without systemd's python bindings logs the same thing through
+        # syslog, which moves `ansible-<module>` into the identifier.
+        _audit_probe_invocation("2026-09-26T18:37:04+0000", via_syslog=True),
+        _bootloader_probe_invocation("2026-09-26T18:37:02+0000", via_syslog=True),
+    ]
+
+
+def test_the_scans_own_invocation_lines_do_match_the_pattern() -> None:
+    # The premise of #133: without the exclusion these lines are counted as
+    # kernel install failures. If this ever stops holding, the regression
+    # test below would pass for the wrong reason.
+    for line in _self_lines():
+        assert re.findall(PRE_23_KERNEL_FAILURE_REGEX, line) == [line]
+
+
+def test_the_scan_never_counts_its_own_invocation_lines(tmp_path: Path) -> None:
+    # #133: the probe's arguments carry the pattern, and the bootloader
+    # probe's embedded script mentions GRUB and failure, so both lines were
+    # counted -- from this run and from every earlier run still in the
+    # window. The genuine failures in the same journal must be untouched.
+    corpus = AUDIT_CORPUS.splitlines()
+    journal = "\n".join(corpus[:5] + _self_lines() + corpus[5:]) + "\n"
+
+    completed = _run_audit_probe(tmp_path, journal=journal)
+
+    assert completed.returncode == 0
+    assert completed.stdout.splitlines() == re.findall(PRE_23_KERNEL_FAILURE_REGEX, AUDIT_CORPUS)
+
+
+def test_a_journal_holding_only_the_scans_own_lines_is_a_clean_read(tmp_path: Path) -> None:
+    # The exclusion exits 1 when it selects nothing, exactly as the match
+    # grep does. A host whose only matching lines were the scan's own reports
+    # zero, not `unknown`.
+    completed = _run_audit_probe(tmp_path, journal="\n".join(_self_lines()) + "\n")
+
+    assert completed.returncode == 0
+    assert completed.stdout == ""
+
+
+def test_the_exclusions_are_the_probe_marker_and_the_ansible_log_shape() -> None:
+    script, name, pattern, exclude, _ = _audit_argv()
+
+    # The marker is excluded as "$0" -- the very argv element the probe is
+    # invoked with -- so the exclusion cannot drift from what gets logged.
+    assert 'grep -a -v -E -e "$0" -e "$3"' in script
+    assert name == "linux-vitals-audit-scan"
+    # It is used as an ERE, so it must hold no regex metacharacter.
+    assert not set(name) & set(".[]()*+?{}|^$\\")
+    # The marker sits before the pattern in argv: a log line truncated short
+    # of the pattern cannot match, so one that matches always carries it.
+    argv = _task(AUDIT_PROBE)["ansible.builtin.command"]["argv"]
+    assert argv.index(name) < argv.index(pattern)
+    assert exclude == "ansible-[^ ]+ Invoked with"
+
+
+def test_neither_exclusion_can_select_a_genuine_failure_line() -> None:
+    # The over-filtering guard. An `Invoked with` line records a module
+    # starting; no kernel-install, dracut, initramfs or bootloader tool
+    # writes those words, and none writes the probe's marker either.
+    _, name, _, exclude, _ = _audit_argv()
+
+    genuine = re.findall(PRE_23_KERNEL_FAILURE_REGEX, AUDIT_CORPUS)
+    assert len(genuine) == 7
+    for line in genuine:
+        assert name not in line
+        assert re.search(exclude, line) is None
 
 
 # ---------------------------------------------------------------------------
@@ -404,6 +524,12 @@ def test_audit_log_fixtures_hold_only_lines_the_host_side_grep_returns(path: Pat
     lines = [line for line in (stdout or "").splitlines() if line]
 
     assert lines == re.findall(PRE_23_KERNEL_FAILURE_REGEX, stdout or "")
+    # The probe also drops its own and other modules' invocation lines on the
+    # host (#133), so a fixture modelling its output holds none of them.
+    _, name, _, exclude, _ = _audit_argv()
+    for line in lines:
+        assert name not in line
+        assert re.search(exclude, line) is None
 
 
 # ---------------------------------------------------------------------------
@@ -436,6 +562,49 @@ def test_molecule_floods_the_journal_past_the_cap_and_asserts_the_bound() -> Non
     assert "linux_vitals_log_errors | int == vitals_flood_cap | int" in rules
     assert "linux_vitals_kernel_install_failures | int == vitals_flood_cap | int" in rules
     assert "linux_vitals_log_matches is not defined" in rules
+
+
+def test_molecule_asserts_the_scan_excludes_its_own_journal_footprint() -> None:
+    # The unit tests above stub journalctl, so Ansible's own log lines never
+    # reach them. Only Molecule proves the exclusion against a real journal
+    # holding the invocation lines of earlier runs (#133).
+    play = yaml.safe_load((MOLECULE_RESOURCES / "verify.yml").read_text(encoding="utf-8"))[0]
+    include = play["tasks"][-2]
+    assert include["ansible.builtin.include_tasks"] == "tasks/journal_self_exclusion.yml"
+    # Before the flood, whose 5000 matching lines would swamp the counts this
+    # compares.
+    assert play["tasks"][-1]["ansible.builtin.include_tasks"] == "tasks/journal_bound.yml"
+
+    tasks = yaml.safe_load(
+        (MOLECULE_RESOURCES / "tasks" / "journal_self_exclusion.yml").read_text(encoding="utf-8")
+    )
+    # Two scans, so the first one's own invocation lines are in the journal
+    # the second one reads.
+    scans = [task for task in tasks if "ansible.builtin.include_role" in task]
+    assert len(scans) == 2
+    assert {task["ansible.builtin.include_role"]["name"].rsplit(".", 1)[-1] for task in scans} == {"vitals_scan"}
+
+    _, name, pattern, exclude, _ = _audit_argv()
+    injected = " ".join(
+        task["ansible.builtin.command"]["stdin"]
+        for task in tasks
+        if task.get("ansible.builtin.command", {}).get("argv", [None])[0] == "systemd-cat"
+    )
+    # What is injected really is an invocation log carrying this probe's own
+    # marker and pattern, plus a genuine failure the exclusion must keep.
+    assert re.search(exclude, injected)
+    assert name in injected
+    assert pattern in injected
+    assert re.search(PRE_23_KERNEL_FAILURE_REGEX, "x kernel-install: 50-dracut.install failed with exit status 1")
+
+    rules = " ".join(
+        next(task for task in tasks if "ansible.builtin.assert" in task)["ansible.builtin.assert"]["that"]
+    )
+    # The count grew by exactly the one genuine failure, and nothing the probe
+    # returned is an invocation log.
+    assert "linux_vitals_kernel_install_failures | int == vitals_self_baseline_count | int + 1" in rules
+    assert "stdout is not search('Invoked with')" in rules
+    assert f"stdout is not search('{name}')" in rules
 
 
 def test_scan_defaults_bound_the_journal() -> None:

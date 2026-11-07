@@ -1,0 +1,120 @@
+---
+# The scan must not count its own Ansible invocation lines (#133). Every
+# module logs `ansible-<module> Invoked with <args>` to the target journal as
+# it starts, and the kernel-failure probe's own arguments carry the pattern it
+# greps for, so before the fix every run counted itself and the count grew by
+# one per run per probe until the lines aged out of the window.
+#
+# This asserts the behaviour against a real journal, which the unit tests
+# cannot: they stub journalctl, so Ansible's own log lines never reach them.
+#
+# It deliberately does not assert "kernel_install_failures is 0 on a clean
+# host". A container's own journal legitimately holds lines such as
+# `sys-kernel-config.mount: Failed with result 'exit-code'`, which this
+# pattern has always matched. The bug was a count that grows per run, so what
+# is asserted is that it does not, and that a genuine failure still counts.
+#
+# Included before tasks/journal_bound.yml, which floods the journal.
+
+- name: Scan the journal once to get a baseline kernel-failure count
+  # The converge and the verify tasks before this one have already written
+  # their own invocation lines, so lines from earlier runs are in the window.
+  ansible.builtin.include_role:
+    name: sameeralam3127.linux_vitals.vitals_scan
+
+- name: Remember the baseline count and what it was read from
+  ansible.builtin.set_fact:
+    vitals_self_baseline_count: "{{ linux_vitals_kernel_install_failures }}"
+    vitals_self_baseline_rc: "{{ linux_vitals_audit_journalctl.rc }}"
+
+- name: Write lines shaped exactly like this probe's own invocation log
+  # python3 as the identifier and `ansible-<module> Invoked with` as the
+  # message is how Ansible records a module start. These carry the probe's
+  # marker and its grep pattern as literals, so the pattern matches them
+  # exactly as it matches the real thing.
+  ansible.builtin.command:
+    argv:
+      - systemd-cat
+      - --identifier=python3
+    stdin: |
+      ansible-ansible.legacy.command Invoked with argv=['bash', '-c', 'linux-vitals-audit-scan', '(kernel|grub|dracut|initramfs).*(fail|error)'] 1
+      ansible-ansible.legacy.command Invoked with argv=['bash', '-c', 'linux-vitals-audit-scan', '(kernel|grub|dracut|initramfs).*(fail|error)'] 2
+      ansible-ansible.legacy.command Invoked with argv=['bash', '-c', 'linux-vitals-audit-scan', '(kernel|grub|dracut|initramfs).*(fail|error)'] 3
+    stdin_add_newline: false
+  changed_when: true
+
+- name: Write one genuine kernel install failure next to them
+  # The over-filtering guard: the exclusion must still leave this counted.
+  ansible.builtin.command:
+    argv:
+      - systemd-cat
+      - --identifier=vitals-kernel-install
+    stdin: |
+      kernel-install: 50-dracut.install failed with exit status 1
+    stdin_add_newline: false
+  changed_when: true
+
+- name: Write the injected lines out to the journal files
+  ansible.builtin.command:
+    argv:
+      - journalctl
+      - --sync
+  changed_when: false
+
+- name: Confirm the journal really holds every injected line
+  # Without this the assertion below could hold because journald dropped the
+  # lines rather than because the scan excluded them.
+  ansible.builtin.command:
+    argv:
+      - journalctl
+      - --system
+      - --since
+      - "{{ linux_vitals_audit_log_window }}"
+      - --output=cat
+      - --no-pager
+  environment:
+    LC_ALL: C
+  register: vitals_self_stored
+  changed_when: false
+  failed_when: >-
+    vitals_self_stored.rc != 0
+    or vitals_self_stored.stdout_lines
+    | select('search', 'linux-vitals-audit-scan') | list | length < 3
+    or vitals_self_stored.stdout_lines
+    | select('search', '50-dracut.install failed') | list | length < 1
+
+- name: Scan the journal again, now that it holds those lines
+  ansible.builtin.include_role:
+    name: sameeralam3127.linux_vitals.vitals_scan
+
+- name: Assert the scan counted the genuine failure and none of its own lines
+  ansible.builtin.assert:
+    that:
+      # Both reads succeeded, so neither count is an unknown read.
+      - vitals_self_baseline_rc | int == 0
+      - linux_vitals_audit_journalctl.rc | int == 0
+      # The three injected invocation lines, the invocation lines the baseline
+      # scan wrote between the two reads, and this scan's own, are all
+      # dropped. Only the genuine failure is new.
+      - linux_vitals_kernel_install_failures | int == vitals_self_baseline_count | int + 1
+      # Nothing the probe returned is an Ansible invocation log.
+      - linux_vitals_audit_journalctl.stdout is not search('linux-vitals-audit-scan')
+      - linux_vitals_audit_journalctl.stdout is not search('Invoked with')
+      # The genuine failure reached the control node,
+      - linux_vitals_audit_journalctl.stdout is search('50-dracut.install failed')
+      # and it is a plain finding, not an unknown read.
+      - audit_finding | length == 1
+      - audit_finding[0].status == 'fail'
+    fail_msg: >-
+      Baseline kernel_install_failures={{ vitals_self_baseline_count }},
+      after injecting three invocation lines and one genuine
+      failure={{ linux_vitals_kernel_install_failures }}; excerpt
+      {{ linux_vitals_kernel_install_failure_excerpt }}; finding
+      {{ audit_finding }}
+  vars:
+    audit_finding: >-
+      {{
+        linux_vitals_result.findings
+        | selectattr('id', 'equalto', 'kernel_install_failures')
+        | list
+      }}
