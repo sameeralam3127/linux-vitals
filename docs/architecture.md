@@ -245,9 +245,21 @@ the order of the tasks. Every task also carries `discovery`, applied by
 
 A new check belongs in its own file, imported from `discovery.yml` at the
 point its inputs exist. `tests/test_scan_task_size.py` fails if a task file
-in the role grows past 250 lines. The one exception is `bootloader.yml`,
-whose single task embeds a 287-line shell script; it is pinned at its
-current length.
+in the role grows past 250 lines, and nothing is exempt any more.
+`bootloader.yml` was the last exception, pinned while its single task
+embedded a ~350-line shell script, until that script moved to
+`files/bootloader_probe.sh`
+([#150](https://github.com/sameeralam3127/linux-vitals/issues/150)).
+
+A probe whose script outgrows its task file belongs in `files/`, read with
+`lookup('ansible.builtin.file', ...)` and still handed to `sh -c` as text.
+Not `ansible.builtin.script`: that transfers and executes a file on the
+managed host, so it needs an exec bit and a writable, non-noexec temporary
+directory there, and would fail on exactly the hardened hosts most likely to
+run this collection. Reading the file on the controller changes where the
+text comes from and nothing about how it runs -- and a script in `files/` is
+covered by the repo's shellcheck hook, which it is not while embedded in
+YAML.
 
 ## The finding object, and the finding contract
 
