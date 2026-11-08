@@ -475,6 +475,13 @@
               {{ linux_vitals_result.findings | selectattr('id', 'equalto', 'failed_logins') | list }}
 
     # ------------------------------------------------------------------
+    # The scan does not count its own invocation lines (#133). Before the
+    # journal flood below, which would swamp the counts it compares.
+    # ------------------------------------------------------------------
+    - name: Check that the scan excludes its own journal footprint
+      ansible.builtin.include_tasks: tasks/journal_self_exclusion.yml
+
+    # ------------------------------------------------------------------
     # Bounded journal scans (#23). Last, because it floods the journal.
     # ------------------------------------------------------------------
     - name: Check that a flooded journal still yields a bounded scan result
