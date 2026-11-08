@@ -119,7 +119,7 @@ That is the whole loop. Everything below is optional.
 | **Services** | `sssd`, `systemd-journald`, the resolved time-sync unit, **every enabled unit systemd reports as failed**, and any unit you name in `linux_vitals_required_services` |
 | **Logs** | Journal entries at priority `err` or worse (configurable) in a bounded window, plus kernel/bootloader install failures |
 | **Kernel & boot** | Running vs. latest installed kernel, bootloader default entry, reboot-required (per distro), `/boot` free space, rescue image |
-| **Security** | SELinux, AppArmor, recent failed logins |
+| **Security** | SELinux, AppArmor, recent failed logins, firewall state, SSH daemon hardening, kernel taint flags, processes holding deleted shared libraries open |
 | **TLS** *(opt-in)* | Certificate expiry, weak signatures, obsolete TLS versions, served-vs-on-disk mismatches |
 
 Every finding carries a **severity**, and each host rolls up to the worst one it
@@ -131,6 +131,11 @@ unreadable -- raises its finding as `unknown` with the reason, rather than
 leaving the host reading clean. A host where something could not be checked
 never counts towards the fleet health score, whatever your severity threshold
 is: see [Status](docs/report-guide.md#status-when-a-check-could-not-run).
+
+The same rule holds a level up: a host that failed mid-scan or could never be
+reached is reported in `summary.unreported_hosts`, not silently dropped, and
+it lowers the fleet health score rather than leaving the denominator -- a run
+where half the fleet was unreachable can no longer read as 100% healthy.
 
 ---
 
@@ -247,6 +252,11 @@ linux_vitals_heal_max_restarts: 3                # 0 (default) = no limit
 # Only act inside this window, on the managed host's own clock.
 linux_vitals_heal_window_start: "22:00"          # "" (default) = any time
 linux_vitals_heal_window_end: "02:00"            # an end before the start spans midnight
+
+# Seconds one restart may block the run. The only other bound is the unit's
+# own TimeoutStartSec=, which systemd disables by default for Type=oneshot,
+# so a single hung start job otherwise stalls every other host in the run.
+linux_vitals_heal_restart_timeout: 120           # 0 = wait as long as it takes
 ```
 
 Use the exclude list for anything you would not restart unattended — a
@@ -256,6 +266,12 @@ again from the start. The cap exists for the other failure mode: twenty units
 failing at once usually has one cause a restart will not fix, so over the
 limit the host is left entirely alone rather than having an arbitrary subset
 restarted.
+
+A restart cut short by the timeout is reported `Manual Intervention Required`
+with reason `restart_timeout` rather than claiming either outcome; the start
+job itself is not cancelled. A `Type=oneshot` unit that runs to completion is
+correctly reported `Fixed` -- it settles to `inactive`, not `active`, which
+the outcome logic now tells apart from a long-running unit that died.
 
 A unit the policy leaves alone is never silently dropped — it is reported
 under `self_healing.skipped_by_policy` with the reason, so the report says why
@@ -295,6 +311,28 @@ findings that are.
 > Read [the threat model](docs/threat-model.md#vitals_certs-the-only-role-that-opens-a-connection)
 > before enabling endpoint checks. This is the only role that opens outbound
 > connections, and reading `/etc/letsencrypt/live` needs `become`.
+
+---
+
+## Metrics and CSV exports (opt-in)
+
+```yaml
+linux_vitals_metrics_output_path: "/var/lib/node_exporter/textfile_collector/linux_vitals.prom"
+linux_vitals_csv_output_path: "{{ inventory_dir }}/reports/linux_vitals_report.csv"
+```
+
+Both default to empty — nothing is written until you set one. Both are built
+on the controller from the same results already collected for the HTML and
+JSON reports, so enabling them adds no host checks and no HTTP endpoint.
+
+The Prometheus export is six gauge families in text exposition format 0.0.4,
+ready for [node_exporter's textfile collector](https://github.com/prometheus/node_exporter#textfile-collector).
+Unknown checks stay distinguishable from failures in both outputs — a host
+whose reboot state could not be determined reports `NaN`, not `0`, so
+`linux_vitals_reboot_required == 0` never counts an unmeasured host as safe.
+The CSV is a fixed 22-column table; cells that look like spreadsheet formulas
+get an apostrophe prefix, which is lossy, so read the JSON report when you
+need exact strings back.
 
 ---
 
@@ -390,7 +428,7 @@ flowchart TB
     subgraph OUT["What you get"]
         direction LR
         HTML["<b>Dashboard</b><br/>one HTML file"]
-        JSON["<b>JSON report</b><br/>schema 2.3"]
+        JSON["<b>JSON report</b><br/>schema 2.4"]
         SNAP["<b>Snapshots</b><br/>before → after"]
         MSG["<b>Notifications</b><br/>Slack · email<br/>webhook"]
         HTML ~~~ JSON ~~~ SNAP ~~~ MSG
@@ -415,7 +453,7 @@ Why the roles share one variable namespace, and why paths resolve from
 
 ### Consuming the JSON
 
-`reports/linux_vitals_report.json` is **schema 2.3**. Findings are objects
+`reports/linux_vitals_report.json` is **schema 2.4**. Findings are objects
 (`{id, message, severity, status, references}`, plus a `reason` when `status`
 is `unknown`), not strings, and each carries a stable `id` you can join on —
 `message` wording may change between releases, ids will not. `references` is
@@ -426,7 +464,9 @@ before any mapping is published.
 Each host also carries `filesystems` (per-mount space and inodes),
 `pressure` (load, PSI and swap), `failed_units`, `unknown_count`, and
 `self_healing.skipped_by_policy` (failed units a restart was never attempted
-on, with the reason).
+on, with the reason). The summary carries `unreported_hosts`,
+`unreported_host_count`, and `missing_postcheck_count` -- hosts the play
+could not scan at all, reported rather than dropped.
 Full schema and every field: **[Report Guide](docs/report-guide.md#json-report)**.
 
 ---
