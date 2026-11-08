@@ -82,6 +82,17 @@ Not breaking:
   core already returned the documented type, as #81 did for the comparison's
   RAM fields. The CHANGELOG still says so at the top of the entry, because a
   consumer may have adapted to the wrong type.
+- **Counting a host the run could not scan.** Before
+  [#147](https://github.com/sameeralam3127/linux-vitals/issues/147) a host
+  that was unreachable or failed mid-play was absent from the report, so the
+  fleet health score was computed over the survivors and `overall_status`
+  could read `PASS` while part of the fleet went unscanned. Naming those
+  hosts is additive -- a new summary field, and no change to `hosts[]` or to
+  `final_status`. Counting them moves `health_score_pct` and `overall_status`,
+  but only on runs `ansible-playbook` already exited non-zero on, where the
+  report was wrong about them: that is fixing behaviour that never worked
+  rather than a new outcome anyone opted out of. The CHANGELOG entry opens
+  with who notices.
 
 When a change is borderline, the CHANGELOG entry says who could notice and
 what they would do, whichever way it is classified.

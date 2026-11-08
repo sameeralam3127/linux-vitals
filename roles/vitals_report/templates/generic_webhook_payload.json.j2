@@ -1,7 +1,7 @@
 {
   "summary": {
     "header": {{ linux_vitals_slack_message_header | to_json }},
-    "overall_status": {{ ('PASS' if linux_vitals_summary.critical_error_count | int == 0 else 'FAIL') | to_json }},
+    "overall_status": {{ linux_vitals_summary.overall_status | default('PASS' if linux_vitals_summary.critical_error_count | int == 0 else 'FAIL', true) | to_json }},
     "servers_checked": {{ linux_vitals_summary.servers_checked | int }},
     "auto_fixed_count": {{ linux_vitals_summary.auto_fixed_count | int }},
     "critical_error_count": {{ linux_vitals_summary.critical_error_count | int }},
@@ -9,6 +9,13 @@
     "hosts_by_severity": {{ linux_vitals_summary.hosts_by_severity | default({}) | to_json }},
     "findings_by_severity": {{ linux_vitals_summary.findings_by_severity | default({}) | to_json }},
     "unknown_host_count": {{ linux_vitals_summary.unknown_host_count | default(0) | int }},
+    {#- `hosts` below is a deliberate per-host subset, and a host that produced
+       no result has no fields to subset -- so an unreachable host would be
+       invisible in this payload if it were only ever a host row (#147). It is
+       named here, in the summary, which this payload carries in full. #}
+    "unreported_host_count": {{ linux_vitals_summary.unreported_host_count | default(0) | int }},
+    "missing_postcheck_count": {{ linux_vitals_summary.missing_postcheck_count | default(0) | int }},
+    "unreported_hosts": {{ linux_vitals_summary.unreported_hosts | default([]) | to_json }},
     "snippet": {{ linux_vitals_summary.snippet | to_json }}
   },
   "message": {{ linux_vitals_notification_message | to_json }},

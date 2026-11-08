@@ -26,9 +26,9 @@
   object, which is what caps the row count.
 
   Slack limits respected below:
-    - 50 blocks per message            -> 9 at most, regardless of fleet size
+    - 50 blocks per message            -> 10 at most, regardless of fleet size
     - 3000 characters per text object  -> host rows clamped (see budget)
-    - 10 fields per section block      -> 4 used
+    - 10 fields per section block      -> 5 used
     - 150 characters per plain_text header
 -#}
 {#- Slack mrkdwn escaping. Truncate first, then escape, so an entity can
@@ -46,11 +46,17 @@
 {%- set hbs = linux_vitals_summary.hosts_by_severity | default({}) -%}
 {%- set fbs = linux_vitals_summary.findings_by_severity | default({}) -%}
 {%- set failing_hosts = linux_vitals_summary.critical_error_count | int -%}
-{#- The PASS/FAIL word is derived exactly as slack_message.txt.j2 and
-    generic_webhook_payload.json.j2 derive it. Severity only chooses the
-    colour bar, so the three consumers can never disagree on the verdict. -#}
-{%- set status_word = 'PASS' if failing_hosts == 0 else 'FAIL' -%}
-{%- if failing_hosts > 0 or (hbs.get('critical', 0) | int) > 0 -%}
+{#- Hosts the play targeted that produced no result (#147). A fleet where one
+    host never answered is not a green fleet, so they drive the verdict and the
+    colour bar as well as being listed. -#}
+{%- set unreported = linux_vitals_summary.unreported_hosts | default([]) -%}
+{%- set unreported_count = unreported | length -%}
+{#- The PASS/FAIL word comes from the summary, which render.yml derives once
+    for every consumer, so this message, the plain-text one, the webhook
+    payload and the JSON report can never disagree on the verdict. Severity
+    only chooses the colour bar. -#}
+{%- set status_word = linux_vitals_summary.overall_status | default('PASS' if failing_hosts == 0 else 'FAIL', true) -%}
+{%- if failing_hosts > 0 or unreported_count > 0 or (hbs.get('critical', 0) | int) > 0 -%}
 {%- set colour = '#e01e5a' -%}
 {%- set status_icon = ':rotating_light:' -%}
 {%- elif (hbs.get('warning', 0) | int) > 0 -%}
@@ -109,13 +115,26 @@
     {'type': 'mrkdwn', 'text': '*Auto-fixed*\n' ~ (linux_vitals_summary.auto_fixed_count | int)},
     {'type': 'mrkdwn', 'text': '*Failing hosts*\n' ~ failing_hosts},
     {'type': 'mrkdwn', 'text': '*Health score*\n' ~ (linux_vitals_summary.health_score_pct | default(0)) ~ '% (' ~ esc(linux_vitals_summary.health_score_band | default('Unknown'), 40) ~ ')'}
-  ]
+  ] + ([{'type': 'mrkdwn', 'text': '*Not checked*\n' ~ unreported_count}] if unreported_count > 0 else [])
 }) -%}
 {#- 4. Severity roll-up, only when there is anything to roll up -#}
 {%- if (fbs.get('critical', 0) | int) + (fbs.get('warning', 0) | int) + (fbs.get('info', 0) | int) > 0 -%}
 {%- set _ = ns.blocks.append({
   'type': 'context',
   'elements': [{'type': 'mrkdwn', 'text': '*Findings* ' ~ (fbs.get('critical', 0) | int) ~ ' critical · ' ~ (fbs.get('warning', 0) | int) ~ ' warning · ' ~ (fbs.get('info', 0) | int) ~ ' info  ·  *Hosts* ' ~ (hbs.get('critical', 0) | int) ~ ' critical · ' ~ (hbs.get('warning', 0) | int) ~ ' warning'}]
+}) -%}
+{%- endif -%}
+{#- 4b. Hosts that produced no result, named. Above "needs attention first":
+    a host nobody could reach is less known than a host with a critical
+    finding, and it is the one the dashboard and this message used to omit. -#}
+{%- if unreported_count > 0 -%}
+{%- set unreported_names = [] -%}
+{%- for entry in unreported -%}
+{%- set _ = unreported_names.append('`' ~ cell(entry.inventory_name, 60) ~ '`' ~ (' (had a baseline)' if entry.baseline_available | default(false) else '')) -%}
+{%- endfor -%}
+{%- set _ = ns.blocks.append({
+  'type': 'section',
+  'text': {'type': 'mrkdwn', 'text': (':no_entry: *Not checked — ' ~ unreported_count ~ ' targeted host(s) produced no health result*\nUnreachable, or the play failed on them. Nothing below covers these hosts.\n' ~ (unreported_names[:25] | join(', ')) ~ ('' if unreported_count <= 25 else ', …')) | truncate(2900, true, '…', 0)}
 }) -%}
 {%- endif -%}
 {#- 5. Needs attention first: the critical hosts and why, above the table.
@@ -203,7 +222,7 @@
 {%- endif -%}
 {#- 9. Footer. Always carries the project name, so the message is
     identifiable in a busy channel even when the header is customised. -#}
-{%- set footer_text = 'LinuxVitals · ' ~ (linux_vitals_summary.servers_checked | int) ~ ' host(s) scanned' -%}
+{%- set footer_text = 'LinuxVitals · ' ~ (linux_vitals_summary.servers_checked | int) ~ ' host(s) scanned' ~ (' · ' ~ unreported_count ~ ' not checked' if unreported_count > 0 else '') -%}
 {%- if linux_vitals_slack_message_footer | default('') | trim -%}
 {%- set footer_text = footer_text ~ ' · ' ~ esc(linux_vitals_slack_message_footer, 150) -%}
 {%- endif -%}
@@ -214,5 +233,5 @@
 {#- Slack renders the top-level `text` above the attachment, so it is one
     short line rather than the full plain-text summary. It doubles as the
     push-notification preview, which is why it leads with the verdict. -#}
-{%- set preview = 'LinuxVitals: ' ~ status_word ~ ' — ' ~ (linux_vitals_summary.servers_checked | int) ~ ' host(s) checked, ' ~ failing_hosts ~ ' failing host' ~ ('s' if failing_hosts != 1 else '') ~ ', ' ~ (linux_vitals_summary.auto_fixed_count | int) ~ ' auto-fixed' -%}
+{%- set preview = 'LinuxVitals: ' ~ status_word ~ ' — ' ~ (linux_vitals_summary.servers_checked | int) ~ ' host(s) checked, ' ~ failing_hosts ~ ' failing host' ~ ('s' if failing_hosts != 1 else '') ~ ', ' ~ (linux_vitals_summary.auto_fixed_count | int) ~ ' auto-fixed' ~ (', ' ~ unreported_count ~ ' NOT CHECKED' if unreported_count > 0 else '') -%}
 {{ {'text': preview, 'attachments': [{'color': colour, 'fallback': preview, 'blocks': ns.blocks}]} | to_json }}

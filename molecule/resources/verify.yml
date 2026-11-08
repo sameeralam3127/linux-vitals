@@ -131,13 +131,26 @@
             == report.summary.servers_checked | int
         fail_msg: "Fleet severity rollup: {{ report.summary.hosts_by_severity }}"
 
+    # Every container in this scenario is reachable, so the report must say
+    # so explicitly rather than by omission (#147): no host is unreported,
+    # and the verdict is not being held down by a host that never answered.
+    - name: Assert every targeted host produced a result in this scenario
+      ansible.builtin.assert:
+        that:
+          - report.summary.unreported_host_count | int == 0
+          - report.summary.unreported_hosts == []
+          - report.summary.missing_postcheck_count | int == 0
+          - report.summary.overall_status in ['PASS', 'FAIL']
+        fail_msg: >-
+          Hosts targeted but unreported: {{ report.summary.unreported_hosts }}
+
     # ------------------------------------------------------------------
     # Discovery
     # ------------------------------------------------------------------
     - name: Assert discovery identified the platform correctly
       ansible.builtin.assert:
         that:
-          - report.schema_version == '2.3'
+          - report.schema_version == '2.4'
           - host_report.os.family == vitals_expected_os_family
           - host_report.os.package_manager == vitals_expected_package_manager
           - host_report.os.log_source == 'journald'

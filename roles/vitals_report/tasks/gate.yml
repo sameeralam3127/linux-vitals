@@ -13,13 +13,22 @@
   tags:
     - reporting
 
+# A host that was targeted and produced no result counts against both gates
+# (#147). Without that, the gate passed on the run that most needed to be
+# stopped: every host that could have failed was gone from the numbers, so
+# `any_fail` saw zero failing hosts and `regression` saw zero regressions.
+# `regression` counts only the unreported hosts that have a baseline under this
+# maintenance id -- a host with no baseline cannot have regressed, and
+# `any_fail` is the gate that catches it.
 - name: Compute fleet health gate failure count
   ansible.builtin.set_fact:
     linux_vitals_gate_failure_count: >-
       {{
-        linux_vitals_summary.critical_error_count | int
+        (linux_vitals_summary.critical_error_count | int)
+        + (linux_vitals_summary.unreported_host_count | default(0) | int)
         if linux_vitals_fail_on_status == 'any_fail'
-        else linux_vitals_summary.regressed_count | int
+        else (linux_vitals_summary.regressed_count | int)
+        + (linux_vitals_summary.missing_postcheck_count | default(0) | int)
         if (
           linux_vitals_fail_on_status == 'regression'
           and linux_vitals_phase == 'postcheck'
@@ -47,9 +56,11 @@
 - name: Fail the run when the configured fleet health gate is exceeded
   ansible.builtin.fail:
     msg: >-
-      LinuxVitals fleet gate '{{ linux_vitals_fail_on_status }}' found
-      {{ linux_vitals_gate_failure_count }} failing host(s), exceeding the
+      LinuxVitals fleet gate '{{ linux_vitals_fail_on_status }}' counted
+      {{ linux_vitals_gate_failure_count }} host(s), exceeding the
       allowed threshold of {{ linux_vitals_fail_threshold_count }}.
+      {{ linux_vitals_summary.unreported_host_count | default(0) | int }}
+      of them produced no health result at all.
       Reports and notifications were already produced. See
       {{ linux_vitals_json_output_path | default(linux_vitals_output_path, true) }}.
   when: linux_vitals_gate_should_fail | bool

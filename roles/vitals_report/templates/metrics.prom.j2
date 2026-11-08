@@ -43,7 +43,15 @@ linux_vitals_ram_used_pct{ {{- labels(result) -}} } {{ ram_used_pct if ram_used_
 {% set unknown = result.findings | selectattr('id', 'equalto', 'reboot_required') | selectattr('status', 'defined') | selectattr('status', 'equalto', 'unknown') | list %}
 linux_vitals_reboot_required{ {{- labels(result) -}} } {{ 'NaN' if unknown | length > 0 or result.reboot_required is none else (1 if result.reboot_required else 0) }}
 {% endfor %}
-# HELP linux_vitals_health_score_pct Percentage of hosts that pass with no unknown checks in this report.
+{# Hosts the play targeted that produced no result (#147). They have no
+   identity to label a per-host sample with -- no hostname, IP or OS family was
+   ever read -- so they appear as this fleet gauge and in the health score's
+   denominator. Alert on it: a fleet where it is above zero has hosts that no
+   other series in this file says anything about. #}
+# HELP linux_vitals_unreported_hosts Hosts this run targeted that produced no health result.
+# TYPE linux_vitals_unreported_hosts gauge
+linux_vitals_unreported_hosts{phase="{{ label(linux_vitals_phase) }}"} {{ linux_vitals_unreported_hosts | default([]) | length }}
+# HELP linux_vitals_health_score_pct Percentage of targeted hosts that pass with no unknown checks in this report.
 # TYPE linux_vitals_health_score_pct gauge
 {% set healthy = [] %}
 {% for result in linux_vitals_result_list %}
@@ -51,4 +59,8 @@ linux_vitals_reboot_required{ {{- labels(result) -}} } {{ 'NaN' if unknown | len
 {% set _ = healthy.append(result) %}
 {% endif %}
 {% endfor %}
-linux_vitals_health_score_pct{phase="{{ label(linux_vitals_phase) }}"} {{ ((healthy | length) / (linux_vitals_result_list | length) * 100) | round(1) if linux_vitals_result_list | length > 0 else 0 }}
+{# Same denominator as the report's summary.health_score_pct: every host the
+   play targeted, not every host that answered. A host that dropped out must
+   not raise the score. #}
+{% set targeted = (linux_vitals_result_list | length) + (linux_vitals_unreported_hosts | default([]) | length) %}
+linux_vitals_health_score_pct{phase="{{ label(linux_vitals_phase) }}"} {{ ((healthy | length) / targeted * 100) | round(1) if targeted > 0 else 0 }}

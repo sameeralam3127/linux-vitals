@@ -1,0 +1,82 @@
+---
+# A fleet where only some hosts produce a health result (#147).
+#
+# One host that answers, and the three ways a targeted host can end up with no
+# result -- all of which used to make it vanish from the report, the health
+# score and the postcheck comparison:
+#
+#   reported        answers, builds a result -- the control
+#   failed_midscan  a task fails on it, so Ansible drops it from the play
+#   no_result       ends its own run before a result exists, which is the
+#                   state `ignore_unreachable: true` leaves a host in
+#   unreachable     a real connection failure (ssh to a closed port)
+#
+# The report is rendered by including the role's own render.yml, so the host
+# lists and the summary are the production expressions, not restatements.
+- name: Render reports for a fleet where some hosts never answered
+  hosts: linux_servers
+  gather_facts: false
+  vars:
+    output_dir: "{{ lookup('ansible.builtin.env', 'TEST_OUTPUT_DIR') }}"
+    linux_vitals_output_path: "{{ output_dir }}/report.html"
+    linux_vitals_json_output_path: "{{ output_dir }}/report.json"
+    linux_vitals_csv_output_path: "{{ output_dir }}/report.csv"
+    linux_vitals_metrics_output_path: "{{ output_dir }}/report.prom"
+    linux_vitals_report_archive_dir: "{{ output_dir }}/archive"
+    linux_vitals_effective_archive_timestamp: "20260429T120000Z"
+    linux_vitals_archive_html_reports: false
+    linux_vitals_archive_json_reports: false
+    linux_vitals_report_title: "LinuxVitals Unreachable Fleet"
+    linux_vitals_phase: "{{ fixture_phase | default('adhoc') }}"
+    linux_vitals_maintenance_id: "{{ fixture_maintenance_id | default('') }}"
+    linux_vitals_snapshot_dir: "{{ output_dir }}/snapshots"
+    linux_vitals_slack_message_header: "Unreachable Fleet Summary"
+    linux_vitals_slack_message_footer: ""
+    linux_vitals_slack_include_host_breakdown: true
+
+  tasks:
+    # Leaves the host in ansible_play_hosts with no linux_vitals_result, which
+    # is what an unreachable host looks like under ignore_unreachable.
+    - name: End the run on the host that produces nothing
+      ansible.builtin.meta: end_host
+      when: inventory_hostname == 'no_result'
+
+    # The first task that needs a connection, standing in for the scan's first
+    # probe. set_fact alone would never touch the host, so an unreachable host
+    # would otherwise sail through this play.
+    - name: Reach the host the way the scan's first probe would
+      ansible.builtin.ping:
+
+    - name: Build a health result for the hosts that answer
+      ansible.builtin.set_fact:
+        linux_vitals_auto_fixed_count: 0
+        linux_vitals_result: >-
+          {{
+            fixture_result
+            | combine({
+                'hostname': inventory_hostname,
+                'ip_address': '192.0.2.' ~ (1 + (ansible_play_hosts_all.index(inventory_hostname) | int)),
+                'final_status': 'Pass',
+                'severity': 'none',
+                'severity_counts': {'info': 0, 'warning': 0, 'critical': 0},
+                'unknown_count': 0,
+                'findings': [],
+              })
+          }}
+
+    # Drops the host from ansible_play_hosts, exactly as a probe failing
+    # mid-scan would.
+    - name: Fail on the host that breaks part-way through the scan
+      ansible.builtin.fail:
+        msg: simulated mid-scan failure
+      when: inventory_hostname == 'failed_midscan'
+
+    - name: Render the reports the way the production entry point does
+      ansible.builtin.include_role:
+        name: sameeralam3127.linux_vitals.vitals_report
+        tasks_from: render
+        apply:
+          tags:
+            - reporting
+      tags:
+        - reporting
