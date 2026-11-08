@@ -103,9 +103,10 @@ matching entry in `self_healing.healing_results` says why in `reason` and
 | `failed` | It failed again: its start job failed (`detail` then quotes the restart's error), or it came up and failed within the stability window |
 | `restarted_during_check` | It came up, crashed, and systemd's `Restart=` brought it back -- it is flapping |
 | `restart_error` | `systemctl start` failed without leaving a failed unit -- the unit is missing, or its state could not be read; `detail` has the error |
-| `inactive` | It is not running, but did not fail either -- often a unit whose process exited cleanly |
+| `inactive` | It is not running, but did not fail either -- often a unit whose process exited cleanly. A `Type=oneshot` unit that ran to completion is **not** in this group: it is reported `Fixed` with reason `ran_successfully` and raises no finding |
 | `not_settled` | Still starting or stopping when the polling budget ran out (finding `status: unknown`) |
 | `check_failed` | Its state could not be read after the restart (finding `status: unknown`) |
+| `restart_timeout` | The restart did not return within `linux_vitals_heal_restart_timeout` (120 s by default), so the role stopped waiting; systemd was left running the start job (finding `status: unknown`) |
 
 **Confirm:**
 ```bash
@@ -120,6 +121,16 @@ filesystem it cannot write. Read the journal from the restart attempt forward.
 For `not_settled`, check whether the unit came up after the run: if it did,
 it is slow to start, and `linux_vitals_heal_settle_retries` /
 `linux_vitals_heal_settle_delay` can give it longer.
+
+For `restart_timeout`, the start job was still running when the role stopped
+waiting, so start with `systemctl status <unit>` and the journal from the
+restart forward. A unit that is still `activating` is hung on something --
+most often a mount, a lock or a metadata endpoint -- and `systemctl
+list-jobs` shows the job still queued. A unit that finished after the run is
+simply slower than the bound; raise `linux_vitals_heal_restart_timeout` for
+that group of hosts, or add the unit to
+`linux_vitals_heal_exclude_services` if it should not be restarted
+unattended at all.
 
 ### `cert_expired` -- a certificate has already expired
 

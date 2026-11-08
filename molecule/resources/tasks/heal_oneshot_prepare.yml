@@ -1,0 +1,103 @@
+---
+# Units for the Type=oneshot self-healing outcome (#152), included by
+# prepare.yml. A oneshot unit with no RemainAfterExit=yes is inactive once it
+# has run, not active, which the outcome logic used to read as a unit that
+# still needs a human -- so a job self-healing had just re-run successfully
+# failed its host at critical severity.
+#
+# - molecule-oneshot-ok.service fails while a marker file exists, so this file
+#   can leave it failed and enabled; with the marker gone its re-run exits 0
+#   and it must be reported Fixed.
+# - molecule-oneshot-fail.service never succeeds. It must stay Failed to Fix,
+#   which is what proves the new rule reads Result= rather than treating every
+#   inactive oneshot as a pass.
+#
+# Both names sort before molecule-unstable.service, which vitals_heal has to
+# restart last (heal_settle_prepare.yml says why), and both exit at once, so
+# they add nothing to the gap between that restart and the look after it.
+#
+# Only coreutils and systemd's own tools are used, the same constraint the
+# settle-verification units are written under.
+- name: Install the oneshot test service script
+  ansible.builtin.copy:
+    dest: /usr/local/bin/molecule-oneshot-ok
+    mode: "0755"
+    content: |
+      #!/bin/sh
+      # Fails while the marker file exists, so prepare can record a failed,
+      # enabled unit. Otherwise it does its work and exits, which is all a
+      # Type=oneshot job does -- and why it ends up inactive, not active.
+      if [ -f {{ heal_oneshot_marker }} ]; then
+        exit 1
+      fi
+      exit 0
+
+- name: Install the oneshot test units
+  ansible.builtin.copy:
+    dest: "/etc/systemd/system/{{ item.name }}"
+    mode: "0644"
+    content: |
+      [Unit]
+      Description={{ item.description }}
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=no
+      ExecStart={{ item.exec_start }}
+
+      [Install]
+      WantedBy=multi-user.target
+  loop:
+    - name: molecule-oneshot-ok.service
+      description: LinuxVitals test oneshot job whose re-run succeeds
+      exec_start: /usr/local/bin/molecule-oneshot-ok
+    - name: molecule-oneshot-fail.service
+      description: LinuxVitals test oneshot job whose re-run fails
+      exec_start: /bin/false
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Enable the oneshot test units without starting them
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+    daemon_reload: true
+  loop:
+    - molecule-oneshot-ok.service
+    - molecule-oneshot-fail.service
+
+- name: Arm the oneshot service so its first run fails
+  ansible.builtin.file:
+    path: "{{ heal_oneshot_marker }}"
+    state: touch
+    mode: "0644"
+
+- name: Start the oneshot test units so systemd records them as failed
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - start
+      - "{{ item }}"
+  loop:
+    - molecule-oneshot-ok.service
+    - molecule-oneshot-fail.service
+  changed_when: true
+  failed_when: false
+
+- name: Assert both oneshot test units are in a failed state
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - is-failed
+      - "{{ item }}"
+  register: heal_oneshot_unit_state
+  changed_when: false
+  failed_when: heal_oneshot_unit_state.stdout | trim != 'failed'
+  loop:
+    - molecule-oneshot-ok.service
+    - molecule-oneshot-fail.service
+
+- name: Disarm the oneshot service so its re-run can succeed
+  ansible.builtin.file:
+    path: "{{ heal_oneshot_marker }}"
+    state: absent

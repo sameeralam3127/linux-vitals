@@ -333,10 +333,11 @@ def test_the_unstable_unit_is_restarted_after_every_other_test_unit() -> None:
     # vitals_heal restarts failed units in name order. If the unstable unit
     # sorted before the slow-start one, that unit's 5 s restart would run
     # between its restart and the post-restart look, and the scenario would
-    # pass even with the race in #24 still there.
+    # pass even with the race in #24 still there. Every unit the converge play
+    # heals counts, the oneshot ones (#152) included.
     prepare = _load_yaml(RESOURCES_DIR / "prepare.yml")[0]["tasks"]
     original = {item["name"] for item in _named_task(prepare, "Install the test units")["loop"]}
-    planted = original | set(_settle_units())
+    planted = original | set(_settle_units()) | set(_oneshot_units())
 
     assert sorted(planted)[-1] == "molecule-unstable.service"
 
@@ -353,6 +354,97 @@ def test_the_settle_verification_tasks_use_only_tools_every_image_has() -> None:
 
     assert set(commands) == {"systemctl"}
     assert not re.search(r"\b(su|sudo|logger)\b", scripts)
+
+
+# Type=oneshot outcomes (#152) and the bounded restart wait (#151), each in
+# their own task file for the same reason the settle units are.
+HEAL_ONESHOT_PREPARE = RESOURCES_DIR / "tasks" / "heal_oneshot_prepare.yml"
+HEAL_ONESHOT_VERIFY = RESOURCES_DIR / "tasks" / "heal_oneshot_verify.yml"
+HEAL_TIMEOUT_CONVERGE = RESOURCES_DIR / "tasks" / "heal_timeout_converge.yml"
+
+
+def _oneshot_units() -> dict:
+    tasks = _load_yaml(HEAL_ONESHOT_PREPARE)
+    units = _named_task(tasks, "Install the oneshot test units")
+    return {
+        unit["name"]: dict(unit, content=units["ansible.builtin.copy"]["content"])
+        for unit in units["loop"]
+    }
+
+
+def test_prepare_and_verify_include_the_oneshot_tasks() -> None:
+    prepare = _load_yaml(RESOURCES_DIR / "prepare.yml")[0]["tasks"]
+    verify = _load_yaml(RESOURCES_DIR / "verify.yml")[0]["tasks"]
+
+    plant = _named_task(prepare, "Plant the Type=oneshot units that test the oneshot outcome (#152)")
+    check = _named_task(verify, "Check the Type=oneshot self-healing outcome (#152)")
+
+    assert plant["ansible.builtin.include_tasks"]["file"] == "tasks/heal_oneshot_prepare.yml"
+    assert plant["vars"]["heal_oneshot_marker"].startswith("/run/")
+    assert check["ansible.builtin.include_tasks"]["file"] == "tasks/heal_oneshot_verify.yml"
+
+
+def test_the_oneshot_units_are_the_shape_the_bug_needs() -> None:
+    # #152 is about a oneshot unit that is inactive because it finished, so
+    # the planted units must be Type=oneshot without RemainAfterExit=yes --
+    # with it they would stay active (exited) and never hit the bug -- and one
+    # of them must be unfixable, so the rule cannot read every inactive
+    # oneshot as a pass.
+    units = _oneshot_units()
+
+    assert set(units) == {"molecule-oneshot-ok.service", "molecule-oneshot-fail.service"}
+    for name, unit in units.items():
+        assert "Type=oneshot" in unit["content"], name
+        assert "RemainAfterExit=no" in unit["content"], name
+    assert units["molecule-oneshot-fail.service"]["exec_start"] == "/bin/false"
+
+
+def test_verify_asserts_both_oneshot_outcomes() -> None:
+    text = HEAL_ONESHOT_VERIFY.read_text(encoding="utf-8")
+
+    assert "ok.reason == 'ran_successfully'" in text
+    assert "ok.result == 'Fixed'" in text
+    assert "bad.result == 'Failed to Fix'" in text
+    # The outcome has to agree with the host: inactive, and Result=success.
+    assert "'ActiveState=inactive' in ok_state.stdout_lines" in text
+    assert "'Result=success' in ok_state.stdout_lines" in text
+
+
+def test_the_hung_unit_is_converged_in_its_own_play_with_a_short_bound() -> None:
+    # The hung unit cannot join the units prepare.yml plants: it is polled for
+    # the whole settle budget, which would push every unit after it -- the
+    # unstable one above all -- well past the timing #24 relies on. So it gets
+    # its own play, with nothing else in scope.
+    plays = _load_yaml(RESOURCES_DIR / "converge.yml")
+    assert len(plays) == 2, [play.get("name") for play in plays]
+
+    play = plays[1]
+    task = _named_task(play["tasks"], "Plant and heal a unit whose start job never completes")
+
+    assert play["vars"]["linux_vitals_heal_enabled"] is True
+    assert play["vars"]["linux_vitals_heal_include_services"] == ["molecule-hang"]
+    assert 0 < play["vars"]["linux_vitals_heal_restart_timeout"] <= 30
+    assert task["ansible.builtin.include_tasks"]["file"] == "tasks/heal_timeout_converge.yml"
+    assert task["vars"]["heal_timeout_marker"].startswith("/run/")
+
+
+def test_the_hung_unit_has_no_start_timeout_of_its_own() -> None:
+    # #151 is about the unit systemd puts no bound on. If the test unit had a
+    # finite TimeoutStartSec= it would fail on its own and prove nothing about
+    # the role's bound.
+    tasks = _load_yaml(HEAL_TIMEOUT_CONVERGE)
+    unit = _named_task(tasks, "Install the hung-start test unit")["ansible.builtin.copy"]["content"]
+    script = _named_task(
+        tasks, "Install the hung-start test service script"
+    )["ansible.builtin.copy"]["content"]
+    text = HEAL_TIMEOUT_CONVERGE.read_text(encoding="utf-8")
+
+    assert "Type=oneshot" in unit
+    assert "TimeoutStartSec=infinity" in unit
+    assert "sleep infinity" in script
+    # And the outcome: unknown, never a fix and never a plain failure.
+    assert "hung.outcome == 'unknown'" in text
+    assert "hung.reason == 'restart_timeout'" in text
 
 
 def test_verify_asserts_both_new_units_and_the_fast_cases() -> None:

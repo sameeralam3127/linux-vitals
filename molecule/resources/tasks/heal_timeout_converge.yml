@@ -1,0 +1,173 @@
+---
+# The bounded restart wait (#151), proven against a unit whose start job never
+# completes. Included by its own play in converge.yml, after the scan, heal and
+# report play above has finished.
+#
+# It gets a play of its own rather than another unit in prepare.yml because a
+# unit that never settles is polled for the whole settle budget, and every
+# unit polled after it -- molecule-unstable.service above all -- would then be
+# looked at half a minute after its restart. That gap is exactly what the #24
+# scenario measures, so planting a hung unit beside it would quietly retire
+# that test. Here the include list puts nothing else in scope, and the budgets
+# are cut down so the bound can be proven in seconds.
+#
+# Before the bound existed this file did not fail, it hung: `systemctl start`
+# waits for the start job, and systemd applies no start timeout at all to a
+# Type=oneshot unit.
+- name: Install the hung-start test service script
+  ansible.builtin.copy:
+    dest: /usr/local/bin/molecule-hang
+    mode: "0755"
+    content: |
+      #!/bin/sh
+      # Fails at once while the marker file exists, so this file can record a
+      # failed, enabled unit without waiting. With the marker gone the start
+      # job never completes, the way a job waiting on a network mount, a lock
+      # or a metadata service does not.
+      if [ -f {{ heal_timeout_marker }} ]; then
+        exit 1
+      fi
+      exec sleep infinity
+
+- name: Install the hung-start test unit
+  # TimeoutStartSec=infinity is spelled out rather than relying on it being
+  # the default for Type=oneshot, so the unit hangs on every distribution the
+  # scenarios cover. This is the unit shape #151 is about.
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/molecule-hang.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=LinuxVitals test oneshot job whose start never completes
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=no
+      TimeoutStartSec=infinity
+      ExecStart=/usr/local/bin/molecule-hang
+
+      [Install]
+      WantedBy=multi-user.target
+
+- name: Enable the hung-start test unit without starting it
+  ansible.builtin.systemd_service:
+    name: molecule-hang.service
+    enabled: true
+    daemon_reload: true
+
+- name: Clear any state an earlier converge left on the hung-start unit
+  # `molecule converge` can be run again by hand. A second run would otherwise
+  # find the unit mid-start from the first, which is neither failed (so nothing
+  # would be healed) nor stoppable by a `start` that queues behind the job
+  # already there. Stopping it cancels that job.
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - "{{ item }}"
+      - molecule-hang.service
+  loop:
+    - stop
+    - reset-failed
+  changed_when: true
+  failed_when: false
+
+- name: Arm the hung-start service so its first start fails
+  ansible.builtin.file:
+    path: "{{ heal_timeout_marker }}"
+    state: touch
+    mode: "0644"
+
+- name: Start the hung-start test unit so systemd records it as failed
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - start
+      - molecule-hang.service
+  changed_when: true
+  failed_when: false
+
+- name: Assert the hung-start test unit is in a failed state
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - is-failed
+      - molecule-hang.service
+  register: heal_timeout_unit_state
+  changed_when: false
+  failed_when: heal_timeout_unit_state.stdout | trim != 'failed'
+
+- name: Disarm the hung-start service so its re-run hangs
+  ansible.builtin.file:
+    path: "{{ heal_timeout_marker }}"
+    state: absent
+
+- name: Read the service inventory the heal run will select from
+  ansible.builtin.service_facts:
+
+- name: Note the clock before the bounded heal run
+  ansible.builtin.command:
+    argv:
+      - date
+      - +%s
+  register: heal_timeout_started_at
+  changed_when: false
+
+- name: Attempt to heal the unit whose start never completes
+  ansible.builtin.include_role:
+    name: sameeralam3127.linux_vitals.vitals_heal
+
+- name: Note the clock after the bounded heal run
+  ansible.builtin.command:
+    argv:
+      - date
+      - +%s
+  register: heal_timeout_finished_at
+  changed_when: false
+
+- name: Assert the hung start job did not hold the run open
+  # The ceiling is deliberately loose: what is under test is that the wait is
+  # finite and driven by the role's own variables, not how fast a CI runner
+  # re-reads service facts and rebuilds the result afterwards. Unbounded, this
+  # assertion is never reached at all.
+  ansible.builtin.assert:
+    that:
+      - elapsed | int < 120
+    fail_msg: >-
+      The bounded heal run took {{ elapsed }} s with
+      linux_vitals_heal_restart_timeout={{ linux_vitals_heal_restart_timeout }}
+  vars:
+    elapsed: >-
+      {{
+        (heal_timeout_finished_at.stdout | trim | int)
+        - (heal_timeout_started_at.stdout | trim | int)
+      }}
+
+- name: Assert the hung unit is reported unknown, and nothing else was touched
+  # A restart nobody waited out is not a restart that failed: the outcome is
+  # unknown, which vitals_scan raises as an unknown finding with the detail as
+  # its reason (#62). It must never read as Fixed or as a plain failure.
+  ansible.builtin.assert:
+    that:
+      - linux_vitals_healing_results | map(attribute='service') | list == ['molecule-hang.service']
+      - hung.result == 'Manual Intervention Required'
+      - hung.outcome == 'unknown'
+      - hung.reason == 'restart_timeout'
+      - >-
+        ('did not return within ' ~ linux_vitals_heal_restart_timeout ~ ' s')
+        in hung.detail
+      - linux_vitals_services_healed == []
+    fail_msg: "Self-healing outcomes: {{ linux_vitals_healing_results }}"
+  vars:
+    hung: "{{ linux_vitals_healing_results | first }}"
+
+- name: Assert the start job was left running rather than cancelled
+  # Stopping the wait must not stop the work: systemd carries on with the
+  # start job, which is why the outcome is unknown rather than failed.
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - is-active
+      - molecule-hang.service
+  register: heal_timeout_hung_state
+  changed_when: false
+  failed_when: heal_timeout_hung_state.stdout | trim != 'activating'

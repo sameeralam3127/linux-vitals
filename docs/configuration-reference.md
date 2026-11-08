@@ -52,12 +52,51 @@ when the polling budget runs out is `"Manual Intervention Required"` with an
 linux_vitals_heal_settle_retries: 10      # extra polls while a unit is still changing state
 linux_vitals_heal_settle_delay: 3         # seconds between polls (30 s in total by default)
 linux_vitals_heal_stability_seconds: 5    # how long a unit must stay up to count as fixed
+linux_vitals_heal_restart_timeout: 120    # seconds one restart may block the run; 0 = forever
 ```
 
 Hosts where nothing was restarted pay none of this. Raise
 `linux_vitals_heal_stability_seconds` for services known to fail some time
 after starting; raise the settle budget for units that take longer than 30 s
 to leave `activating` after a restart.
+
+A `Type=oneshot` unit is judged differently, because such a unit is `inactive`
+when it succeeds rather than active. One with no `RemainAfterExit=yes` that
+ends `inactive` with `Result=success` ran to completion, and is reported
+`"Fixed"` with reason `ran_successfully`
+([#152](https://github.com/sameeralam3127/linux-vitals/issues/152)). Anything
+that is not a oneshot keeps the old reading, so a long-running unit that died
+and is now inactive is still a manual follow-up, and a oneshot that was killed
+or that timed out carries a `Result` other than `success` and is one too.
+
+### The wait self-healing can add to a run
+
+Every wait in the role is bounded by these variables, whatever the units
+themselves declare
+([#151](https://github.com/sameeralam3127/linux-vitals/issues/151)). Per host:
+
+```text
+restarts x linux_vitals_heal_restart_timeout       the restarts themselves
++ linux_vitals_heal_settle_retries x _settle_delay the settle poll, per unsettled unit
++ linux_vitals_heal_stability_seconds              the stability window, once per host
+```
+
+The restart bound is what stops a single unit stalling the run. `systemctl
+start` waits for the start job, and the only bound systemd itself applies is
+the unit's `TimeoutStartSec=` -- disabled by default for `Type=oneshot`. An
+enabled oneshot that hangs on a mount, a lock or a metadata service used to
+block the task for as long as it hung, and because the shipped playbooks use
+the linear strategy every other host waited at that task too, so no host
+reached `vitals_report` and the run produced nothing at all.
+
+The default 120 s is above systemd's own 90 s default start timeout, so a unit
+with any finite `TimeoutStartSec=` still reaches its own verdict first.
+Stopping the wait does not cancel the start job -- systemd carries on with it
+-- so the unit is reported `"Manual Intervention Required"` with outcome
+`unknown` and reason `restart_timeout`, which raises an `unknown` finding
+rather than claiming either a fix or a failure. Raise it for hosts with
+legitimately long-running oneshot jobs, exclude those units, or set it to `0`
+to wait as long as it takes.
 
 ### Bounding what may be restarted
 

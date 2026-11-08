@@ -277,13 +277,22 @@ def _show(
     rc: int = 0,
     stderr: str = "",
     load: str = "loaded",
+    unit_type: str = "simple",
+    remain_after_exit: str = "no",
 ) -> dict:
-    """A registered loop item from `systemctl show --property=...`."""
+    """A registered loop item from `systemctl show --property=...`.
+
+    `systemctl show` answers every property asked for, so Type and
+    RemainAfterExit are always present; the defaults describe an ordinary
+    long-running unit (#152).
+    """
     lines = [] if rc else [
         f"LoadState={load}",
         f"ActiveState={active}",
         f"SubState={sub}",
         f"Result={result}",
+        f"Type={unit_type}",
+        f"RemainAfterExit={remain_after_exit}",
         f"InvocationID={invocation}",
         f"NRestarts={restarts}",
     ]
@@ -298,11 +307,28 @@ def _show(
     }
 
 
-def _attempt(unit: str, failed: bool = False, msg: str = "") -> dict:
+def _attempt(unit: str, failed: bool = False, msg: str = "", timedout: dict | None = None) -> dict:
     attempt = {"item": unit, "failed": failed, "changed": not failed}
     if msg:
         attempt["msg"] = msg
+    if timedout is not None:
+        attempt["timedout"] = timedout
     return attempt
+
+
+# What a restart cut short by the task's own `timeout` looks like, per
+# ansible-core (#151). 2.17 and newer add the `timedout` key; 2.16 says so in
+# the message only, and CI runs the whole suite on both.
+TIMED_OUT_NEW_CORE = {
+    "msg": "Task failed: Timed out after 120 second(s).",
+    "timedout": {"period": 120},
+}
+TIMED_OUT_CORE_216 = {
+    "msg": (
+        "The ansible.builtin.service action failed to execute in the expected "
+        "time frame (120) and was terminated"
+    ),
+}
 
 
 def _run_summarize_outcomes(
@@ -514,6 +540,123 @@ def test_errored_restart_is_never_fixed_even_if_the_unit_is_active(tmp_path: Pat
     assert result["services_healed"] == []
 
 
+# ---------------------------------------------------------------------------
+# A restart whose wait ran out (#151)
+# ---------------------------------------------------------------------------
+
+def test_the_restart_task_bounds_how_long_one_restart_can_block_the_run() -> None:
+    # Without a bound the only limit is the unit's own TimeoutStartSec=, which
+    # systemd disables by default for Type=oneshot, so one hung start job
+    # holds this task -- and, under the linear strategy, the whole fleet.
+    task = _task_named("Attempt one restart for enabled failed services")
+
+    assert "linux_vitals_heal_restart_timeout" in str(task.get("timeout", "")), task
+    # The bound has to be a bound by default, or the reported run stalls again.
+    assert _heal_defaults()["linux_vitals_heal_restart_timeout"] > 0
+
+
+def test_a_task_timeout_applies_to_each_loop_item(tmp_path: Path) -> None:
+    # The role's bound is per unit only because ansible-core arms the alarm
+    # per loop item. A whole-loop alarm would abandon every unit queued after
+    # the first hung one, leaving them with no outcome at all -- so this pins
+    # the behaviour the role depends on, and the markers it matches a
+    # timed-out item on, on whichever core is running.
+    tasks = [
+        {
+            "name": "Hang once per item",
+            "ansible.builtin.command": "sleep 30",
+            "timeout": "{{ [linux_vitals_heal_restart_timeout | int, 0] | max }}",
+            "loop": ["first.service", "second.service"],
+            "register": "attempts",
+            "ignore_errors": True,
+            "changed_when": False,
+        },
+        _dump_task({"attempts": "attempts.results"}),
+    ]
+    result = _run_playbook(
+        tmp_path, tasks, play_vars={"linux_vitals_heal_restart_timeout": 1}
+    )
+
+    attempts = result["attempts"]
+    assert [item["item"] for item in attempts] == ["first.service", "second.service"]
+    assert all(item["failed"] for item in attempts), attempts
+    assert all(
+        "timedout" in item
+        or "failed to execute in the expected time frame" in item.get("msg", "")
+        for item in attempts
+    ), attempts
+
+
+def test_a_restart_whose_wait_ran_out_is_unknown_not_a_restart_error(tmp_path: Path) -> None:
+    # Nothing went wrong with the restart: systemd is still working on the
+    # start job and nobody knows how it ends. That is unknown, which
+    # vitals_scan raises as an unknown finding (#62), not a failed restart.
+    for marker in (TIMED_OUT_NEW_CORE, TIMED_OUT_CORE_216):
+        result = _run_summarize_outcomes(
+            tmp_path,
+            [_attempt("hung.service", failed=True, **marker)],
+            settle_checks=[_show("hung.service", "activating", sub="start")],
+        )
+
+        outcome = _only(result)
+        assert (outcome["result"], outcome["outcome"], outcome["reason"]) == (
+            "Manual Intervention Required", "unknown", "restart_timeout",
+        ), marker
+        assert "did not return within 120 s" in outcome["detail"], marker
+        assert "it was activating (start) at the last of the 30 s settle budget" in outcome["detail"], marker
+        assert result["auto_fixed_count"] == 0
+
+
+def test_a_timed_out_restart_that_left_the_unit_failed_is_failed_to_fix(tmp_path: Path) -> None:
+    # The wait ran out, but the unit is failed, so the answer is known.
+    result = _run_summarize_outcomes(
+        tmp_path,
+        [_attempt("hung.service", failed=True, **TIMED_OUT_NEW_CORE)],
+        settle_checks=[_show("hung.service", "failed", sub="failed", result="exit-code")],
+    )
+
+    outcome = _only(result)
+    assert (outcome["result"], outcome["outcome"], outcome["reason"]) == (
+        "Failed to Fix", "still_failed", "failed",
+    )
+    assert outcome["detail"].startswith(
+        "the restart did not return within 120 s and it failed again (result: exit-code)"
+    )
+
+
+def test_a_timed_out_restart_is_never_fixed_even_if_the_unit_is_active(tmp_path: Path) -> None:
+    # The role stopped waiting before systemd finished, so the stability
+    # window never confirmed anything.
+    result = _run_summarize_outcomes(
+        tmp_path,
+        [_attempt("late.service", failed=True, **TIMED_OUT_NEW_CORE)],
+        settle_checks=[_show("late.service", "active")],
+        stability_checks=[_show("late.service", "active")],
+    )
+
+    outcome = _only(result)
+    assert (outcome["result"], outcome["outcome"], outcome["reason"]) == (
+        "Manual Intervention Required", "unknown", "restart_timeout",
+    )
+    assert result["services_healed"] == []
+
+
+def test_a_module_error_that_mentions_a_timeout_is_still_a_restart_error(tmp_path: Path) -> None:
+    # Only ansible's own timeout marker may read as restart_timeout. A module
+    # error that happens to say "timed out" is a restart that really failed,
+    # and must keep reporting as one.
+    result = _run_summarize_outcomes(
+        tmp_path,
+        [_attempt("late.service", failed=True, msg="Unable to start service late: Connection timed out")],
+        settle_checks=[_show("late.service", "inactive", sub="dead")],
+    )
+
+    outcome = _only(result)
+    assert (outcome["result"], outcome["outcome"], outcome["reason"]) == (
+        "Manual Intervention Required", "still_failed", "restart_error",
+    )
+
+
 def test_unit_still_activating_when_the_budget_runs_out_is_unknown(tmp_path: Path) -> None:
     # The check could not complete, so the answer is unknown -- recorded as
     # such rather than as the optimistic reading.
@@ -540,6 +683,139 @@ def test_unit_that_ends_inactive_is_manual_intervention_required(tmp_path: Path)
     outcome = _only(result)
     assert (outcome["result"], outcome["outcome"], outcome["reason"]) == (
         "Manual Intervention Required", "still_failed", "inactive",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Type=oneshot units (#152)
+#
+# A oneshot unit with no RemainAfterExit=yes is inactive once it has run, so
+# judging it by ActiveState alone reported a successful re-run as a critical
+# manual follow-up. Type tells it from a long-running unit that died; Result
+# tells a run that succeeded from one that was killed or timed out.
+# ---------------------------------------------------------------------------
+
+def test_the_settle_polls_read_the_properties_the_oneshot_rule_needs() -> None:
+    for name in (
+        "Wait for each restarted unit to settle",
+        "Check the units that came up are still up on the same run",
+    ):
+        argv = _task_named(name)["ansible.builtin.command"]["argv"]
+        properties = next(arg for arg in argv if arg.startswith("--property="))
+
+        assert "Type" in properties.split("=", 1)[1].split(","), name
+        assert "RemainAfterExit" in properties.split("=", 1)[1].split(","), name
+
+
+def test_a_oneshot_unit_that_ran_to_completion_is_fixed(tmp_path: Path) -> None:
+    result = _run_summarize_outcomes(
+        tmp_path,
+        [_attempt("molecule-oneshot.service")],
+        settle_checks=[
+            _show(
+                "molecule-oneshot.service", "inactive", sub="dead",
+                result="success", unit_type="oneshot", remain_after_exit="no",
+            )
+        ],
+    )
+
+    outcome = _only(result)
+    assert (outcome["result"], outcome["outcome"], outcome["reason"]) == (
+        "Fixed", "fixed", "ran_successfully",
+    )
+    assert outcome["detail"] == (
+        "it ran to completion and exited successfully, which for a Type=oneshot "
+        "unit without RemainAfterExit=yes leaves it inactive"
+    )
+    assert result["services_healed"] == ["molecule-oneshot.service"]
+    assert result["auto_fixed_count"] == 1
+
+
+def test_a_long_running_unit_that_exited_is_still_a_manual_followup(tmp_path: Path) -> None:
+    # The distinction that matters: inactive with Result=success is a
+    # successful run for a oneshot, and a daemon that is no longer there for
+    # anything else. Reading it as a pass would hide a real failure.
+    for unit_type in ("simple", "notify", "forking", "exec", "dbus"):
+        result = _run_summarize_outcomes(
+            tmp_path,
+            [_attempt("daemon.service")],
+            settle_checks=[
+                _show("daemon.service", "inactive", sub="dead", result="success",
+                      unit_type=unit_type)
+            ],
+        )
+
+        outcome = _only(result)
+        assert (outcome["result"], outcome["outcome"], outcome["reason"]) == (
+            "Manual Intervention Required", "still_failed", "inactive",
+        ), unit_type
+
+
+def test_a_oneshot_unit_whose_rerun_failed_is_still_failed_to_fix(tmp_path: Path) -> None:
+    # A oneshot whose command exits non-zero does not go inactive at all: it
+    # is failed, and reported exactly as it was before.
+    result = _run_summarize_outcomes(
+        tmp_path,
+        [_attempt("molecule-oneshot-fail.service")],
+        settle_checks=[
+            _show("molecule-oneshot-fail.service", "failed", sub="failed",
+                  result="exit-code", unit_type="oneshot")
+        ],
+    )
+
+    outcome = _only(result)
+    assert (outcome["result"], outcome["outcome"], outcome["reason"]) == (
+        "Failed to Fix", "still_failed", "failed",
+    )
+    assert result["auto_fixed_count"] == 0
+
+
+def test_a_oneshot_unit_that_did_not_end_in_success_is_not_fixed(tmp_path: Path) -> None:
+    # Inactive is not enough on its own: a oneshot that was killed or whose
+    # own start timeout fired can land inactive too, and Result says so.
+    for why in ("timeout", "signal", "killed", "exit-code", ""):
+        result = _run_summarize_outcomes(
+            tmp_path,
+            [_attempt("molecule-oneshot.service")],
+            settle_checks=[
+                _show("molecule-oneshot.service", "inactive", sub="dead",
+                      result=why, unit_type="oneshot")
+            ],
+        )
+
+        outcome = _only(result)
+        assert (outcome["result"], outcome["outcome"], outcome["reason"]) == (
+            "Manual Intervention Required", "still_failed", "inactive",
+        ), why
+
+
+def test_a_oneshot_with_remain_after_exit_is_judged_as_before(tmp_path: Path) -> None:
+    # Such a unit stays active (exited) when it succeeds, so active is still
+    # the test for it -- and inactive still means it is not there.
+    stays_up = _run_summarize_outcomes(
+        tmp_path,
+        [_attempt("remains.service")],
+        settle_checks=[
+            _show("remains.service", "active", sub="exited",
+                  unit_type="oneshot", remain_after_exit="yes")
+        ],
+        stability_checks=[
+            _show("remains.service", "active", sub="exited",
+                  unit_type="oneshot", remain_after_exit="yes")
+        ],
+    )
+    went_away = _run_summarize_outcomes(
+        tmp_path,
+        [_attempt("remains.service")],
+        settle_checks=[
+            _show("remains.service", "inactive", sub="dead",
+                  unit_type="oneshot", remain_after_exit="yes")
+        ],
+    )
+
+    assert _only(stays_up)["reason"] == "stayed_active"
+    assert (_only(went_away)["result"], _only(went_away)["reason"]) == (
+        "Manual Intervention Required", "inactive",
     )
 
 
@@ -636,17 +912,21 @@ if step.get("rc", 0):
     sys.stderr.write(step.get("stderr", "") + "\\n")
     sys.exit(step["rc"])
 print(f"LoadState={{step.get('LoadState', 'loaded')}}")
-for key in ("ActiveState", "SubState", "Result", "InvocationID", "NRestarts"):
+for key in ("ActiveState", "SubState", "Result", "Type", "RemainAfterExit",
+            "InvocationID", "NRestarts"):
     print(f"{{key}}={{step.get(key, '')}}")
 """
 
 
 def _state(active: str, sub: str = "running", result: str = "success",
-           invocation: str = "inv-1", restarts: int = 0) -> dict:
+           invocation: str = "inv-1", restarts: int = 0,
+           unit_type: str = "simple", remain_after_exit: str = "no") -> dict:
     return {
         "ActiveState": active,
         "SubState": sub,
         "Result": result,
+        "Type": unit_type,
+        "RemainAfterExit": remain_after_exit,
         "InvocationID": invocation,
         "NRestarts": restarts,
     }
@@ -729,7 +1009,32 @@ E2E_UNITS = {
         [_state("active", invocation="j")],
         {"state": "running", "status": "active"},
     ),
+    # A Type=oneshot unit whose re-run succeeded (#152): inactive, because
+    # that is what a oneshot is once it has run, with Result=success.
+    "oneshot.service": (
+        False,
+        [_state("inactive", sub="dead", invocation="k", unit_type="oneshot")],
+        {"state": "stopped", "status": "inactive"},
+    ),
+    # The unit that must not be confused with it: a long-running unit whose
+    # process is gone. Same ActiveState, same Result, different Type.
+    "exited.service": (
+        False,
+        [_state("inactive", sub="dead", invocation="l")],
+        {"state": "stopped", "status": "inactive"},
+    ),
+    # The restart's own wait ran out (#151): systemd is still starting it, so
+    # the outcome is unknown rather than a restart that errored.
+    "hung.service": (
+        True,
+        [_state("activating", sub="start", invocation="m")],
+        {"state": "stopped", "status": "activating"},
+    ),
 }
+
+# Units whose restart failed because the task's `timeout` cut the wait short,
+# rather than because the module reported an error.
+E2E_TIMED_OUT = {"hung.service"}
 
 
 def _verification_tasks(services: dict) -> list[dict]:
@@ -765,7 +1070,16 @@ def _run_verification_end_to_end(tmp_path: Path) -> tuple[dict, dict]:
     calls = tmp_path / "calls.json"
 
     restart_results = [
-        _attempt(unit, failed=failed, msg="Unable to start service errored: Job failed." if failed else "")
+        _attempt(
+            unit,
+            failed=failed,
+            msg=(
+                TIMED_OUT_NEW_CORE["msg"] if unit in E2E_TIMED_OUT
+                else "Unable to start service errored: Job failed." if failed
+                else ""
+            ),
+            timedout=TIMED_OUT_NEW_CORE["timedout"] if unit in E2E_TIMED_OUT else None,
+        )
         for unit, (failed, _, _) in E2E_UNITS.items()
     ]
     services = {unit: facts for unit, (_, _, facts) in E2E_UNITS.items()}
@@ -829,9 +1143,15 @@ def test_verification_tasks_judge_each_unit_by_its_settled_state(tmp_path: Path)
         "errored.service": ("Failed to Fix", "still_failed", "failed"),
         "missing.service": ("Manual Intervention Required", "still_failed", "restart_error"),
         "errored-up.service": ("Manual Intervention Required", "still_failed", "restart_error"),
+        # #152: a oneshot that ran to completion is a fix, and a daemon that
+        # is no longer running is not -- told apart by Type, not ActiveState.
+        "oneshot.service": ("Fixed", "fixed", "ran_successfully"),
+        "exited.service": ("Manual Intervention Required", "still_failed", "inactive"),
+        # #151: the wait ran out, so nobody knows how the start job ended.
+        "hung.service": ("Manual Intervention Required", "unknown", "restart_timeout"),
     }
-    assert result["services_healed"] == ["slow.service", "healthy.service"]
-    assert result["auto_fixed_count"] == 2
+    assert result["services_healed"] == ["slow.service", "healthy.service", "oneshot.service"]
+    assert result["auto_fixed_count"] == 3
 
 
 def test_verification_polls_only_as_long_as_it_needs_to(tmp_path: Path) -> None:
@@ -856,6 +1176,13 @@ def test_verification_polls_only_as_long_as_it_needs_to(tmp_path: Path) -> None:
     assert calls["errored.service"] == 1
     assert calls["missing.service"] == 1
     assert calls["errored-up.service"] == 1
+    # A oneshot settles inactive at once and has nothing left running for the
+    # window to watch, so it costs one look (#152).
+    assert calls["oneshot.service"] == 1
+    assert calls["exited.service"] == 1
+    # A restart whose wait ran out is judged on the first look too, so it adds
+    # no polling beyond the settle budget it never leaves (#151).
+    assert calls["hung.service"] == SETTLE_RETRIES + 1
 
 
 # ---------------------------------------------------------------------------
@@ -904,6 +1231,15 @@ def test_an_unverified_restart_becomes_an_unknown_finding(tmp_path: Path) -> Non
          "detail": "it was still activating (start) when the 30 s settle budget ran out"},
         # A result from before 2.2.0 has no outcome; it reads as before.
         {"service": "legacy.service", "result": "Manual Intervention Required"},
+        # A oneshot that ran to completion is Fixed, so it raises nothing --
+        # the critical finding in #152 was this entry reading still_failed.
+        {"service": "oneshot.service", "result": "Fixed", "outcome": "fixed",
+         "reason": "ran_successfully",
+         "detail": "it ran to completion and exited successfully"},
+        # The restart's wait ran out: unknown, with the detail as the reason.
+        {"service": "hung.service", "result": "Manual Intervention Required",
+         "outcome": "unknown", "reason": "restart_timeout",
+         "detail": "the restart did not return within 120 s"},
     ]
     tasks = [
         {
@@ -939,7 +1275,9 @@ def test_an_unverified_restart_becomes_an_unknown_finding(tmp_path: Path) -> Non
     )
 
     followups = {f["subject"]: f for f in result["findings"] if f["id"] == "service_manual_followup"}
-    assert set(followups) == {"dead.service", "slow.service", "legacy.service"}
+    assert set(followups) == {
+        "dead.service", "slow.service", "legacy.service", "hung.service",
+    }
     assert followups["dead.service"]["status"] == "fail"
     assert "reason" not in followups["dead.service"]
     assert followups["legacy.service"]["status"] == "fail"
@@ -948,8 +1286,11 @@ def test_an_unverified_restart_becomes_an_unknown_finding(tmp_path: Path) -> Non
         "it was still activating (start) when the 30 s settle budget ran out"
     )
     assert followups["slow.service"]["message"] == "slow.service requires manual follow-up"
-    # Counted like any unknown finding, and it still fails the host.
-    assert result["unknown_count"] == 1
+    # A restart whose wait ran out is unknown too, never a plain failure.
+    assert followups["hung.service"]["status"] == "unknown"
+    assert followups["hung.service"]["reason"] == "the restart did not return within 120 s"
+    # Counted like any unknown finding, and they still fail the host.
+    assert result["unknown_count"] == 2
     assert result["status"] == "Fail"
 
 

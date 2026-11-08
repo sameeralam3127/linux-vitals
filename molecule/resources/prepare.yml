@@ -162,6 +162,12 @@
       vars:
         heal_settle_slow_marker: /run/molecule-slow-start-fail
 
+    - name: Plant the Type=oneshot units that test the oneshot outcome (#152)
+      ansible.builtin.include_tasks:
+        file: tasks/heal_oneshot_prepare.yml
+      vars:
+        heal_oneshot_marker: /run/molecule-oneshot-fail
+
     - name: Start the system bus for unprivileged service discovery
       ansible.builtin.systemd_service:
         name: "{{ vitals_test_system_bus_service }}"

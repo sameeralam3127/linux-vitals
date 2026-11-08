@@ -168,7 +168,57 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   play to run on. `ansible-playbook` exits non-zero, and no report is written
   at all, which is not the same as a report that says everything is fine.
   Documented in `docs/report-guide.md` and `docs/runbook.md`.
+- **One hung start job can no longer stall a whole fleet's run**
+  ([#151](https://github.com/sameeralam3127/linux-vitals/issues/151)).
+  `vitals_heal` restarts a failed unit with `state: restarted`, which runs
+  `systemctl start` and waits for the start job. Nothing on the Ansible side
+  bounded that wait, and the only bound systemd applies is the unit's own
+  `TimeoutStartSec=` -- which it disables by default for `Type=oneshot`. An
+  enabled oneshot that failed at boot and then hangs when re-run (on a network
+  mount, a lock, a metadata service) blocked the task for as long as it hung,
+  and because the shipped playbooks use the linear strategy every other host
+  waited at that task too: no host reached `vitals_report`, so the run produced
+  no dashboard, no JSON report and no notification at all.
 
+  The restart is now bounded per unit by the new
+  `linux_vitals_heal_restart_timeout` (default `120`, `0` to wait as long as
+  it takes). Every wait the role can add is now driven by its own variables:
+  the restart bound per unit, the settle budget per unit that has not settled,
+  and the stability window once per host. Cutting a wait short does not cancel
+  the start job -- systemd carries on with it -- so the unit is reported
+  `Manual Intervention Required` with outcome `unknown` and the new reason
+  `restart_timeout`, which raises an `unknown` finding with the detail as its
+  reason (#62) rather than claiming either a fix or a failure. The default is
+  above systemd's own 90 s default start timeout, so a unit with any finite
+  `TimeoutStartSec=` still reaches its own verdict first and no run that
+  completes today is cut short.
+
+- **A oneshot unit that self-healing re-runs successfully is no longer a
+  critical manual follow-up**
+  ([#152](https://github.com/sameeralam3127/linux-vitals/issues/152)).
+  A `Type=oneshot` unit without `RemainAfterExit=yes` is `inactive` when it
+  succeeds, not `active`. The outcome logic read every `inactive` unit as
+  `still_failed`/`inactive`, so a site's own setup or backup job that
+  self-healing had just re-run successfully raised `service_manual_followup`
+  at `critical`, landed at the top of Slack's "Needs attention first", and
+  carried a `detail` saying it had succeeded.
+
+  The verification polls now also read `Type` and `RemainAfterExit`, and a
+  oneshot with no `RemainAfterExit=yes` that ends `inactive` with
+  `Result=success` is reported `Fixed` with the new reason `ran_successfully`.
+  `Type` is what tells it from a long-running unit that died and is now
+  inactive, and `Result` from a oneshot that was killed or timed out; both of
+  those keep the outcome they always had, so no real failure turns into a
+  pass.
+
+  `result` and `outcome` keep the three values each they have always had --
+  only `reason` gained values, always inside an existing `outcome` -- so a
+  consumer that reads only `result`, or joins on a `reason` it does not know,
+  still reads every entry correctly.
+  [compatibility.md](docs/compatibility.md#what-counts-as-breaking) now says
+  so, and the outcome tables in
+  [report-guide.md](docs/report-guide.md#self-healing-outcomes) and
+  [runbook.md](docs/runbook.md) cover both new reasons.
 - **`kernel_install_failures` no longer counts the scan's own Ansible
   invocation lines** ([#133](https://github.com/sameeralam3127/linux-vitals/issues/133)).
   A regression in the bounded-journal change released in 2.2.0

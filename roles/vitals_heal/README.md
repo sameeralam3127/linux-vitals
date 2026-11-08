@@ -25,7 +25,16 @@ A unit a guardrail rules out is never silently dropped: it is reported in
 A restart is verified with read-only `systemctl show` polls, not read once.
 Each unit is polled until it is active, failed or inactive; a unit that came
 up must still be active, on the same run, after
-`linux_vitals_heal_stability_seconds`. Every entry in
+`linux_vitals_heal_stability_seconds`. A `Type=oneshot` unit without
+`RemainAfterExit=yes` is inactive once it has run, so it is judged on
+`Result=` instead -- `inactive` with `Result=success` is a unit that ran to
+completion, not one that needs a human.
+
+Every wait is bounded by the role's own variables, whatever a unit's
+`TimeoutStartSec=` says: `linux_vitals_heal_restart_timeout` per restart, the
+settle budget per unsettled unit, and the stability window once per host. One
+hung start job cannot hold the role, and with it the rest of a linear run,
+open-ended. Every entry in
 `linux_vitals_healing_results` records the `result` (`Fixed`, `Failed to
 Fix`, `Manual Intervention Required`), an `outcome` (`fixed`,
 `still_failed`, `unknown`), a `reason` code and a `detail` sentence. See the
@@ -39,6 +48,7 @@ Fix`, `Manual Intervention Required`), an `outcome` (`fixed`,
 | `linux_vitals_heal_settle_retries` | `10` | Extra polls while a restarted unit is still activating, deactivating or reloading. A unit still unsettled after them is reported as `unknown`, never `Fixed`. |
 | `linux_vitals_heal_settle_delay` | `3` | Seconds between those polls (30 s in total by default). |
 | `linux_vitals_heal_stability_seconds` | `5` | How long a unit that came up must stay active on the same run to count as `Fixed`. Waited once per host, only where something came up. |
+| `linux_vitals_heal_restart_timeout` | `120` | Seconds one restart may block the run before the role stops waiting and lets the settle poll judge the unit. Above systemd's own 90 s default start timeout, so only a unit with no start timeout at all -- `Type=oneshot` by default -- is cut short, and then reported `unknown`/`restart_timeout`. `0` waits as long as it takes. |
 | `linux_vitals_heal_include_services` | `["*"]` | Units in scope for a restart. Globs (`*`, `?`) against the unit name, with `.service` optional. The default puts every failed, enabled unit in scope. |
 | `linux_vitals_heal_exclude_services` | `[]` | Units never to restart, whatever the include list says. For anything you would not restart unattended -- a database or clustered service, or a `Type=oneshot` job a restart would run again. |
 | `linux_vitals_heal_max_restarts` | `0` | The most units one run may restart on one host; `0` means no limit. Over the limit the host is left entirely alone rather than having an arbitrary subset restarted. |

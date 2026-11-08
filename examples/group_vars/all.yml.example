@@ -54,6 +54,10 @@
 # linux_vitals_heal_settle_retries: 10
 # linux_vitals_heal_settle_delay: 3
 # linux_vitals_heal_stability_seconds: 5
+# The longest one restart may block the run. systemd applies no start timeout
+# at all to a Type=oneshot unit, so without this one hung start job holds the
+# whole linear run. Raise it for long-running oneshot jobs; 0 waits forever.
+# linux_vitals_heal_restart_timeout: 120
 
 # What self-healing may touch, and when. All off by default -- with none of
 # these set, every failed unit that is enabled at boot is restarted. Patterns
