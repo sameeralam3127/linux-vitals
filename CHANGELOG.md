@@ -103,6 +103,72 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **Hosts that failed or were unreachable no longer vanish from the report,
+  the health score and the postcheck comparison**
+  ([#147](https://github.com/sameeralam3127/linux-vitals/issues/147)).
+
+  **Who notices:** anyone reading a report, dashboard or Slack message from a
+  run where at least one host could not be scanned. Those runs now read `FAIL`
+  with a lower health score, where they previously read `PASS` with a score
+  computed over the survivors. `ansible-playbook` already exited non-zero on
+  them, so the exit code does not change -- only what a person reads. A run
+  where every host answered produces the same numbers as before, and no field
+  was removed, renamed or changed type.
+
+  The report was built from `ansible_play_hosts`, which drops a host the
+  moment it fails or goes unreachable. Everything downstream counted from that
+  list: `servers_checked`, `health_score_pct`, `critical_error_count`, the
+  `PASS`/`FAIL` verdict, `regressed_count` and the pipeline gate. Nothing
+  named the missing hosts. So ten hosts baselined, patched and rebooted, three
+  of which never came back, produced a postcheck dashboard reporting 7 servers
+  checked, a health score of 100 % (Excellent), overall `PASS` and 0
+  regressed -- with the three hosts that regressed furthest absent from every
+  number and every list. An operator could not tell "all good" from "a third
+  of my fleet was unreachable". It is [#62](https://github.com/sameeralam3127/linux-vitals/issues/62)'s
+  rule, that a check nobody could run must never read as clean, applied at
+  fleet level instead of per host.
+
+  - `vitals_report` now compares the hosts the play targeted
+    (`ansible_play_hosts_all`, the same list the shard manifest records) with
+    the hosts that produced a `linux_vitals_result`, and carries the
+    difference in the summary as **`unreported_hosts`**, with
+    `unreported_host_count` and `missing_postcheck_count`. Each entry has an
+    `inventory_name`, a `status` of `Unknown`, a `reason`, and
+    `baseline_available`. That is the shape the finding contract already uses
+    for a check that could not run; it is deliberately not a row in `hosts`,
+    whose `status` keeps its two values `Pass` and `Fail` so that a consumer
+    branching on them is unaffected (docs/compatibility.md).
+  - **The health score's denominator is now every targeted host**, not every
+    host that answered. A host nobody could scan can never be in the
+    numerator, so it lowers the score instead of leaving the sum. The
+    Prometheus `linux_vitals_health_score_pct` gauge, which recomputes the
+    score, uses the same denominator, and a new
+    `linux_vitals_unreported_hosts` gauge carries the count.
+  - **`overall_status` is `FAIL` whenever a targeted host produced no result.**
+    It is now derived once, in `render.yml`, rather than re-derived in four
+    templates, so the JSON report, the webhook payload and both Slack messages
+    cannot disagree on the verdict.
+  - **Both pipeline gates count them.** `any_fail` counts
+    `failing_host_count + unreported_host_count`; `regression` counts
+    `regressed_count + missing_postcheck_count`. A host with no baseline
+    cannot have regressed, and `any_fail` is the gate that catches it. Before
+    this, the gate passed on exactly the run that most needed stopping.
+  - **A vanished host is visible wherever a reader looks.** The dashboard has
+    a *Not checked* tile and a panel naming each host above the host table --
+    a host nobody reached cannot be found by filtering a table it is not in.
+    The Slack message has a counter, a block and a red colour bar; the
+    plain-text message and the email body list each host; the generic webhook
+    payload carries the three summary fields, since its `hosts` array is a
+    per-host subset and a host with no result has no fields to subset; the CSV
+    export gets a row per host with `status` `Unknown` and blank measurements;
+    and the JSON report is at `schema_version` `2.4`.
+
+  The one case that still cannot be reported is a run where *every* host is
+  unreachable: the rendering tasks are `run_once` and need one host left in the
+  play to run on. `ansible-playbook` exits non-zero, and no report is written
+  at all, which is not the same as a report that says everything is fine.
+  Documented in `docs/report-guide.md` and `docs/runbook.md`.
+
 - **`kernel_install_failures` no longer counts the scan's own Ansible
   invocation lines** ([#133](https://github.com/sameeralam3127/linux-vitals/issues/133)).
   A regression in the bounded-journal change released in 2.2.0

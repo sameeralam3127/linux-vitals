@@ -996,8 +996,8 @@ def test_dashboard_and_json_say_why_a_restart_was_not_fixed(tmp_path: Path) -> N
     assert "<li>legacy.service: Manual Intervention Required</li>" in html
     assert html.count("Could not verify:") == 1
 
-    # JSON carries every field through unchanged, and the schema stays 2.3.
-    assert report["schema_version"] == "2.3"
+    # JSON carries every field through unchanged.
+    assert report["schema_version"] == "2.4"
     assert report["hosts"][0]["self_healing"]["healing_results"] == result["healing_results"]
 
 

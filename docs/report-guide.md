@@ -79,12 +79,12 @@ keep the working view small even when the underlying table is large. What the
 
 ## JSON report
 
-`reports/linux_vitals_report.json` -- schema `2.3`, intended for ingestion
+`reports/linux_vitals_report.json` -- schema `2.4`, intended for ingestion
 by log shippers, SIEMs, or your own dashboards.
 
 ```json
 {
-  "schema_version": "2.3",
+  "schema_version": "2.4",
   "generated_at": "20260712T120000Z",
   "report": { "title": "...", "html_output_path": "...", "json_output_path": "..." },
   "maintenance": { "phase": "postcheck", "maintenance_id": "2026-07-12-patch-window" },
@@ -97,6 +97,11 @@ by log shippers, SIEMs, or your own dashboards.
     "health_score_pct": 80.0,
     "health_score_band": "Good",
     "unknown_host_count": 0,
+    "unreported_host_count": 1,
+    "missing_postcheck_count": 1,
+    "unreported_hosts": [
+      {"inventory_name": "db03", "status": "Unknown", "reason": "no health result was produced for this host; it was unreachable, or the play failed on it before vitals_scan built one", "baseline_available": true}
+    ],
     "comparison_active": true,
     "baseline_max_age_hours": 72,
     "stale_baseline_count": 1,
@@ -194,6 +199,16 @@ is `[]` on a run that configured no guardrails, which is every run before
 this release. Nothing was removed or renamed, and `healing_results` keeps its
 shape and its three `result` values.
 
+`2.4` is additive over `2.3`: the summary gains `unreported_host_count`,
+`unreported_hosts` and `missing_postcheck_count`
+([#147](https://github.com/sameeralam3127/linux-vitals/issues/147)) -- the
+hosts the play targeted that produced no result at all. Nothing was removed or
+renamed, no field changed type, and `overall_status` keeps its two values. The
+one outcome that changes is the verdict on a run where a host could not be
+scanned: it was `PASS` with the host omitted, and is now `FAIL` with the host
+named. Those runs already exited non-zero. See
+[Hosts that were not checked](#hosts-that-were-not-checked).
+
 `pressure` holds the CPU load, pressure stall and swap values the scan read,
 and a status for each of the three checks:
 
@@ -253,6 +268,57 @@ warning appears in run output and in the dashboard; setting the limit to `0`
 disables warnings for dated baselines, while undated baselines remain explicitly
 unknown.
 
+## Hosts that were not checked
+
+A host that was unreachable, or that the play failed on before `vitals_scan`
+built its result, is **not** in `hosts`. It never produced any of the fields
+that array carries. It is named in the summary instead:
+
+```json
+"unreported_host_count": 2,
+"missing_postcheck_count": 1,
+"unreported_hosts": [
+  {"inventory_name": "db03", "status": "Unknown", "reason": "no health result was produced for this host; it was unreachable, or the play failed on it before vitals_scan built one", "baseline_available": true},
+  {"inventory_name": "web07", "status": "Unknown", "reason": "no health result was produced for this host; it was unreachable, or the play failed on it before vitals_scan built one", "baseline_available": false}
+]
+```
+
+| Field | Meaning |
+| --- | --- |
+| `inventory_name` | The host as the inventory names it. Nothing else about it was read, so there is no `hostname` or `ip_address` to give. |
+| `status` | Always `Unknown`. The same word a check that could not run uses: nobody looked, which is neither pass nor fail. |
+| `reason` | Why there is no result. Ansible reports an unreachable host and a host that failed mid-play the same way to the controller, so one reason names both. |
+| `baseline_available` | `postcheck` only: a baseline snapshot for this host exists under this `maintenance_id`, so it was scanned before the window and is silent after it. `false` outside `postcheck`. |
+
+`status` is `Unknown` here and never appears in `hosts[].status`, which keeps
+its two values `Pass` and `Fail`. A consumer branching on those is unaffected;
+one that wants the whole targeted fleet reads `hosts` and `unreported_hosts`
+together. `servers_checked` still counts the hosts that produced a result, so
+`servers_checked + unreported_host_count` is what the play set out to scan.
+
+**The health score counts them.** `health_score_pct` is the percentage of
+*targeted* hosts that pass with no unknown checks -- not the percentage of
+hosts that answered. Ten hosts baselined, patched and rebooted, three of which
+never come back, scores 70 %, not 100 %: the three hosts whose outcome is
+least known cannot raise the number by leaving the sum. `overall_status` is
+`FAIL` whenever `unreported_host_count` is above zero, for the same reason.
+
+**The gates count them.** `linux_vitals_fail_on_status: any_fail` counts
+`failing_host_count + unreported_host_count`. `regression` counts
+`regressed_count + missing_postcheck_count` -- a host with no baseline cannot
+have regressed, and `any_fail` is the gate that catches it.
+
+Where to look: the dashboard has a **Not checked** tile and, above the host
+table, a panel naming each host; the Slack message has a `Not checked` counter
+and block; the generic webhook payload carries all three summary fields; the
+CSV export gets one row per host with `status` `Unknown`; and the Prometheus
+export has `linux_vitals_unreported_hosts`.
+
+A run where *every* host is unreachable produces no report at all. The role's
+rendering tasks are `run_once` and need one host left in the play to run on,
+and `ansible-playbook` exits non-zero. That is the one case the report cannot
+describe, because nothing is left to describe it from.
+
 ## Optional Prometheus textfile and CSV exports
 
 Both exports use the current `linux_vitals_result_list` already assembled by
@@ -306,7 +372,8 @@ to avoid duplicate samples; CSV alone does not impose that identity check.
 | `linux_vitals_findings` | Current findings by `severity` (`info`, `warning`, `critical`) and `status` (`fail`, `unknown`), including zero-valued combinations. A gauge of what the current report holds, not a cumulative counter -- hence no `_total` suffix. |
 | `linux_vitals_ram_used_pct` | RAM used percentage; `NaN` when unavailable. |
 | `linux_vitals_reboot_required` | `1` required, `0` not required, `NaN` for an explicit unknown reboot finding or null reboot result. An unsupported distro-specific detector still uses the existing kernel fallback; unsupported alone does not mean `NaN`. |
-| `linux_vitals_health_score_pct` | Fleet percentage of `Pass` hosts with zero unknown checks, rounded to one decimal; `0` for an empty fleet. Only the `phase` label is present. |
+| `linux_vitals_unreported_hosts` | Hosts this run targeted that produced no health result -- unreachable, or failed mid-play. They have no hostname, IP or OS family, so there is no per-host series for them; above zero means some hosts are described by nothing else in the file. Only the `phase` label is present. |
+| `linux_vitals_health_score_pct` | Percentage of *targeted* hosts that are `Pass` with zero unknown checks, rounded to one decimal; `0` for an empty fleet. Unreported hosts are in the denominator, so a host that dropped out lowers it. Only the `phase` label is present. |
 
 For example, a healthy host and the fleet score might emit:
 
@@ -314,7 +381,7 @@ For example, a healthy host and the fleet score might emit:
 # HELP linux_vitals_host_status 1 when the host passes and every check could run, otherwise 0.
 # TYPE linux_vitals_host_status gauge
 linux_vitals_host_status{host="web01",ip_address="192.0.2.11",os_family="Debian",phase="adhoc"} 1
-# HELP linux_vitals_health_score_pct Percentage of hosts that pass with no unknown checks in this report.
+# HELP linux_vitals_health_score_pct Percentage of targeted hosts that pass with no unknown checks in this report.
 # TYPE linux_vitals_health_score_pct gauge
 linux_vitals_health_score_pct{phase="adhoc"} 100.0
 ```
@@ -341,7 +408,15 @@ retain values such as `Unknown`, `Unsupported` and `Not sampled`.
 `kernel_status` is `Current` or `Outdated`; `reboot_required` is `Required`,
 `No` or `Unknown`, and `reboot_detection_supported` is `true` or `false`.
 `change` is blank outside `postcheck`; during `postcheck` it is `New`,
-`Regressed`, `Improved` or `Unchanged` according to the existing comparison.
+`Regressed`, `Improved`, `Unchanged` according to the existing comparison, or
+`Missing` for a host that produced no result.
+
+A host the play targeted that produced no result gets a row too, after the
+rest ([#147](https://github.com/sameeralam3127/linux-vitals/issues/147)): a
+fleet table that drops it is the bug. Its `status` is `Unknown`, `hostname`
+holds the inventory name -- the only identity available for a host nobody
+reached -- `reboot_required` is `Unknown`, and every measured column is blank,
+because nothing was measured.
 
 Every cell is double-quoted and embedded quotes are doubled, so commas,
 quotes and line breaks in text remain within one cell. Text starting with
@@ -491,7 +566,9 @@ default `linux_vitals_fail_on_severity` it fails the host: a host nobody
 could fully check is not reported as clean. Each host's `unknown_count` says
 how many of its checks could not run, and the summary's `unknown_host_count`
 how many hosts had at least one. Those hosts never count towards the health
-score, even when a raised threshold lets them pass.
+score, even when a raised threshold lets them pass. A host that produced no
+result at all is a separate case --
+see [Hosts that were not checked](#hosts-that-were-not-checked).
 
 ### Severity
 
@@ -635,7 +712,8 @@ URL resolves. The shape, top to bottom:
 | Colour bar | Green when everything passed, amber when the worst host severity is `warning`, red when any host fails or has a critical-severity finding |
 | Header | `linux_vitals_slack_message_header` (default `LinuxVitals Health Check`) |
 | Verdict | `PASS`/`FAIL` with an emoji, then the one-line snippet |
-| Counters | Servers checked, auto-fixed, failing hosts, health score -- laid out in two columns |
+| Not checked | Only when a targeted host produced no result: the count and every host by inventory name, above everything else in the card |
+| Counters | Servers checked, auto-fixed, failing hosts, health score, and *not checked* when it is above zero -- laid out in two columns |
 | Findings roll-up | Counts by severity, for findings and for hosts |
 | Needs attention first | Up to 5 critical hosts, each with up to 3 of its critical findings |
 | Host breakdown | A fixed-width table: host, status, severity, kernel, bootloader, reboot, `/boot`, failed logins |
@@ -664,9 +742,10 @@ Putting the full plain-text summary there printed the entire old-style message
 above the new card. The preview is also what the mobile push shows, which is
 why it leads with the verdict.
 
-The verdict word is derived exactly as the plain-text message and the generic
-webhook derive it (`PASS` when `critical_error_count` is zero), so the three
-can never disagree. Severity only chooses the colour.
+The verdict word is `summary.overall_status`, which `render.yml` derives once
+for every consumer, so this message, the plain-text one, the generic webhook
+and the JSON report can never disagree. It is `FAIL` when any host failed or
+any targeted host produced no result. Severity only chooses the colour.
 
 **Ordering and the cap.** Hosts are sorted worst-first -- critical, warning,
 info, then everything else -- and only the first `linux_vitals_slack_max_hosts`
@@ -684,11 +763,13 @@ card.
 ## Generic webhook payload
 
 Sent as a JSON POST body when `linux_vitals_generic_webhook_enabled: true`
-and a URL resolves:
+and a URL resolves. `hosts` is a deliberate per-host subset of the JSON
+report, not a mirror of it; a host that produced no result has no fields to
+subset, so it is named in `summary.unreported_hosts` instead:
 
 ```json
 {
-  "summary": { "header": "...", "overall_status": "FAIL", "servers_checked": 5, "auto_fixed_count": 1, "critical_error_count": 1, "failing_host_count": 1, "snippet": "..." },
+  "summary": { "header": "...", "overall_status": "FAIL", "servers_checked": 5, "auto_fixed_count": 1, "critical_error_count": 1, "failing_host_count": 1, "unknown_host_count": 0, "unreported_host_count": 1, "missing_postcheck_count": 0, "unreported_hosts": [{"inventory_name": "db03", "status": "Unknown", "reason": "...", "baseline_available": false}], "snippet": "..." },
   "message": "<the same text sent to Slack>",
   "hosts": [
     { "hostname": "web01", "ip_address": "192.0.2.11", "status": "Pass", "platform_type": "Virtual Machine", "uptime": "12d 4h 21m", "running_kernel": "6.8.0-60-generic", "latest_kernel_selected": true, "reboot_required": false, "boot_space_status": "Healthy", "filesystem_worst_status": "OK", "failed_login_count": 0, "unknown_count": 0, "findings": [] }
