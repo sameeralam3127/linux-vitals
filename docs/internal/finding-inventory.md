@@ -41,7 +41,7 @@ the candidate content for `state_schema: 1`.
 | R11 | `getenforce` | `discovery.yml:605` | `..._selinux_cmd.stdout` |
 | R12 | `aa-status --enabled` | `discovery.yml:616` | `..._apparmor_cmd.rc` **(exit code only)** |
 | R13 | `sh -c 'find /boot -maxdepth 1 ... rescue ...'` | `discovery.yml:628` | `..._rescue_image_cmd.stdout_lines` |
-| R14 | `journalctl --since <linux_vitals_audit_log_window> ...` | `discovery.yml:641` | `..._audit_journalctl.stdout` |
+| R14 | `journalctl --since <linux_vitals_audit_log_window> ...`, matched on the host against `(kernel\|grub\|dracut\|initramfs).*(fail\|error)` and then stripped of Ansible module-invocation log lines (#133) | `kernel_install_failures.yml` | `..._audit_journalctl.stdout` |
 | R15 | `linux_vitals_cert_facts` module (files + endpoints + `openssl_available`) | `vitals_certs/tasks/main.yml:12` | `..._cert_scan.*` |
 | R16 | `systemctl is-enabled <unit>` per failed unit | `vitals_heal/tasks/main.yml:41` | `..._enabled_checks.results[].stdout` |
 | R17 | `ansible.builtin.service` restart results | `vitals_heal/tasks/main.yml:64` | `..._restart_attempts.results[]` |
@@ -74,7 +74,7 @@ All 15 are map-classified; none computes its own severity.
 | `kernel_not_latest` | map: warning | `not latest_kernel_selected`, or `unknown` when the latest-kernel probe answered nothing (#150) | R6 `latest=`, R1 `kernel` | `kernel.yml` (probe), `extended_facts.yml` (parse), `result.yml` | **3 files** |
 | `bootloader_mismatch` | map: warning | `bootloader_default_status == 'resolved' and not ..._matches_latest` (plain fail), or `unknown` when the boot environment is present but unreadable / the latest-kernel probe answered nothing (#150) | R7, R6 | `bootloader.yml` (probe), `extended_facts.yml` (status), `bootloader_facts.yml` (match), `result.yml` | **4 files** |
 | `boot_space_low` | map: warning | `boot_space_status == 'Low'` | R1 `mounts[]` | `discovery.yml:907` (pick mount), `:955` (threshold), `result.yml:36` | **3 places, 2 files** |
-| `kernel_install_failures` | map: warning | `kernel_install_failures \| int > 0` | R14 | `discovery.yml:686` (regex), `:860` (count), `result.yml:39` | **3 places, 2 files** |
+| `kernel_install_failures` | map: warning | `kernel_install_failures \| int > 0` | R14 | `kernel_install_failures.yml` (match + self-exclusion, #23/#133), `journal_facts.yml` (count), `result.yml:39` | **3 places, 3 files** |
 | `failed_logins` | map: info | `failed_login_attempts \| length > 0` | R4 | `discovery.yml:835` (filter), `result.yml:42` | **2 files** |
 | `selinux_disabled` | map: warning | `selinux_status not in ['Enforcing','Permissive'] and os_family == 'RedHat'` (plain fail), or `unknown` when `getenforce` could not answer on a RedHat-family host (#150) | R11, R1 `os_family` | `security.yml` (probe), `extended_facts.yml` (parse), `result.yml` | **3 files** |
 | `apparmor_disabled` | map: warning | `os_family == 'Debian' and apparmor_status != 'enabled'` | R12 (rc), R1 `os_family` | `discovery.yml:829`, `result.yml:48` | **2 files** |

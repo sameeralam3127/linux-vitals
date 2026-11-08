@@ -43,6 +43,29 @@
   tags:
     - reporting
 
+# The hostname is the snapshot's filename, and compare.yml rebuilds the same
+# path to read the baseline back, so it has to be one path component. A
+# dynamic inventory that yields a name with a '/' in it would otherwise write
+# the snapshot somewhere above the phase directory and leave the postcheck
+# looking for a baseline that is not where it put it.
+- name: Require a usable snapshot filename for this host
+  ansible.builtin.assert:
+    that:
+      - inventory_hostname is not search('[/\\\\]')
+      - inventory_hostname is not match('^[.]')
+      - inventory_hostname is not search('[\\x00-\\x1f\\x7f-\\x9f]')
+    fail_msg: >-
+      inventory_hostname must be usable as a filename, with no path
+      separators, no leading '.', and no control characters; got
+      {{ inventory_hostname | to_json }}. It names this host's snapshot in
+      {{ linux_vitals_snapshot_dir }}/<maintenance id>/{{ linux_vitals_phase }}.
+      Rename the inventory entry to a usable name and give the host an
+      ansible_host with its real address.
+    quiet: true
+  when: linux_vitals_phase in ['baseline', 'postcheck']
+  tags:
+    - reporting
+
 # Keep the trimmed ID inline: ansible-core 2.16 converts set_fact values such
 # as "yes" and "true" to booleans when native Jinja types are disabled.
 - name: Compute the snapshot directory for this maintenance id and phase

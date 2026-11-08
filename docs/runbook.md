@@ -537,11 +537,19 @@ restart -- check what depends on it first.
 log window (default 7 days). Often paired with `boot_space_low` -- a failed
 kernel install is usually a full `/boot`.
 
-**Confirm:** this is the filter the scan runs on the host:
+**Confirm:** this is the filter the scan runs on the host. The second `grep`
+drops Ansible's own module-invocation log lines, which the first one matches
+because this scan's arguments contain the pattern itself and the bootloader
+probe's script mentions GRUB and failure
+([#133](https://github.com/sameeralam3127/linux-vitals/issues/133)):
 ```bash
 journalctl --system --since "7 days ago" --output=short-iso \
-  | grep -aEi '(kernel|grub|dracut|initramfs).*(fail|error)'
+  | grep -aEi '(kernel|grub|dracut|initramfs).*(fail|error)' \
+  | grep -avE -e 'linux-vitals-audit-scan' -e 'ansible-[^ ]+ Invoked with'
 ```
+Drop the second `grep` to see what the scan is ignoring. Everything it
+removes is a record of a module *starting*; no kernel-install, dracut,
+initramfs or bootloader tool writes those words.
 
 **Do:** re-run the failed transaction after fixing the cause, and **verify the
 bootloader entry afterwards**. A partially installed kernel that is listed in

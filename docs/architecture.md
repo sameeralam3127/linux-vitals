@@ -141,7 +141,12 @@ to modify.
      `linux_vitals_phase` is `baseline` or `postcheck`. Before it writes any,
      it records the run's hosts in that directory's
      `.shards/<shard>.json` and checks them against what the shard was
-     recorded with (see [below](#runs-that-share-a-directory)).
+     recorded with (see [below](#runs-that-share-a-directory)). The names that
+     make up that path -- the maintenance id, the shard id, and each host's
+     `inventory_hostname` -- are asserted to be single path components first,
+     so no snapshot is written outside the phase directory and `compare.yml`
+     can rebuild the same path to read a baseline back
+     ([threat model](threat-model.md#paths-built-from-names-you-supply)).
    - `compare.yml`, only in the `postcheck` phase, loads the matching
      baseline snapshot per host and merges a `comparison` object into
      `linux_vitals_result`. Findings are matched on `(id, subject)`, and a

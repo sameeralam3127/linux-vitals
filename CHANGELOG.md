@@ -8,6 +8,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Security
 
+- **A host's `inventory_hostname` is validated before it becomes a snapshot
+  filename** ([#176](https://github.com/sameeralam3127/linux-vitals/issues/176)).
+  `snapshot.yml` already refused a `linux_vitals_maintenance_id` or
+  `linux_vitals_snapshot_shard` that was not a single path component (#153),
+  but then wrote each host's snapshot to
+  `<maintenance id>/<phase>/{{ inventory_hostname }}.json` with no check on
+  the hostname. A host named `../host-x`, or any name holding a `/` -- which a
+  dynamic inventory can produce from a cloud tag or a container name without
+  anyone typing it -- wrote its snapshot above the phase directory, and the
+  postcheck then looked for its baseline inside that directory, found nothing,
+  and reported the host as having no baseline rather than as an error. A
+  `baseline` or `postcheck` run now fails that host, before writing anything,
+  with a message naming the host and what is wrong with the name.
+
+  The name is refused rather than rewritten: sanitising would map `web/01` and
+  `web_01` onto one filename and let one host's snapshot overwrite another's,
+  and the filename is the identity the postcheck reads a baseline back by, so
+  it has to stay equal to the inventory name. Only the badly named host fails,
+  so the rest of the fleet still gets its snapshots. Ordinary hostnames,
+  including fully qualified ones such as `web01.example.com`, are unaffected.
+
 - **The TLS certificate probe's handshake floor is pinned to TLS 1.2**
   (CodeQL `py/insecure-protocol`). `vitals_certs` built its client context
   with `ssl.PROTOCOL_TLS_CLIENT` and left the minimum protocol version to the
@@ -133,6 +154,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   so, and the outcome tables in
   [report-guide.md](docs/report-guide.md#self-healing-outcomes) and
   [runbook.md](docs/runbook.md) cover both new reasons.
+- **`kernel_install_failures` no longer counts the scan's own Ansible
+  invocation lines** ([#133](https://github.com/sameeralam3127/linux-vitals/issues/133)).
+  A regression in the bounded-journal change released in 2.2.0
+  ([#23](https://github.com/sameeralam3127/linux-vitals/issues/23)): that moved
+  the match from the control node onto the host and passed the pattern to
+  `grep` as an argument, and Ansible writes `ansible-<module> Invoked with
+  <args>` to the target journal as every module starts, so the kernel-failure
+  probe's arguments -- which contain the pattern itself -- matched that line.
+  The bootloader probe's invocation matched too: its embedded script mentions
+  GRUB and failure. Both lines are written before `journalctl` runs, so on
+  any host whose journal receives module invocations, which includes RHEL by
+  default,
+  every run counted itself: `kernel_install_failures` was at least 2 on a
+  perfectly healthy host, grew by one per run per probe until the lines aged
+  out of `linux_vitals_audit_log_window`, and after a few runs the five-line
+  excerpt held nothing but the scan's own commands. Under the default
+  `linux_vitals_fail_on_severity: info` the host failed. The probe now drops
+  those lines on the host, after the pattern match and before the line cap, on
+  two exclusions: the marker it already carries in its own arguments, which
+  also matches what earlier runs wrote, and the shape of an Ansible invocation
+  log, which covers the bootloader probe and any other module. An
+  `Invoked with` line records a module starting, never a failure, and no
+  kernel-install, dracut, initramfs or bootloader tool writes those words, so
+  what a genuine failure logs is unchanged. Either exclusion selecting nothing
+  is still a clean read, not an `unknown`.
 
 - **Probes that could not run no longer read as clean on the boot, kernel and
   SELinux checks** ([#150](https://github.com/sameeralam3127/linux-vitals/issues/150)).

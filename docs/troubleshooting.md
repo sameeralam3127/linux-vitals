@@ -33,6 +33,18 @@ it names a directory below `linux_vitals_snapshot_dir`. Leading and trailing
 spaces are ignored; control characters are refused even at the ends. Choose
 a valid id, then use the same id for the baseline and postcheck runs.
 
+**A `baseline` or `postcheck` run fails with "inventory_hostname must be
+usable as a filename".**
+That host's snapshot is written as `<inventory_hostname>.json` inside
+`<linux_vitals_snapshot_dir>/<maintenance id>/<phase>/`, and the postcheck
+rebuilds the same path to read the baseline back, so the name has to be one
+path component: no `/` or `\`, no leading `.`, no control characters. A
+dynamic inventory is the usual source of such a name. Rename the inventory
+entry and give the host an `ansible_host` with its real address. Only the
+named host fails, so the rest of the fleet is still snapshotted; the run
+exits non-zero and the failed host is absent from the report rather than
+present in it and reading as healthy.
+
 **A `baseline` or `postcheck` run fails with "Snapshot shard '...' of
 maintenance id '...' (...) was recorded with N host(s), and this run also
 targets ...".**
@@ -193,6 +205,15 @@ no longer grows what reaches the control node. What may still need tuning:
   syslog priority prefix is stored at `info`, and only `info` -- every entry --
   would count it, so check such a service directly, or have it prefix its
   error lines with `<3>`, which journald reads as `err` by default.
+- **A kernel-failure line you expected is not counted.** The scan drops
+  Ansible module-invocation log lines -- `ansible-<module> Invoked with
+  <args>`, written to the target journal by every module as it starts -- since
+  [#133](https://github.com/sameeralam3127/linux-vitals/issues/133), because
+  two of its own probes carry text in their arguments that the pattern
+  matches. The `Confirm` command under
+  [`kernel_install_failures`](runbook.md#kernel_install_failures) shows the
+  exact pipeline; drop its last `grep` to see what is being ignored. Nothing a
+  kernel install, dracut, initramfs or bootloader tool logs is affected.
 - **The kernel-failure scan is slow.** It reads the whole
   `linux_vitals_audit_log_window` (default 7 days) on the host and sends only
   the matching lines, so on a large journal it can be the slowest probe.
