@@ -10,10 +10,35 @@
   # and not `journalctl --grep`: that matches MESSAGE alone, and needs a
   # journalctl built with PCRE2.
   #
+  # The second grep drops the scan's own footprint (#133). Every module logs
+  # `ansible-<module> Invoked with <args>` to the target journal as it starts,
+  # unless no_target_syslog is set, and two of this role's probes put text in
+  # their own arguments that the pattern above matches: this task, whose
+  # arguments contain the pattern itself, and the bootloader probe, whose
+  # embedded script mentions GRUB and failure. Both lines are written before
+  # journalctl runs, so without this every run counted itself, and the count
+  # grew by one per run per probe until the lines aged out of the window. Two
+  # exclusions, because each covers what the other cannot:
+  #
+  #   - $0, the marker this task carries in its own arguments. A fixed string
+  #     no kernel or bootloader tool emits, so it does not depend on how
+  #     Ansible words its log line, and it is the same marker earlier runs
+  #     wrote. It sits before the pattern in argv, so a log line long enough
+  #     to carry the pattern carries the marker too.
+  #   - the shape of an Ansible invocation log, which covers the bootloader
+  #     probe and any other module, including ones outside this collection.
+  #     It matches both forms the log takes: `ansible-<module>` in the
+  #     message, which is what journald's python bindings produce, and
+  #     `ansible-<module>` as the syslog identifier, which is the fallback
+  #     when they are missing. An `Invoked with` line records a module
+  #     starting; no kernel install, dracut, initramfs or bootloader tool
+  #     ever writes those two words, so this cannot swallow a genuine
+  #     failure.
+  #
   # bash, for pipefail. Without it the pipeline's status is tail's, and a
   # journalctl that could not read the journal would look like a clean read.
-  # grep exits 1 when nothing matches, which is a clean read, so only a
-  # status above 1 is passed on. Every templated value is a positional
+  # Either grep exits 1 when it selects nothing, which is a clean read, so
+  # only a status above 1 is passed on. Every templated value is a positional
   # parameter, never part of the script text.
   ansible.builtin.command:
     argv:
@@ -23,10 +48,12 @@
         set -o pipefail
         journalctl --system --since "$1" --no-pager --output=short-iso \
           | { grep -a -E -i -e "$2"; status=$?; [ "$status" -le 1 ] || exit "$status"; } \
-          | tail -n "$3"
+          | { grep -a -v -E -e "$0" -e "$3"; status=$?; [ "$status" -le 1 ] || exit "$status"; } \
+          | tail -n "$4"
       - linux-vitals-audit-scan
       - "{{ linux_vitals_audit_log_window }}"
       - (kernel|grub|dracut|initramfs).*(fail|error)
+      - "ansible-[^ ]+ Invoked with"
       - "{{ linux_vitals_log_max_lines | int }}"
   environment:
     LC_ALL: C

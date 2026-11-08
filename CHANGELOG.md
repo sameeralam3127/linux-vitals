@@ -103,6 +103,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **`kernel_install_failures` no longer counts the scan's own Ansible
+  invocation lines** ([#133](https://github.com/sameeralam3127/linux-vitals/issues/133)).
+  A regression in the bounded-journal change released in 2.2.0
+  ([#23](https://github.com/sameeralam3127/linux-vitals/issues/23)): that moved
+  the match from the control node onto the host and passed the pattern to
+  `grep` as an argument, and Ansible writes `ansible-<module> Invoked with
+  <args>` to the target journal as every module starts, so the kernel-failure
+  probe's arguments -- which contain the pattern itself -- matched that line.
+  The bootloader probe's invocation matched too: its embedded script mentions
+  GRUB and failure. Both lines are written before `journalctl` runs, so on
+  any host whose journal receives module invocations, which includes RHEL by
+  default,
+  every run counted itself: `kernel_install_failures` was at least 2 on a
+  perfectly healthy host, grew by one per run per probe until the lines aged
+  out of `linux_vitals_audit_log_window`, and after a few runs the five-line
+  excerpt held nothing but the scan's own commands. Under the default
+  `linux_vitals_fail_on_severity: info` the host failed. The probe now drops
+  those lines on the host, after the pattern match and before the line cap, on
+  two exclusions: the marker it already carries in its own arguments, which
+  also matches what earlier runs wrote, and the shape of an Ansible invocation
+  log, which covers the bootloader probe and any other module. An
+  `Invoked with` line records a module starting, never a failure, and no
+  kernel-install, dracut, initramfs or bootloader tool writes those words, so
+  what a genuine failure logs is unchanged. Either exclusion selecting nothing
+  is still a clean read, not an `unknown`.
+
 - **Probes that could not run no longer read as clean on the boot, kernel and
   SELinux checks** ([#150](https://github.com/sameeralam3127/linux-vitals/issues/150)).
   Four silent paths are now reported honestly, in the same way #118 already

@@ -583,6 +583,16 @@ The counts behind `log_errors` and `kernel_install_failures`
 most that many lines, the newest ones, so a count equal to the cap means at
 least that many. Each excerpt is the first five of those lines, oldest first.
 
+`kernel_install_failures` does not count Ansible's own module-invocation log
+lines -- the `ansible-<module> Invoked with <args>` entry every module writes
+to the target journal as it starts, this collection's probes included
+([#133](https://github.com/sameeralam3127/linux-vitals/issues/133)). Such a
+line records a module starting, never a failure, and two of the scan's own
+probes put text in their arguments that the pattern matches, so counting them
+grew the finding by one per run per probe on every host whose journal receives
+them. Everything a kernel install, dracut, initramfs or bootloader tool logs
+is still counted.
+
 ### Retuning severity, and what makes a host fail
 
 Severity is a judgement about your estimate, so it is configurable. Override
