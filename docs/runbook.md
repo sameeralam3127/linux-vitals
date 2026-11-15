@@ -772,6 +772,45 @@ ansible-playbook -i inventory.ini playbooks/healthcheck.yml --limit new-host
 Add it to scheduled runs only once it reports the same findings as its peers.
 A host that joins the fleet already failing trains people to ignore failures.
 
+### Procedure: paging on-call from a scheduled run
+
+Paging is the one notification that wakes a person, so switch it on in this
+order.
+
+1. **Use a service nobody is paged by first.** In PagerDuty, create a service
+   with an integration of type *Events API v2* and an escalation policy that
+   notifies only you (Opsgenie: an API integration on a test team). Put its key
+   in `.env` as `PAGERDUTY_ROUTING_KEY`.
+2. **Run once with the floor lowered**, to see what would have paged:
+   ```bash
+   ansible-playbook -i inventory.ini sameeralam3127.linux_vitals.healthcheck \
+     -e linux_vitals_pagerduty_enabled=true -e linux_vitals_paging_min_severity=warning
+   ```
+   Each host with a `fail` finding at or above the floor becomes one alert, with
+   the dedup key `linux-vitals:<inventory name>`.
+3. **Read what did not page.** A host whose only findings are `unknown` is named
+   in the run output ("no page was sent for them") and is *not* paged -- an
+   `unknown` finding never pages, whatever severity it carries. If you want to
+   be told a probe cannot run, that is a report-reading job, not a pager's.
+4. **Raise the floor back to `critical`** and point the integration at the real
+   service. Alerts are not auto-resolved, so close them in the paging service
+   once a host is healthy.
+
+If a run fails with `PagerDuty did not accept N event(s)`, it names the host and
+the HTTP status and nothing else -- the response is withheld on purpose, because
+the events URL is yours to set. Replay it by hand to see the reason -- with the
+test service's key from step 1, because this creates a real alert on whatever
+service the key belongs to:
+
+```bash
+curl -s -X POST https://events.pagerduty.com/v2/enqueue \
+  -H 'Content-Type: application/json' \
+  -d '{"routing_key":"<key>","event_action":"trigger","dedup_key":"test","payload":{"summary":"test","source":"curl","severity":"info"}}'
+```
+
+A `400` is a malformed event or a key the service does not recognise, `429` is
+rate limiting, `5xx` is the service. Only the last two are retried.
+
 ### Procedure: enabling self-healing safely
 
 ```yaml

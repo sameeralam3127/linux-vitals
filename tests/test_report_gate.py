@@ -29,7 +29,10 @@ def test_gate_runs_after_notifications() -> None:
     tasks = yaml.safe_load((ROLE_DIR / "tasks" / "main.yml").read_text(encoding="utf-8"))
 
     included = [task["ansible.builtin.include_tasks"]["file"] for task in tasks]
-    assert included[-2:] == ["notify.yml", "gate.yml"]
+    # Every notification channel, paging included (#65), comes before the gate.
+    # The gate must never suppress a report, an archive or a notification, and a
+    # failed page fails the run -- which the gate must not be what hides.
+    assert included[-3:] == ["notify.yml", "paging.yml", "gate.yml"]
 
 
 def test_any_fail_mode_counts_failed_hosts() -> None:

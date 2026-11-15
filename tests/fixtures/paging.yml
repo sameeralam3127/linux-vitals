@@ -1,0 +1,69 @@
+---
+# Drives the real roles/vitals_report/tasks/config.yml and paging.yml against a
+# listener that tests/test_paging.py runs on 127.0.0.1 (#65).
+#
+# Four inventory hosts stand in for a fleet, each with the linux_vitals_result a
+# scan would have left behind. They are never connected to: every task here
+# runs on the controller. What each one is for:
+#
+#   critical-host   a critical fail finding, a warning fail finding, and an
+#                   unknown one -- pages, and carries the unknown in its details
+#   warning-host    a warning fail finding only -- pages only when the floor is
+#                   lowered to warning
+#   unknown-host    an unknown finding that *carries critical severity*, and
+#                   nothing else -- must never page, and must be named in the
+#                   notice
+#   clean-host      no findings
+- name: Page for the hosts that warrant it
+  hosts: paging_fleet
+  gather_facts: false
+  vars:
+    linux_vitals_phase: "postcheck"
+    linux_vitals_maintenance_id: "paging-window"
+  tasks:
+    - name: Leave each host the result a scan would have left
+      ansible.builtin.set_fact:
+        linux_vitals_result: "{{ lv_results[inventory_hostname] }}"
+
+    - name: Resolve configuration and page
+      block:
+        - name: Resolve the effective notification configuration
+          ansible.builtin.include_role:
+            name: sameeralam3127.linux_vitals.vitals_report
+            tasks_from: config
+          vars:
+            linux_vitals_phase: "postcheck"
+
+        - name: Decide which hosts reported
+          ansible.builtin.set_fact:
+            linux_vitals_reporting_hosts: "{{ ansible_play_hosts_all }}"
+          delegate_to: localhost
+          run_once: true  # noqa: run-once[task]
+        - name: Page
+          ansible.builtin.include_role:
+            name: sameeralam3127.linux_vitals.vitals_report
+            tasks_from: paging
+      rescue:
+        - name: Record that paging failed, and why
+          ansible.builtin.copy:
+            content: "{{ {'failed': true, 'msg': ansible_failed_result.msg | default('')} | to_json }}"
+            dest: "{{ lookup('ansible.builtin.env', 'TEST_OUTPUT_DIR') }}/failure.json"
+            mode: "0644"
+          delegate_to: localhost
+          run_once: true  # noqa: run-once[task]
+    - name: Record the events that were rendered
+      ansible.builtin.copy:
+        content: >-
+          {{
+            {
+              'pagerduty': linux_vitals_pagerduty_events | default([]),
+              'opsgenie': linux_vitals_opsgenie_alerts | default([]),
+              'unpaged_unknown': linux_vitals_paging_unpaged_unknown | default([]),
+              'effective_pagerduty_key': linux_vitals_effective_pagerduty_routing_key | default(''),
+              'effective_opsgenie_key': linux_vitals_effective_opsgenie_api_key | default('')
+            } | to_json
+          }}
+        dest: "{{ lookup('ansible.builtin.env', 'TEST_OUTPUT_DIR') }}/rendered.json"
+        mode: "0644"
+      delegate_to: localhost
+      run_once: true  # noqa: run-once[task]

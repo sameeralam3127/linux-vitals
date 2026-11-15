@@ -46,7 +46,9 @@ The three boundaries that matter:
    Reports are rendered on the control node; managed hosts receive probe
    commands and, when self-healing is on, one `systemctl restart`.
 3. **Control node → external.** Notification bodies leave your network. They
-   carry a fleet summary, and -- depending on configuration -- hostnames.
+   carry a fleet summary, and -- depending on configuration -- hostnames. A
+   page to PagerDuty or Opsgenie carries more than that: see
+   [What leaves your network](#what-leaves-your-network).
 
 ## What we assume
 
@@ -297,8 +299,13 @@ see below.
 
 ## Credentials
 
-Four secrets exist: a Slack webhook URL, a generic webhook URL, any headers
-configured for it, and SMTP username/password.
+Six secrets exist: a Slack webhook URL, a generic webhook URL, any headers
+configured for it, SMTP username/password, a PagerDuty routing key, and an
+Opsgenie API key.
+
+**A routing key or API key is a bearer token too.** Anyone holding it can open
+alerts on that service, which is to say wake your on-call. They are handled
+exactly like the webhook URLs.
 
 **An incoming webhook URL is a bearer token.** Anyone holding it can post to
 that channel. It is a credential, not an address, and is treated as one
@@ -312,13 +319,19 @@ How they are handled:
 - Every task that reads or resolves them is `no_log: true` --
   [config.yml](../roles/vitals_report/tasks/config.yml) has it on all three
   tasks, and every send task in
-  [notify.yml](../roles/vitals_report/tasks/notify.yml) has it too.
+  [notify.yml](../roles/vitals_report/tasks/notify.yml) and
+  [paging.yml](../roles/vitals_report/tasks/paging.yml) has it too. The paging
+  events are rendered without the key, and it is added to the request only
+  inside the `no_log` send, so the rendered events -- which an error message
+  names -- never contain it.
 - `no_log` on the *sends* is the load-bearing one. Ansible prints a failing
   task's arguments; without it, one failed POST would publish the webhook URL
   to CI logs, terminal scrollback, and every callback plugin.
 - Failures are therefore reported by a separate task that quotes only the
   channel and the HTTP status. The module's own `msg` is never echoed, because
-  for some failure modes it embeds the URL.
+  for some failure modes it embeds the URL. A service's *response* is not
+  echoed either: the endpoint URLs are operator-set, and one that echoed the
+  request back would put the key in the log.
 - Credentials never reach a managed host, a report file, or a notification
   body.
 
@@ -399,6 +412,13 @@ per-host breakdown including hostnames and statuses.
 
 If your hostnames are themselves sensitive, set it to `false`. The report
 itself is never attached or uploaded to any channel.
+
+**Paging is the exception to "only the run summary".** A PagerDuty event or
+Opsgenie alert is per host, and carries the inventory name, hostname, IP
+address, OS and phase, each finding's message, and for a check that could not
+run, the reason it could not -- which can quote a probe's own error output. That
+goes to a third party, and unlike the Slack breakdown it has no switch to
+reduce it. Leave paging off if that detail must not leave your network.
 
 For the generic webhook, `linux_vitals_generic_webhook_headers` is the
 documented place for an `Authorization` header; it is covered by the same

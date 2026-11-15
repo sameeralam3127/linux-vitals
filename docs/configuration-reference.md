@@ -223,10 +223,11 @@ has a node_exporter scrape example, metric/CSV semantics and a file-age check.
 
 ## Notifications
 
-All three channels are independent and can be combined. Each resolves in
-the same order: an explicit inventory/`group_vars`/extra-vars value wins;
-otherwise the matching `.env` value is used; otherwise the channel is
-skipped.
+Slack, email and the generic webhook are independent and can be combined.
+Each resolves in the same order: an explicit inventory/`group_vars`/extra-vars
+value wins; otherwise the matching `.env` value is used; otherwise the channel
+is skipped. [Paging](#paging) resolves its keys the same way but is a different
+kind of channel -- see below for how it differs.
 
 **Webhook URLs are credentials.** A Slack incoming-webhook URL is all anyone
 needs to post to that channel, and `linux_vitals_generic_webhook_headers` is
@@ -306,6 +307,68 @@ EMAIL_SMTP_PASSWORD="smtp-password"
 
 Email requires `community.general` (`ansible-galaxy collection install -r
 requirements.yml`).
+
+### Paging
+
+PagerDuty and Opsgenie are per-alert services, so unlike the three channels
+above they receive one event per host rather than one fleet summary
+([#65](https://github.com/sameeralam3127/linux-vitals/issues/65)). Both are off
+by default.
+
+```yaml
+linux_vitals_pagerduty_enabled: true
+linux_vitals_paging_min_severity: critical   # info | warning | critical
+```
+
+```dotenv
+PAGERDUTY_ROUTING_KEY="your-32-character-routing-key"
+```
+
+**What pages.** A host is paged when it has a `fail` finding at or above
+`linux_vitals_paging_min_severity`, and the page's own severity is the worst
+such finding. A `critical` finding pages as `critical`, a `warning` as
+`warning`; Opsgenie priority follows (`P1`, `P3`, `P5`).
+
+**What never does.**
+
+| Finding or host | Pages? | Why |
+| --- | --- | --- |
+| `fail`, at or above the floor | **Yes** | A known problem |
+| `fail`, below the floor | No | Listed in the page's `other_findings` if the host is paged for something else; otherwise only in the report |
+| `unknown`, **whatever its severity** | **No** | A check that could not run is not a known problem, and nobody should be woken because a probe could not read a file |
+| A host that could not be scanned at all | No | Same case one level up; it is in `summary.unreported_hosts`. Reachability is a monitoring system's job |
+
+An `unknown` finding is **not dropped**. When a host is paged for something
+else, its unknown checks are listed under `unknown_checks` in the event's
+details (`custom_details` for PagerDuty, `details` for Opsgenie) with the
+reason each could not run. A host whose only findings are unknown ones sends
+nothing, and is named in a notice in the run output.
+
+**One alert per host, and repeat runs update it.** The dedup key is
+`linux-vitals:<inventory name>`, so a scheduled run that finds the same problem
+adds to the open alert rather than paging again. Nothing is ever auto-resolved:
+the collection keeps no state between runs, so it cannot know a clean host is
+one it opened an alert for. Resolve in your paging service, or with its own
+event rules.
+
+**Failures fail the run.** A switched-on integration with no key is an error
+before anything is sent, because a pager that silently has nowhere to send is
+worse than one that says so. A refused event fails the run after the reports
+are written, naming the host and the HTTP status. Events are retried only where
+a retry can help -- no connection, 429, or 5xx -- up to three more times,
+`linux_vitals_paging_retry_delay` seconds apart. As with every other channel,
+the key is never printed and neither is the service's response; to see why an
+event was refused, send it by hand with `curl`.
+
+**What leaves your network.** Unlike the Slack summary, a page carries
+per-host detail: the inventory name, hostname, IP address, OS, and each
+finding's message and, for unknown ones, the reason. That goes to a third
+party. See [threat-model.md](threat-model.md#what-leaves-your-network).
+
+**Opsgenie.** Atlassian ended Opsgenie sales on 4 June 2025 and ends support on
+5 April 2027, so `linux_vitals_opsgenie_enabled` is for teams that still run
+it. It takes `linux_vitals_opsgenie_api_key` (or `OPSGENIE_API_KEY` in `.env`)
+and `linux_vitals_opsgenie_alerts_url` for the EU instance.
 
 ## `.env` file
 

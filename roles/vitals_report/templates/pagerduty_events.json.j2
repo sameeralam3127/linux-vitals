@@ -1,0 +1,39 @@
+{#- PagerDuty Events API v2 trigger events, one per host in
+    linux_vitals_paging_hosts, which paging.yml has already narrowed to the
+    hosts that warrant a page. This file only formats them.
+
+    The routing key is deliberately not here. It is added in the no_log send, so
+    this list can appear in an error message without carrying a credential.
+
+    The limits are PagerDuty's: summary 1024 characters, dedup_key 255, and
+    severity one of critical, error, warning or info (this collection only uses
+    the three it has). -#}
+{%- macro clip(text, limit) -%}
+{%- set value = text | string -%}
+{{- value if value | length <= limit else value[:limit - 1] ~ '…' -}}
+{%- endmacro -%}
+{%- set events = [] -%}
+{%- for host in linux_vitals_paging_hosts -%}
+{%- set summary = host.name ~ ': ' ~ host.severity ~ ' -- ' ~ (host.findings | length) ~ ' finding(s): ' ~ (host.findings | map(attribute='message') | join('; ')) -%}
+{%- set _ = events.append({
+      'event_action': 'trigger',
+      'dedup_key': clip('linux-vitals:' ~ host.name, 255),
+      'client': 'LinuxVitals',
+      'payload': {
+        'summary': clip(summary, 1024),
+        'source': clip(host.name, 255),
+        'severity': host.severity,
+        'custom_details': {
+          'hostname': host.hostname,
+          'ip_address': host.ip_address,
+          'os': host.os,
+          'phase': linux_vitals_phase | default('adhoc'),
+          'maintenance_id': linux_vitals_maintenance_id | default('') | string | trim,
+          'findings': host.findings,
+          'other_findings': host.other_findings,
+          'unknown_checks': host.unknown_checks
+        }
+      }
+    }) -%}
+{%- endfor -%}
+{{ events | to_json }}

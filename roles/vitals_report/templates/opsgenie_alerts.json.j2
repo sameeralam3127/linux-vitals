@@ -1,0 +1,52 @@
+{#- Opsgenie Create Alert bodies, one per host in linux_vitals_paging_hosts,
+    which paging.yml has already narrowed to the hosts that warrant a page. This
+    file only formats them.
+
+    Atlassian ended Opsgenie sales on 4 June 2025 and ends support on
+    5 April 2027; this exists for teams that still run it.
+
+    The API key is not here: it goes in the Authorization header of the no_log
+    send. The limits are Opsgenie's: message 130 characters, alias 512,
+    description 15000, details 8000 in total, tags 20 of 50, entity 512,
+    source 100. Every details value is a string. A priority is P1 for critical,
+    P3 for warning and P5 for info. -#}
+{%- macro clip(text, limit) -%}
+{%- set value = text | string -%}
+{{- value if value | length <= limit else value[:limit - 1] ~ '…' -}}
+{%- endmacro -%}
+{%- set priority = {'critical': 'P1', 'warning': 'P3', 'info': 'P5'} -%}
+{%- set alerts = [] -%}
+{%- for host in linux_vitals_paging_hosts -%}
+{%- set lines = [] -%}
+{%- for finding in host.findings -%}
+{%- set _ = lines.append(finding.id ~ ' [' ~ finding.severity ~ ']: ' ~ finding.message) -%}
+{%- endfor -%}
+{%- set unknown_lines = [] -%}
+{%- for check in host.unknown_checks -%}
+{%- set _ = unknown_lines.append(check.id ~ ': ' ~ (check.reason | default(check.message, true))) -%}
+{%- endfor -%}
+{%- set details = {
+      'hostname': host.hostname,
+      'os': host.os,
+      'phase': linux_vitals_phase | default('adhoc'),
+      'findings': clip(lines | join('\n'), 3000)
+    } -%}
+{%- if host.ip_address | length > 0 -%}{%- set _ = details.update({'ip_address': host.ip_address}) -%}{%- endif -%}
+{%- if (linux_vitals_maintenance_id | default('') | string | trim) | length > 0 -%}
+{%- set _ = details.update({'maintenance_id': linux_vitals_maintenance_id | string | trim}) -%}
+{%- endif -%}
+{%- if unknown_lines | length > 0 -%}{%- set _ = details.update({'unknown_checks': clip(unknown_lines | join('\n'), 3000)}) -%}{%- endif -%}
+{%- set tags = ['linux-vitals', host.severity] -%}
+{%- if host.os_family | length > 0 -%}{%- set _ = tags.append(clip(host.os_family, 50)) -%}{%- endif -%}
+{%- set _ = alerts.append({
+      'message': clip(host.name ~ ': ' ~ host.severity ~ ' -- ' ~ (host.findings | length) ~ ' finding(s): ' ~ host.findings[0].message, 130),
+      'alias': clip('linux-vitals:' ~ host.name, 512),
+      'description': clip(lines | join('\n') ~ ('\n\nChecks that could not run:\n' ~ unknown_lines | join('\n') if unknown_lines | length > 0 else ''), 15000),
+      'priority': priority[host.severity],
+      'source': 'LinuxVitals',
+      'entity': clip(host.name, 512),
+      'tags': tags,
+      'details': details
+    }) -%}
+{%- endfor -%}
+{{ alerts | to_json }}

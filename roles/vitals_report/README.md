@@ -8,7 +8,8 @@ Loads notification configuration (inventory/`group_vars`/extra-vars, with
 a local `.env` fallback), persists baseline/postcheck snapshots, computes
 the before/after comparison for postcheck runs, renders the self-contained
 HTML dashboard and JSON report, manages archive retention, and sends
-Slack/email/generic-webhook summaries. Optionally writes a Prometheus text
+Slack/email/generic-webhook summaries, and per-host PagerDuty events or
+Opsgenie alerts (opt-in, `unknown` findings never page). Optionally writes a Prometheus text
 0.0.4 file and a 22-column fleet CSV from the same collected results.
 
 ## Role Variables

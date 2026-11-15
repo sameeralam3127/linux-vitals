@@ -206,6 +206,7 @@ GENERIC_WEBHOOK_URL="https://example.com/health-events"
 EMAIL_SMTP_HOST="smtp.example.com"
 EMAIL_SMTP_USERNAME="smtp-user"
 EMAIL_SMTP_PASSWORD="smtp-password"
+PAGERDUTY_ROUTING_KEY="your-32-character-routing-key"
 ```
 
 Email also needs enabling and addressing:
@@ -219,6 +220,21 @@ Resolution order is the same for every channel: an explicit
 inventory/`group_vars`/extra-vars value wins, otherwise the matching `.env`
 value, otherwise the channel is skipped. More than one can be active at once,
 and credentials never reach a managed host or a report.
+
+**Paging.** PagerDuty (and Opsgenie, for teams that still run it) get one alert
+per host rather than a fleet summary. Off by default:
+
+```yaml
+linux_vitals_pagerduty_enabled: true
+linux_vitals_paging_min_severity: critical   # info | warning | critical
+```
+
+Only a `fail` finding at or above the floor pages. A check that **could not
+run** (`unknown`) never does, whatever severity it carries, but it is listed in
+the details of a page sent for the same host rather than dropped. See
+[Paging](docs/configuration-reference.md#paging) and the
+[runbook procedure](docs/runbook.md#procedure-paging-on-call-from-a-scheduled-run)
+for turning it on without waking anyone.
 
 ---
 

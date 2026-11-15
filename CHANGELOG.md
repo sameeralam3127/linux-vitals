@@ -91,6 +91,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   removed or renamed, `healing_results` keeps its shape and its three `result`
   values, and the new field is `[]` on a run that configured no guardrails.
 
+- **PagerDuty and Opsgenie paging**
+  ([#65](https://github.com/sameeralam3127/linux-vitals/issues/65)). Off by
+  default. `linux_vitals_pagerduty_enabled` and `linux_vitals_opsgenie_enabled`
+  send one Events API v2 event, or one Opsgenie alert, per host that has a
+  finding worth waking someone for, with a stable dedup key
+  (`linux-vitals:<inventory name>`) so a scheduled run that finds the same
+  problem updates the open alert instead of paging again. Keys come from
+  `linux_vitals_pagerduty_routing_key` / `linux_vitals_opsgenie_api_key` or
+  `PAGERDUTY_ROUTING_KEY` / `OPSGENIE_API_KEY` in `.env`, and only ever enter
+  a request inside a `no_log` task.
+
+  Only a `fail` finding at or above `linux_vitals_paging_min_severity`
+  (default `critical`) pages, and the page's severity is the worst such
+  finding. An `unknown` finding -- a check that could not run -- **never pages
+  and never raises a page's severity, whatever severity it carries**, because
+  nobody should be woken by a probe that could not read a file. It is not
+  dropped: it is listed with its reason under `unknown_checks` in the details of
+  a page sent for the same host, and a host whose only findings are unknown ones
+  is named in a notice in the run output. A host that could not be scanned at
+  all is not paged either.
+
+  A switched-on integration with no key fails the run rather than silently
+  paging nobody, and a refused event fails it after the reports are written,
+  naming the host and the HTTP status. Events are retried only on no
+  connection, 429 or 5xx. As with every other channel the service's response is
+  not echoed, since the endpoint URLs are operator-set. Nothing is
+  auto-resolved: the collection keeps no state between runs. Atlassian ended
+  Opsgenie sales on 4 June 2025 and ends support on 5 April 2027, so that half
+  is for teams that still run it.
+
+  A page carries per-host detail -- inventory name, hostname, IP address, OS and
+  finding messages -- to a third party, unlike the Slack summary; see
+  [Paging](docs/configuration-reference.md#paging) and the
+  [threat model](docs/threat-model.md#what-leaves-your-network).
+
 - Optional controller-side Prometheus text 0.0.4 and 22-column CSV fleet
   exports ([#35](https://github.com/sameeralam3127/linux-vitals/issues/35)).
   Set `linux_vitals_metrics_output_path` and/or `linux_vitals_csv_output_path`
