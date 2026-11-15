@@ -16,6 +16,7 @@ the whole file costs about one scenario's wall-clock time rather than the sum.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import threading
 from dataclasses import dataclass, field
@@ -353,6 +354,16 @@ def outcomes(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Outcome]:
             listener.server_close()
 
 
+def _core_version() -> tuple[int, int]:
+    """The ansible-core the scenarios ran on: the binary the tests resolved."""
+    banner = subprocess.run(
+        [_ansible_playbook_bin(), "--version"], capture_output=True, text=True
+    ).stdout
+    match = re.search(r"\[core (\d+)\.(\d+)", banner)
+    assert match, f"cannot read the ansible-core version from: {banner[:120]!r}"
+    return int(match.group(1)), int(match.group(2))
+
+
 def _names(received: list[Received]) -> list[str]:
     return sorted(r.json["dedup_key"].removeprefix("linux-vitals:") for r in received)
 
@@ -635,12 +646,35 @@ def test_no_credential_reaches_output_or_a_rendered_event_or_an_error(
 def test_the_loud_runs_really_do_print_arguments_so_the_credential_test_has_teeth(
     outcomes: dict[str, Outcome],
 ) -> None:
-    # Guards the guard: if -vvv stopped printing task arguments, the credential
-    # test above would pass for the wrong reason, whatever no_log did.
-    output = outcomes["pd-loud"].output
+    """Guards the guard: the credential test above only means something where a
+    send that lost its no_log would actually show the key.
 
-    assert "invocation" in output
-    assert "linux-vitals:critical-host" in output or "censored due to no_log" in output
+    Measured, not assumed, with a callback that reads each raw task result and
+    a send with no_log removed:
+
+    - ansible-core 2.16.20: the raw result carries `invocation`, and the routing
+      key is in it. Without no_log the key reaches the output at -vvv.
+    - ansible-core 2.20.4: the same, and the -vvv output shows it.
+    - ansible-core 2.21.6: the raw result has no `invocation` at all. Core no
+      longer returns a module's arguments, so there is nothing for no_log to
+      hide and the credential test passes trivially.
+
+    So on a core before 2.21 this fails if -vvv stops printing arguments, which
+    is what would silently turn the credential test into a no-op. From 2.21 it
+    is skipped, because the premise is gone rather than broken. no_log stays
+    necessary because the collection supports 2.16, and CI's floor job (pinned
+    to 2.16) runs this check on every PR. The boundary is between 2.20.4 and
+    2.21.6; CI only ever installs 2.16 and >=2.21.5, so 2.21.0-2.21.4 are
+    untested.
+    """
+    if _core_version() >= (2, 21):
+        pytest.skip(
+            "ansible-core 2.21 no longer returns module arguments in task "
+            "results, so there is nothing for no_log to hide on this core; the "
+            "property is exercised on the 2.16 floor"
+        )
+
+    assert "invocation" in outcomes["pd-loud"].output
 
 
 def test_a_switched_on_pager_with_no_key_fails_before_sending_anything(
