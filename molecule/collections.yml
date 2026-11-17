@@ -4,6 +4,11 @@
 #
 # Upper-bounded for the same reason as requirements.yml: a breaking upstream
 # major must not turn a green build red with nothing in the diff to explain it.
+#
+# community.docker is held below 5: with 5.4.0 the second converge play of every
+# scenario (the deliberately hung oneshot restart, #151) never returns, on
+# ansible-core 2.16 and 2.21 alike, while 4.8.9 passes on both (#201). Raise
+# the cap only after that play passes on the newer major.
 collections:
   - name: community.docker
-    version: ">=3.10.0,<6.0.0"
+    version: ">=3.10.0,<5.0.0"
