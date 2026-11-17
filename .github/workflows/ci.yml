@@ -76,7 +76,7 @@ jobs:
         run: ansible-lint roles/ playbooks/ molecule/ demo/
 
       - name: Run pytest template checks
-        run: pytest -q
+        run: pytest -q -n auto --dist loadfile
 
   molecule:
     name: ${{ matrix.name }}
