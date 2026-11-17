@@ -306,3 +306,72 @@ argument_specs:
             is reported as a delivery failure.
           - Set to C(202) or C(204) for endpoints that acknowledge
             asynchronously or return no content.
+      linux_vitals_paging_min_severity:
+        type: str
+        default: "critical"
+        choices:
+          - info
+          - warning
+          - critical
+        description:
+          - The lowest severity of a C(fail) finding that pages. A host is paged
+            when it has at least one C(fail) finding at or above this.
+          - The default pages only for C(critical). The page's own severity is
+            that of the worst such finding.
+          - An C(unknown) finding never pages, whatever its severity, and never
+            raises a page's severity. It is listed under C(unknown_checks) in
+            the details of a page sent for the same host, so a check that could
+            not run is not dropped from the page. A host that could not be
+            scanned at all is not paged either.
+      linux_vitals_paging_retry_delay:
+        type: int
+        default: 5
+        description:
+          - Seconds to wait before re-sending an event that the service answered
+            with HTTP 429 or a 5xx, or that could not be delivered at all.
+          - At most three more attempts are made. Any other refusal, such as a
+            malformed event or a rejected key, is not retried.
+      linux_vitals_pagerduty_enabled:
+        type: bool
+        default: false
+        description:
+          - Send a PagerDuty Events API v2 event for each host that warrants a
+            page. When C(true) a routing key is required; a missing key fails
+            the run rather than silently paging nobody.
+      linux_vitals_pagerduty_routing_key:
+        type: str
+        default: ""
+        description:
+          - The integration (routing) key of a PagerDuty Events API v2
+            integration. Falls back to C(PAGERDUTY_ROUTING_KEY) in C(.env) when
+            blank.
+          - A credential. It is only ever placed in the request body inside a
+            C(no_log) task, never in a report, a rendered event or an error
+            message.
+      linux_vitals_pagerduty_events_url:
+        type: str
+        default: "https://events.pagerduty.com/v2/enqueue"
+        description:
+          - The Events API v2 endpoint. Change it for a PagerDuty service region
+            that uses a different host.
+      linux_vitals_opsgenie_enabled:
+        type: bool
+        default: false
+        description:
+          - Send an Opsgenie alert for each host that warrants a page. When
+            C(true) an API key is required.
+          - Atlassian ended Opsgenie sales on 4 June 2025 and ends support on
+            5 April 2027. This is for teams that still run it.
+      linux_vitals_opsgenie_api_key:
+        type: str
+        default: ""
+        description:
+          - The Opsgenie API integration key. Falls back to C(OPSGENIE_API_KEY)
+            in C(.env) when blank.
+          - A credential, handled the same way as the PagerDuty routing key.
+      linux_vitals_opsgenie_alerts_url:
+        type: str
+        default: "https://api.opsgenie.com/v2/alerts"
+        description:
+          - The Opsgenie Create Alert endpoint. Change it for the EU instance or
+            another region.

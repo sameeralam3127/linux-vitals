@@ -117,6 +117,16 @@
 # linux_vitals_generic_webhook_headers:
 #   Authorization: "Bearer example-token"
 #
+# Paging (#65): one PagerDuty event or Opsgenie alert per host that warrants a
+# page. Off by default. Only a `fail` finding at or above the floor pages; an
+# `unknown` finding (a check that could not run) never does, but rides along in
+# the details of a page sent for the same host. Alerts are never auto-resolved.
+# linux_vitals_paging_min_severity: critical   # info | warning | critical
+# linux_vitals_pagerduty_enabled: true
+# The routing key is a credential: put it in .env as PAGERDUTY_ROUTING_KEY, or
+# in a vault, rather than here.
+# linux_vitals_opsgenie_enabled: true          # Opsgenie support ends 5 April 2027
+#
 # Option 1: Set webhook/SMTP secrets directly here (not recommended for
 # version-controlled inventories).
 # linux_vitals_slack_webhook_url: "https://hooks.slack.com/services/your/team/webhook"

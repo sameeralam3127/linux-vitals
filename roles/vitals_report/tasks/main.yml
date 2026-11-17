@@ -47,6 +47,19 @@
     - reporting
     - notifications
 
+# After the notifications and before the gate: a failed page fails the run, and
+# the gate must not be what hides that.
+- name: Page for hosts with a finding worth waking someone for
+  ansible.builtin.include_tasks:
+    file: paging.yml
+    apply:
+      tags:
+        - reporting
+        - notifications
+  when: linux_vitals_pagerduty_enabled | bool or linux_vitals_opsgenie_enabled | bool
+  tags:
+    - reporting
+    - notifications
 
 # Keep this last: the gate must never suppress reports, archives, or notifications.
 - name: Apply optional fleet health pipeline gate

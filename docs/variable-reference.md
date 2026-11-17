@@ -130,6 +130,14 @@ Override any of these in inventory, `group_vars`, or `-e` extra vars.
 | `linux_vitals_generic_webhook_url` | `""` | Webhook URL. Falls back to `.env`'s `GENERIC_WEBHOOK_URL` if blank. |
 | `linux_vitals_generic_webhook_headers` | `{}` | Extra HTTP headers (e.g. `Authorization`). |
 | `linux_vitals_generic_webhook_status_code` | `200` | Expected HTTP status code for a successful POST. |
+| `linux_vitals_paging_min_severity` | `critical` | Lowest severity of a `fail` finding that pages (`info`, `warning`, `critical`). A host is paged when it has at least one at or above this; the page's severity is the worst one. An `unknown` finding never pages and never raises a page's severity, whatever severity it carries -- it is listed under `unknown_checks` in the details of a page sent for the same host. [#65](https://github.com/sameeralam3127/linux-vitals/issues/65) |
+| `linux_vitals_paging_retry_delay` | `5` | Seconds before an event the service answered with 429 or a 5xx, or that never connected, is re-sent. At most three more attempts. Any other refusal is not retried. |
+| `linux_vitals_pagerduty_enabled` | `false` | Send a PagerDuty Events API v2 event for each host that warrants a page. A routing key is then required; a missing one fails the run rather than silently paging nobody. |
+| `linux_vitals_pagerduty_routing_key` | `""` | The integration (routing) key. Falls back to `.env`'s `PAGERDUTY_ROUTING_KEY` if blank. A credential. |
+| `linux_vitals_pagerduty_events_url` | `https://events.pagerduty.com/v2/enqueue` | Events API v2 endpoint. Change it for a PagerDuty region that uses a different host. |
+| `linux_vitals_opsgenie_enabled` | `false` | Send an Opsgenie alert for each host that warrants a page. An API key is then required. Atlassian ended Opsgenie sales on 4 June 2025 and ends support on 5 April 2027. |
+| `linux_vitals_opsgenie_api_key` | `""` | The Opsgenie API integration key. Falls back to `.env`'s `OPSGENIE_API_KEY` if blank. A credential. |
+| `linux_vitals_opsgenie_alerts_url` | `https://api.opsgenie.com/v2/alerts` | Create Alert endpoint. Change it for the EU instance or another region. |
 
 ## Facts computed at runtime (not overridable defaults)
 
@@ -152,6 +160,8 @@ See [.env.example](../.env.example).
 |---|---|
 | `SLACK_WEBHOOK_URL` | `linux_vitals_slack_webhook_url` fallback |
 | `GENERIC_WEBHOOK_URL` | `linux_vitals_generic_webhook_url` fallback |
+| `PAGERDUTY_ROUTING_KEY` | `linux_vitals_pagerduty_routing_key` fallback |
+| `OPSGENIE_API_KEY` | `linux_vitals_opsgenie_api_key` fallback |
 | `EMAIL_SMTP_HOST` | `linux_vitals_email_host` fallback |
 | `EMAIL_SMTP_USERNAME` | `linux_vitals_email_username` fallback |
 | `EMAIL_SMTP_PASSWORD` | `linux_vitals_email_password` fallback |

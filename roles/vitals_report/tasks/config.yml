@@ -42,6 +42,28 @@
         | regex_replace('\s+#.*$', '')
         | trim | trim('"') | trim("'") | trim
       }}
+    linux_vitals_dotenv_pagerduty_routing_key: >-
+      {{
+        (
+          linux_vitals_dotenv_contents
+          | regex_findall('(?m)^PAGERDUTY_ROUTING_KEY=(.*)$')
+          | first
+          | default('', true)
+        )
+        | regex_replace('\s+#.*$', '')
+        | trim | trim('"') | trim("'") | trim
+      }}
+    linux_vitals_dotenv_opsgenie_api_key: >-
+      {{
+        (
+          linux_vitals_dotenv_contents
+          | regex_findall('(?m)^OPSGENIE_API_KEY=(.*)$')
+          | first
+          | default('', true)
+        )
+        | regex_replace('\s+#.*$', '')
+        | trim | trim('"') | trim("'") | trim
+      }}
     linux_vitals_dotenv_email_host: >-
       {{
         (
@@ -97,6 +119,22 @@
         ) if (
           linux_vitals_generic_webhook_url | default('', true) | trim | length > 0
         ) else linux_vitals_dotenv_generic_webhook_url
+      }}
+    linux_vitals_effective_pagerduty_routing_key: >-
+      {{
+        (
+          linux_vitals_pagerduty_routing_key | default('', true) | trim
+        ) if (
+          linux_vitals_pagerduty_routing_key | default('', true) | trim | length > 0
+        ) else linux_vitals_dotenv_pagerduty_routing_key
+      }}
+    linux_vitals_effective_opsgenie_api_key: >-
+      {{
+        (
+          linux_vitals_opsgenie_api_key | default('', true) | trim
+        ) if (
+          linux_vitals_opsgenie_api_key | default('', true) | trim | length > 0
+        ) else linux_vitals_dotenv_opsgenie_api_key
       }}
     linux_vitals_effective_email_host: >-
       {{

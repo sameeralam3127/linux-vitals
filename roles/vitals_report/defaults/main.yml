@@ -52,3 +52,35 @@ linux_vitals_generic_webhook_enabled: false
 linux_vitals_generic_webhook_url: ""
 linux_vitals_generic_webhook_headers: {}
 linux_vitals_generic_webhook_status_code: 200
+
+# Paging (#65). One PagerDuty event, or one Opsgenie alert, per host that has a
+# finding worth waking someone for. Both are off by default, and neither is
+# sent without a key: a pager that is switched on but silently has nowhere to
+# send is worse than one that fails the run, so that case is an error.
+#
+# Only a `fail` finding at or above linux_vitals_paging_min_severity pages. An
+# `unknown` finding -- a check that could not run -- never pages and never
+# raises a page's severity: it is listed in the details of a page that is sent
+# for the same host, and is otherwise left to the report. See
+# docs/configuration-reference.md#paging.
+linux_vitals_paging_min_severity: "critical"
+
+# Seconds to wait before re-sending an event the service answered with 429 or
+# a 5xx, or that never connected. At most three more attempts are made.
+linux_vitals_paging_retry_delay: 5
+
+linux_vitals_pagerduty_enabled: false
+# The 32-character integration (routing) key of a PagerDuty Events API v2
+# integration. Falls back to PAGERDUTY_ROUTING_KEY in .env when blank. A
+# credential: never commit it, and prefer .env or a vault.
+linux_vitals_pagerduty_routing_key: ""
+# Override for a different PagerDuty service region.
+linux_vitals_pagerduty_events_url: "https://events.pagerduty.com/v2/enqueue"
+
+# Atlassian ended Opsgenie sales on 4 June 2025 and ends support on 5 April
+# 2027, so this is for teams that still run it. Falls back to OPSGENIE_API_KEY
+# in .env when blank.
+linux_vitals_opsgenie_enabled: false
+linux_vitals_opsgenie_api_key: ""
+# Override for the EU instance or another region.
+linux_vitals_opsgenie_alerts_url: "https://api.opsgenie.com/v2/alerts"

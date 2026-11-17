@@ -1,0 +1,288 @@
+---
+# Paging (#65): one PagerDuty event, or one Opsgenie alert, for each host that
+# has a finding worth waking someone for. Included from main.yml only when an
+# integration is switched on.
+#
+# What pages. A `fail` finding at or above linux_vitals_paging_min_severity.
+# The page's own severity is the worst such finding on the host.
+#
+# What never does. An `unknown` finding -- a check that could not run -- does
+# not page and does not raise a page's severity, whatever severity it carries:
+# nobody should be woken because a probe could not read a file. It is not
+# dropped either. It is listed under `unknown_checks` in the details of a page
+# sent for the same host, so a responder sees what could not be checked, and a
+# host whose only findings are unknown ones is named in a notice in the run
+# output. A host that could not be scanned at all (summary.unreported_hosts) is
+# the same case one level up and is not paged either; reachability is for a
+# monitoring system, which is the job this collection is not trying to do.
+#
+# One event per host with a stable dedup key, linux-vitals:<inventory name>, so
+# a scheduled run that finds the same problem updates the open alert instead of
+# paging again. Nothing is ever auto-resolved: the collection keeps no state
+# between runs, so it cannot know a clean host is one it opened an alert for,
+# and sending a resolve for every clean host on every run is a guess about how
+# each service treats an unknown key.
+#
+# The credential is only ever added to a request body inside the no_log send
+# tasks. The events rendered here do not contain it, which is why an error
+# message can name them.
+
+- name: Check the paging configuration before anything is sent
+  # A pager that is switched on but has no key would otherwise do nothing and
+  # say nothing, and nobody finds that out until the night it matters. Every
+  # other notification channel skips quietly without a URL; paging fails the
+  # run instead, after the reports are written.
+  ansible.builtin.assert:
+    that:
+      - linux_vitals_paging_min_severity in ['info', 'warning', 'critical']
+      - (linux_vitals_paging_retry_delay | int) >= 0
+      - not (linux_vitals_pagerduty_enabled | bool) or linux_vitals_effective_pagerduty_routing_key | length > 0
+      - not (linux_vitals_opsgenie_enabled | bool) or linux_vitals_effective_opsgenie_api_key | length > 0
+    fail_msg: >-
+      The paging configuration cannot be used. linux_vitals_paging_min_severity
+      must be info, warning or critical (it is
+      {{ linux_vitals_paging_min_severity | to_json }}),
+      linux_vitals_paging_retry_delay must be 0 or more, and an integration that
+      is switched on needs its key: a PagerDuty routing key
+      (linux_vitals_pagerduty_routing_key, or PAGERDUTY_ROUTING_KEY in .env)
+      when linux_vitals_pagerduty_enabled is true, an Opsgenie API key
+      (linux_vitals_opsgenie_api_key, or OPSGENIE_API_KEY in .env) when
+      linux_vitals_opsgenie_enabled is true.
+    quiet: true
+  delegate_to: localhost
+  run_once: true
+  tags:
+    - reporting
+    - notifications
+
+- name: Decide which hosts warrant a page
+  # Both halves of the answer come out of one pass and neither is derivable from
+  # the other, so they are built together and split by the next task. Findings
+  # are listed worst first, in finding order within a severity, so a page reads
+  # the same on every run.
+  ansible.builtin.set_fact:
+    linux_vitals_paging_plan: >-
+      {%- set rank = {'info': 0, 'warning': 1, 'critical': 2} -%}
+      {%- set floor = rank[linux_vitals_paging_min_severity] -%}
+      {%- set paged = [] -%}
+      {%- set unpaged_unknown = [] -%}
+      {%- for host in linux_vitals_reporting_hosts -%}
+      {%- set result = hostvars[host].linux_vitals_result -%}
+      {%- set fails = [] -%}
+      {%- set unknowns = [] -%}
+      {%- for finding in result.findings | default([]) if finding is mapping -%}
+      {%- if finding.status | default('fail') == 'unknown' -%}
+      {%- set _ = unknowns.append({
+            'id': finding.id,
+            'severity': finding.severity | default('info'),
+            'message': finding.message | default(''),
+            'reason': finding.reason | default('')}) -%}
+      {%- else -%}
+      {%- set _ = fails.append(finding) -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {%- set qualifying = [] -%}
+      {%- set below = [] -%}
+      {%- for severity in ['critical', 'warning', 'info'] -%}
+      {%- for finding in fails if (finding.severity | default('info')) == severity -%}
+      {%- set entry = {
+            'id': finding.id,
+            'severity': severity,
+            'message': finding.message | default(''),
+            'subject': finding.subject | default('')} -%}
+      {%- if rank[severity] >= floor -%}
+      {%- set _ = qualifying.append(entry) -%}
+      {%- else -%}
+      {%- set _ = below.append({'id': finding.id, 'severity': severity}) -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {%- endfor -%}
+      {%- if qualifying | length > 0 -%}
+      {%- set _ = paged.append({
+            'name': host,
+            'hostname': result.hostname | default(host),
+            'ip_address': result.ip_address | default(''),
+            'os': result.os | default(''),
+            'os_family': result.os_family | default(''),
+            'severity': qualifying[0].severity,
+            'findings': qualifying,
+            'other_findings': below,
+            'unknown_checks': unknowns}) -%}
+      {%- elif unknowns | length > 0 -%}
+      {%- set _ = unpaged_unknown.append(host) -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{ {'paged': paged, 'unpaged_unknown': unpaged_unknown} }}
+  delegate_to: localhost
+  run_once: true
+  tags:
+    - reporting
+    - notifications
+
+- name: Record which hosts warrant a page
+  ansible.builtin.set_fact:
+    linux_vitals_paging_hosts: "{{ linux_vitals_paging_plan.paged }}"
+    linux_vitals_paging_unpaged_unknown: "{{ linux_vitals_paging_plan.unpaged_unknown }}"
+  delegate_to: localhost
+  run_once: true
+  tags:
+    - reporting
+    - notifications
+
+- name: Note the hosts left unpaged only because their checks could not run
+  ansible.builtin.debug:
+    msg: >-
+      {{ linux_vitals_paging_unpaged_unknown | length }} host(s) have a check
+      that could not run and no finding that pages, so no page was sent for
+      them: {{ linux_vitals_paging_unpaged_unknown | join(', ') }}. An unknown
+      finding never pages; see the report for what could not be checked.
+  delegate_to: localhost
+  run_once: true
+  when: linux_vitals_paging_unpaged_unknown | length > 0
+  tags:
+    - reporting
+    - notifications
+
+# Rendered outside the no_log sends for the reason the webhook payload is: a
+# template error inside a no_log task is reported as a censored failure with
+# nothing to say what went wrong.
+- name: Render the PagerDuty events
+  ansible.builtin.set_fact:
+    linux_vitals_pagerduty_events: >-
+      {%- set events = lookup('ansible.builtin.template', 'pagerduty_events.json.j2') -%}
+      {{ events | from_json if events is string else events }}
+  delegate_to: localhost
+  run_once: true
+  when: linux_vitals_pagerduty_enabled | bool
+  tags:
+    - reporting
+    - notifications
+
+- name: Send PagerDuty events
+  # Retried only where a retry can help: no connection at all, 429, or a 5xx.
+  # Anything else the service refused -- a malformed event, a key it does not
+  # know -- will be refused again.
+  ansible.builtin.uri:
+    url: "{{ linux_vitals_pagerduty_events_url }}"
+    method: POST
+    body_format: json
+    body: "{{ item | combine({'routing_key': linux_vitals_effective_pagerduty_routing_key}) }}"
+    status_code: 202
+  loop: "{{ linux_vitals_pagerduty_events }}"
+  loop_control:
+    label: "{{ item.dedup_key }}"
+  register: linux_vitals_pagerduty_delivery
+  no_log: true
+  failed_when: false
+  retries: 3
+  delay: "{{ linux_vitals_paging_retry_delay | int }}"
+  until: >-
+    (linux_vitals_pagerduty_delivery.status | default(-1) | int) == 202
+    or (
+      (linux_vitals_pagerduty_delivery.status | default(-1) | int) > 0
+      and (linux_vitals_pagerduty_delivery.status | default(-1) | int) < 500
+      and (linux_vitals_pagerduty_delivery.status | default(-1) | int) != 429
+    )
+  delegate_to: localhost
+  run_once: true
+  when: linux_vitals_pagerduty_enabled | bool
+  tags:
+    - reporting
+    - notifications
+
+- name: Fail when PagerDuty did not accept every event
+  ansible.builtin.fail:
+    msg: >-
+      PagerDuty did not accept {{ rejected | length }} of
+      {{ linux_vitals_pagerduty_events | length }} event(s): {{ rejected_text }}.
+      The routing key is withheld from this message because it is a credential,
+      and so is the response: the events URL is yours to set, and an endpoint
+      that echoes a request back would put the key in this log. To see why an
+      event was refused, send it by hand with curl.
+  vars:
+    rejected: >-
+      {{
+        linux_vitals_pagerduty_delivery.results | default([])
+        | rejectattr('status', 'equalto', 202) | list
+      }}
+    rejected_text: >-
+      {%- for r in rejected -%}
+      {{ r.item.dedup_key }} (HTTP {{ r.status | default(-1) }}){{ ', ' if not loop.last else '' }}{%- endfor -%}
+  delegate_to: localhost
+  run_once: true
+  when:
+    - linux_vitals_pagerduty_enabled | bool
+    - linux_vitals_pagerduty_delivery.results | default([]) | rejectattr('status', 'equalto', 202) | list | length > 0
+  tags:
+    - reporting
+    - notifications
+
+- name: Render the Opsgenie alerts
+  ansible.builtin.set_fact:
+    linux_vitals_opsgenie_alerts: >-
+      {%- set alerts = lookup('ansible.builtin.template', 'opsgenie_alerts.json.j2') -%}
+      {{ alerts | from_json if alerts is string else alerts }}
+  delegate_to: localhost
+  run_once: true
+  when: linux_vitals_opsgenie_enabled | bool
+  tags:
+    - reporting
+    - notifications
+
+- name: Send Opsgenie alerts
+  ansible.builtin.uri:
+    url: "{{ linux_vitals_opsgenie_alerts_url }}"
+    method: POST
+    body_format: json
+    body: "{{ item }}"
+    headers:
+      Authorization: "GenieKey {{ linux_vitals_effective_opsgenie_api_key }}"
+    status_code: 202
+  loop: "{{ linux_vitals_opsgenie_alerts }}"
+  loop_control:
+    label: "{{ item.alias }}"
+  register: linux_vitals_opsgenie_delivery
+  no_log: true
+  failed_when: false
+  retries: 3
+  delay: "{{ linux_vitals_paging_retry_delay | int }}"
+  until: >-
+    (linux_vitals_opsgenie_delivery.status | default(-1) | int) == 202
+    or (
+      (linux_vitals_opsgenie_delivery.status | default(-1) | int) > 0
+      and (linux_vitals_opsgenie_delivery.status | default(-1) | int) < 500
+      and (linux_vitals_opsgenie_delivery.status | default(-1) | int) != 429
+    )
+  delegate_to: localhost
+  run_once: true
+  when: linux_vitals_opsgenie_enabled | bool
+  tags:
+    - reporting
+    - notifications
+
+- name: Fail when Opsgenie did not accept every alert
+  ansible.builtin.fail:
+    msg: >-
+      Opsgenie did not accept {{ rejected | length }} of
+      {{ linux_vitals_opsgenie_alerts | length }} alert(s): {{ rejected_text }}.
+      The API key is withheld from this message because it is a credential,
+      and so is the response: the alerts URL is yours to set, and an endpoint
+      that echoes a request back would put the key in this log. To see why an
+      alert was refused, send it by hand with curl.
+  vars:
+    rejected: >-
+      {{
+        linux_vitals_opsgenie_delivery.results | default([])
+        | rejectattr('status', 'equalto', 202) | list
+      }}
+    rejected_text: >-
+      {%- for r in rejected -%}
+      {{ r.item.alias }} (HTTP {{ r.status | default(-1) }}){{ ', ' if not loop.last else '' }}{%- endfor -%}
+  delegate_to: localhost
+  run_once: true
+  when:
+    - linux_vitals_opsgenie_enabled | bool
+    - linux_vitals_opsgenie_delivery.results | default([]) | rejectattr('status', 'equalto', 202) | list | length > 0
+  tags:
+    - reporting
+    - notifications
