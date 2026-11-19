@@ -78,11 +78,10 @@ it exercises neither tags nor the role's include and import structure.
 `main.yml`'s includes with `apply: tags`, `discovery.yml`'s imports -- with
 collection swapped out the same way but every task keeping its tags. A run
 that executes every scan task (untagged, or `--tags discovery,kernel,reporting`)
-must reproduce the golden files exactly, and each focused selection
-(`--tags kernel,reporting` and so on) must still build a result. Three focused
-selections do not today; each is a strict xfail that accepts only the
-undefined fact it is known to stop on, as described under *Tags* in
-[architecture.md](architecture.md).
+must reproduce the golden files exactly. Each focused selection
+(`--tags kernel,reporting` and so on, without `discovery`) must stop at the
+guard in `main.yml` before any probe runs, and name the command that works,
+as described under *Tags* in [architecture.md](architecture.md).
 
 **Finding a task.** Tests that read a task's production text look it up by
 name with `tests/scan_tasks.py` (`scan_task()`, `discovery_tasks()`) rather

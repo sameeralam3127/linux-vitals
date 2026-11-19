@@ -6,11 +6,11 @@
 # with this list.
 #
 # Every fact read here is wrapped in `| default(...)`. Each is set by a
-# discovery task tagged `security` only; under a narrower tag selection
-# (`--tags boot,reporting`, say -- see tests/test_tagged_scan.py) that task
-# never ran and the fact is genuinely undefined. The default keeps this file
-# from crashing a focused run outright; it reads as "could not check" rather
-# than a clean result, same as every other `unknown` path here.
+# discovery task tagged `security`, so a selection without it would leave the
+# fact undefined. main.yml now refuses `kernel`, `security` or `boot` without
+# `discovery` (#138), but the defaults stay: if a fact is ever missing, it
+# reads as "could not check" rather than a clean result, same as every other
+# `unknown` path here.
 - name: Build security posture findings
   ansible.builtin.set_fact:
     linux_vitals_security_posture_findings: >-

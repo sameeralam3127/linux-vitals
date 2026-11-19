@@ -138,6 +138,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **A focused `--tags` run stops before scanning and names the command that
+  works, instead of failing partway through on an undefined fact**
+  ([#138](https://github.com/sameeralam3127/linux-vitals/issues/138)).
+  The README and `docs/examples.md` gave `--tags kernel,reporting` for a
+  kernel-only scan. It, and `security,reporting` and `boot,reporting`, ran
+  part of the scan and then stopped on whichever fact that part never set,
+  such as `linux_vitals_journalctl`, with no hint of the cause, because a
+  host's result reads facts from every part of the scan. `vitals_scan` now
+  refuses `kernel`, `security` or `boot` without `discovery` before any probe
+  runs, with a message giving the command to use, e.g.
+  `--tags discovery,kernel,reporting`. The docs give that command. A run of
+  one part on its own is still tracked in #138.
+
 - **Hosts that failed or were unreachable no longer vanish from the report,
   the health score and the postcheck comparison**
   ([#147](https://github.com/sameeralam3127/linux-vitals/issues/147)).

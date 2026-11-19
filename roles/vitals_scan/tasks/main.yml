@@ -10,6 +10,33 @@
   tags:
     - always
 
+# result.yml reads facts from every slice of the scan, so a kernel, security
+# or boot selection without discovery stops later on whichever fact its slice
+# did not set (#138). Stop here instead, before any probe runs, and say how to
+# run it. Tagged with the slices only, so it runs exactly when one of them is
+# selected, and an untagged run or --tags reporting never sees it.
+- name: Require discovery alongside a focused scan tag
+  ansible.builtin.assert:
+    that:
+      - "'all' in ansible_run_tags or 'discovery' in ansible_run_tags"
+      - "'discovery' not in ansible_skip_tags"
+    fail_msg: "{{ skipped_msg if 'discovery' in ansible_skip_tags else focused_msg }}"
+    quiet: true
+  vars:
+    skipped_msg: >-
+      --skip-tags discovery cannot build a host result: the kernel, security
+      and boot tasks are part of discovery, and the result needs facts from
+      all of it. Run without skipping discovery.
+    focused_msg: >-
+      --tags {{ ansible_run_tags | join(',') }} cannot build a host result:
+      the kernel, security and boot tags select part of the scan, and the
+      result needs facts from all of it. Add discovery, e.g.
+      --tags {{ (['discovery'] + ansible_run_tags | list) | join(',') }}.
+  tags:
+    - kernel
+    - security
+    - boot
+
 - name: Collect host discovery and extended system details
   ansible.builtin.include_tasks:
     file: discovery.yml
