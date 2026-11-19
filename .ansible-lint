@@ -1,3 +1,14 @@
+# The pre-commit hook lints the whole tree, so keep it to the repository:
+# these are local, gitignored directories (installed collections, the
+# .dev-collections symlink back to this repo, agent worktrees) that would
+# otherwise be linted as if they were part of it.
+exclude_paths:
+  - .ansible/
+  - .claude/
+  - .dev-collections/
+  - .facts/
+  - collections/
+
 skip_list:
   - fqcn-builtins
   # vitals_scan, vitals_heal, and vitals_report are a single cohesive

@@ -24,7 +24,7 @@
         name: sameeralam3127.linux_vitals.vitals_report
         tasks_from: snapshot
       vars:
-        inventory_hostname: "host-a"
+        inventory_hostname: "host-a"  # noqa: var-naming[read-only]
 
     - name: Seed baseline result for host-d (structured findings, pre-retune)
       # host-d exercises the post-severity finding shape. `reboot_required` is
@@ -52,7 +52,7 @@
         name: sameeralam3127.linux_vitals.vitals_report
         tasks_from: snapshot
       vars:
-        inventory_hostname: "host-d"
+        inventory_hostname: "host-d"  # noqa: var-naming[read-only]
 
     - name: Seed baseline result for host-e (as a 1.x snapshot holds it)
       # host-e is a maintenance window spanning the upgrade: the baseline was
@@ -75,7 +75,7 @@
         name: sameeralam3127.linux_vitals.vitals_report
         tasks_from: snapshot
       vars:
-        inventory_hostname: "host-e"
+        inventory_hostname: "host-e"  # noqa: var-naming[read-only]
 
     - name: Seed baseline result for host-f (one id, two subjects)
       # host-f holds two findings with the same id, told apart only by
@@ -97,7 +97,7 @@
         name: sameeralam3127.linux_vitals.vitals_report
         tasks_from: snapshot
       vars:
-        inventory_hostname: "host-f"
+        inventory_hostname: "host-f"  # noqa: var-naming[read-only]
 
     - name: Seed baseline result for host-b (passing)
       ansible.builtin.set_fact:
@@ -114,7 +114,7 @@
         name: sameeralam3127.linux_vitals.vitals_report
         tasks_from: snapshot
       vars:
-        inventory_hostname: "host-b"
+        inventory_hostname: "host-b"  # noqa: var-naming[read-only]
 
     # These two read back what vitals_report just wrote, so they must use the
     # same snapshot directory it chose -- the trimmed maintenance id, not the
@@ -180,7 +180,7 @@
         name: sameeralam3127.linux_vitals.vitals_report
         tasks_from: compare
       vars:
-        inventory_hostname: "host-a"
+        inventory_hostname: "host-a"  # noqa: var-naming[read-only]
 
     - name: Capture host-a comparison
       ansible.builtin.set_fact:
@@ -203,7 +203,7 @@
         name: sameeralam3127.linux_vitals.vitals_report
         tasks_from: compare
       vars:
-        inventory_hostname: "host-b"
+        inventory_hostname: "host-b"  # noqa: var-naming[read-only]
 
     - name: Capture host-b comparison
       ansible.builtin.set_fact:
@@ -223,7 +223,7 @@
         name: sameeralam3127.linux_vitals.vitals_report
         tasks_from: compare
       vars:
-        inventory_hostname: "host-c"
+        inventory_hostname: "host-c"  # noqa: var-naming[read-only]
 
     - name: Capture host-c comparison
       ansible.builtin.set_fact:
@@ -250,7 +250,7 @@
         name: sameeralam3127.linux_vitals.vitals_report
         tasks_from: compare
       vars:
-        inventory_hostname: "host-d"
+        inventory_hostname: "host-d"  # noqa: var-naming[read-only]
 
     - name: Capture host-d comparison
       ansible.builtin.set_fact:
@@ -272,7 +272,7 @@
         name: sameeralam3127.linux_vitals.vitals_report
         tasks_from: compare
       vars:
-        inventory_hostname: "host-e"
+        inventory_hostname: "host-e"  # noqa: var-naming[read-only]
 
     - name: Capture host-e comparison
       ansible.builtin.set_fact:
@@ -294,7 +294,7 @@
         name: sameeralam3127.linux_vitals.vitals_report
         tasks_from: compare
       vars:
-        inventory_hostname: "host-f"
+        inventory_hostname: "host-f"  # noqa: var-naming[read-only]
 
     - name: Capture host-f comparison
       ansible.builtin.set_fact:
