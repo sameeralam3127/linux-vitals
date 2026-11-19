@@ -1,6 +1,9 @@
 ansible-core>=2.21.5,<2.22
 ansible-lint>=26.10.1
 pytest>=9.2.0
+# Runs the suite in parallel in CI (#198): the cost is one ansible-playbook
+# start-up per test, which spreads cleanly across the runner's cores.
+pytest-xdist>=3.6.0
 # Used only by tests/test_report_exports.py, to parse the Prometheus text
 # output back and assert it is valid rather than eyeballing the template (#35).
 # Dev-only: no managed host ever needs it, and the exporters themselves are
