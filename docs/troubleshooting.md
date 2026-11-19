@@ -109,6 +109,13 @@ means most tasks inherit a broad tag automatically, but the config-loading
 step is tagged `always` specifically so notification configuration still
 resolves even on a narrow `--tags` run.
 
+**A tagged run stops at "Require discovery alongside a focused scan tag".**
+`kernel`, `security` and `boot` each select one part of the scan, but a
+host's result reads facts from all of it. A selection with one of them and
+without `discovery` would stop partway through on a fact that part never set,
+so the scan refuses it before running any probe. Add `discovery`, as the
+message says: `--tags discovery,kernel,reporting`.
+
 **Ansible writes temp-file permission errors.**
 Run with writable temp paths, e.g.:
 

@@ -37,8 +37,8 @@ fork count -- only the scan/heal stages parallelize across hosts.
 ## Scoped runs with tags
 
 ```bash
-# Just kernel/reboot posture, skip the rest
-ansible-playbook -i inventory.ini sameeralam3127.linux_vitals.healthcheck --tags kernel,reporting
+# Scan and report, without self-healing, certificates or notifications
+ansible-playbook -i inventory.ini sameeralam3127.linux_vitals.healthcheck --tags discovery,kernel,reporting
 
 # Rebuild the dashboard and resend notifications from the last run's data,
 # without re-scanning hosts
@@ -46,7 +46,8 @@ ansible-playbook -i inventory.ini sameeralam3127.linux_vitals.healthcheck --tags
 ```
 
 `reporting` is required alongside any narrower tag if you still want a
-dashboard out of the run -- see [troubleshooting.md](troubleshooting.md).
+dashboard out of the run, and `kernel`, `security` and `boot` each need
+`discovery` beside them -- see [troubleshooting.md](troubleshooting.md).
 
 ## Multiple maintenance windows in flight
 

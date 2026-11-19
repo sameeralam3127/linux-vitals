@@ -1,8 +1,8 @@
 """The real `vitals_scan` role under `--tags`, run over the golden fixtures.
 
-The README documents `--tags kernel,reporting` for a kernel-only run, and a
-tag that goes missing deep in the discovery tasks breaks it in a way nobody
-sees in review: a later task reads a fact that a skipped task never set (#16).
+The README documents tagged runs, and a tag that goes missing deep in the
+discovery tasks breaks them in a way nobody sees in review: a later task reads
+a fact that a skipped task never set (#16).
 The golden tests (`test_golden_findings.py`) cannot catch that. They run the
 tasks flattened into one untagged play, so neither tags nor the role's
 include/import structure is exercised.
@@ -16,14 +16,11 @@ task it replaces, since tags are what is under test, and a play-level task
 tagged `always` stands in for `gather_facts`.
 
 A selection that runs every scan task must reproduce the golden result
-exactly. A narrower one must still build a result of the same shape.
-
-`KNOWN_TAG_GAPS` lists the selections that do not build a result today, each
-with the facts it is known to stop on. They fail the same way on `main`
-before #27 (checked by running both), and fixing them would change behaviour,
-which a structural refactor must not do. Each is a strict xfail that only
-accepts that exact failure: a run that stops anywhere else fails the test,
-and one that starts working fails it too, until its entry is removed.
+exactly. A focused one (`kernel`, `security` or `boot` without `discovery`)
+cannot build a result, because `result.yml` reads facts from every slice of
+the scan. It must stop at the guard in `main.yml` before any probe runs, and
+say which command does work (#138), rather than run on and stop wherever its
+slice happens to leave a fact undefined.
 """
 from __future__ import annotations
 
@@ -57,25 +54,9 @@ COLLECTION = {"ansible.builtin.setup", "ansible.builtin.service_facts", "ansible
 # Selections that run every scan task, so the result must match the golden file.
 # discovery,kernel,reporting is the one docs/troubleshooting.md suggests.
 FULL_SCAN = ["untagged", "discovery,kernel,reporting"]
-# Selections the README documents for a focused run.
+# Focused selections: a slice of the scan without discovery.
 FOCUSED = ["kernel,reporting", "security,reporting", "boot,reporting"]
-
-# Each selection that does not complete today, and the facts it stops on.
-# Which one depends on ansible-core: 2.16 stops at "Finalize extended discovery
-# facts" (linux_vitals_bootloader_default_cmd, registered by a kernel-only
-# probe), while newer cores tolerate that and stop in result.yml instead
-# (linux_vitals_service_status, set by services.yml, tagged discovery only).
-# kernel stops at "Evaluate journal probe availability" on every core: it reads
-# linux_vitals_journalctl, registered by a probe tagged discovery only.
-KNOWN_TAG_GAPS = {
-    "kernel,reporting": {"linux_vitals_journalctl"},
-    "security,reporting": {"linux_vitals_service_status", "linux_vitals_bootloader_default_cmd"},
-    "boot,reporting": {"linux_vitals_service_status", "linux_vitals_bootloader_default_cmd"},
-}
-
-
-class KnownTagGap(Exception):
-    """The run stopped on a fact KNOWN_TAG_GAPS says this selection leaves undefined."""
+GUARD = "Require discovery alongside a focused scan tag"
 
 
 def _keeping_tags(task: dict, source: Path) -> list[dict]:
@@ -174,9 +155,6 @@ def runs(tmp_path_factory) -> dict[str, dict]:
 
 
 def _check(run: dict, selection: str, compare) -> None:
-    undefined = set(re.findall(r"'(\w+)' is undefined", run["output"]))
-    if run["rc"] != 0 and undefined and undefined <= KNOWN_TAG_GAPS.get(selection, set()):
-        raise KnownTagGap(f"--tags {selection} stops on undefined {sorted(undefined)}")
     assert run["rc"] == 0, f"--tags {selection} failed:\n{run['output'][-4000:]}"
     assert sorted(run["results"]) == _fixture_names(), "a host built no result"
     for name, result in run["results"].items():
@@ -192,25 +170,16 @@ def test_a_full_scan_through_the_role_reproduces_the_golden_result(runs, selecti
     _check(runs[selection], selection, compare)
 
 
-@pytest.mark.parametrize(
-    "selection",
-    [
-        pytest.param(
-            selection,
-            marks=pytest.mark.xfail(
-                strict=True,
-                raises=KnownTagGap,
-                reason=f"pre-existing tag gap: stops on {sorted(KNOWN_TAG_GAPS[selection])}",
-            ),
-        )
-        if selection in KNOWN_TAG_GAPS
-        else selection
-        for selection in FOCUSED
-    ],
-)
-def test_a_focused_scan_builds_a_complete_result(runs, selection: str) -> None:
-    def compare(name: str, result: dict) -> None:
-        golden = json.loads((GOLDEN_DIR / f"{name}.json").read_text(encoding="utf-8"))
-        assert sorted(result) == sorted(golden), f"{name} under --tags {selection}"
-
-    _check(runs[selection], selection, compare)
+@pytest.mark.parametrize("selection", FOCUSED)
+def test_a_focused_scan_stops_at_the_guard_and_names_the_command_that_works(runs, selection: str) -> None:
+    run = runs[selection]
+    output = run["output"]
+    assert run["rc"] != 0, f"--tags {selection} ran without discovery and did not stop"
+    assert run["results"] == {}, "a host built a result without discovery"
+    # Stopped at the guard, before any probe, not on a fact its slice left unset.
+    tasks = re.findall(r"^TASK \[(.+?)\]", output, re.MULTILINE)
+    assert tasks[-1] == f"{ROLE_UNDER_TEST} : {GUARD}", tasks
+    assert "is undefined" not in output, output[-4000:]
+    # ansible_run_tags carries no order, so compare the suggested tags as a set.
+    suggested = [set(tags.split(",")) for tags in re.findall(r"e\.g\. --tags (\w+(?:,\w+)*)", output)]
+    assert {"discovery", *selection.split(",")} in suggested, output[-4000:]

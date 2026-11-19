@@ -419,29 +419,27 @@ whether the file is loaded at all, and are not inherited; `apply: tags` adds
 its tags to every task in the file, alongside the task's own. So every
 discovery task, whichever file `discovery.yml` imports it from, carries
 `discovery`, while specific tasks additionally carry `kernel`, `security`, or
-`boot` so `--tags kernel` (etc.) runs a slice instead of the whole scan. The
+`boot`. The
 `always` tag on `vitals_report`'s `config.yml` ensures notification
 configuration loads even when you run a narrowly-tagged subset.
 
 A tagged run has only the facts set by tasks that ran. A task that reads a
 fact set by a task without the same tag fails on an undefined variable, which
 is the bug [#16](https://github.com/sameeralam3127/linux-vitals/pull/16) fixed
-for the bootloader facts. `tests/test_tagged_scan.py` runs the role over the
-golden fixtures under each selection the docs suggest, and three of them stop
-on exactly this today. They predate the #27 split, which left them alone
-because fixing them changes behaviour; the test pins where each one stops:
+for the bootloader facts. `result.yml` reads facts from every part of the
+scan, so `kernel`, `security` or `boot` without `discovery` cannot build a
+result: each stopped partway through, on whichever fact its part left unset
+([#138](https://github.com/sameeralam3127/linux-vitals/issues/138)). The first
+task after the check-mode gate in `vitals_scan`'s `main.yml`, tagged with those
+three only, now refuses such a selection before any probe runs and names
+the command that works: `--tags discovery,kernel,reporting`.
+`tests/test_tagged_scan.py` checks both sides: a full selection reproduces
+the golden results, and each focused one stops at that guard.
 
-- `--tags kernel,reporting` stops in `journal_facts.yml`, which reads
-  `linux_vitals_journalctl`, registered by `log_errors.yml`, tagged
-  `discovery` only.
-- `--tags security,reporting` and `--tags boot,reporting` stop in
-  `result.yml`, which reads `linux_vitals_service_status` from `services.yml`,
-  tagged `discovery` only. On ansible-core 2.16 they stop earlier, in
-  `extended_facts.yml`, on `linux_vitals_bootloader_default_cmd`, which only
-  the `kernel`-tagged bootloader probe registers.
-
-Adding `discovery` to a selection runs the whole scan, and works:
-`--tags discovery,kernel,reporting`.
+Running one part of the scan on its own is what #138 tracks. It needs a
+result that can tell a check that was not selected apart from one that could
+not run, because an `unknown` finding fails the host at the default
+`linux_vitals_fail_on_severity: info`, and a missing one reads as clean.
 
 ## Fact cache lifetime
 

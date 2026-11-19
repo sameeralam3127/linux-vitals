@@ -395,7 +395,7 @@ into the comparison: [Sharding a large fleet](docs/performance.md#sharding-a-lar
 
 ## Running part of a check
 
-Every task is tagged, so you can run a slice instead of the whole scan:
+Every task is tagged, so you can limit a run to the stages you need:
 
 | Tag | Runs |
 | --- | --- |
@@ -409,10 +409,13 @@ Every task is tagged, so you can run a slice instead of the whole scan:
 | `reporting`, `notifications` | Rebuild reports and send summaries |
 
 ```bash
-ansible-playbook -i inventory.ini playbooks/healthcheck.yml --tags kernel,reporting
+ansible-playbook -i inventory.ini playbooks/healthcheck.yml --tags discovery,kernel,reporting
 ```
 
-> Include `reporting` with any focused tag, or the run produces no output file.
+> `kernel`, `security` and `boot` need `discovery` beside them: a host's result
+> reads facts from every part of the scan, so a run that selects only one part
+> stops before scanning and names the command to use. Include `reporting`, or
+> the run produces no output file.
 
 ---
 

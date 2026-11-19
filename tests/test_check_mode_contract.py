@@ -16,7 +16,8 @@ def test_vitals_scan_refuses_check_mode_before_discovery():
     assert gate["ansible.builtin.assert"]["that"] == ["not ansible_check_mode"]
     assert "--check" in gate["ansible.builtin.assert"]["fail_msg"]
     assert "always" in gate["tags"]
-    assert tasks[1]["ansible.builtin.include_tasks"]["file"] == "discovery.yml"
+    includes = [task.get("ansible.builtin.include_tasks", {}).get("file") for task in tasks]
+    assert includes.index("discovery.yml") > 0
 
 
 def test_troubleshooting_documents_check_mode_contract():
