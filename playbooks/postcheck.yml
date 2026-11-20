@@ -3,12 +3,49 @@
 # and automatically compare it against the matching baseline snapshot.
 # Requires the same linux_vitals_maintenance_id used for playbooks/baseline.yml:
 #   ansible-playbook -i inventory.ini sameeralam3127.linux_vitals.postcheck \
+#     -e linux_vitals_hosts=all \
 #     -e linux_vitals_maintenance_id=2026-07-12-patch-window
 #
 # Hosts with no matching baseline snapshot (e.g. newly added servers) still
 # get a full result; the dashboard just marks them as having no baseline.
+
+# A play whose hosts pattern matches nothing runs no tasks and exits 0, which
+# reads as a clean run (#194). This one runs first and fails instead, naming
+# the variable to set. It targets all:localhost so that a --limit cannot
+# filter it out too, and runs its one check once, on the control node.
+- name: Check that linux_vitals_hosts matches hosts in this inventory
+  hosts: all:localhost
+  gather_facts: false
+  tasks:
+    - name: Fail when linux_vitals_hosts matches no inventory host
+      ansible.builtin.assert:
+        that:
+          - matched | length > 0
+        fail_msg: >-
+          linux_vitals_hosts is '{{ pattern }}', which matches no host in this
+          inventory{{ limited }}, so nothing would be scanned. Name the group
+          or pattern to scan with -e, e.g. -e linux_vitals_hosts=all or
+          -e linux_vitals_hosts=webservers.
+        quiet: true
+      vars:
+        pattern: "{{ linux_vitals_hosts | default('linux_servers') }}"
+        in_limit: >-
+          {{ query('ansible.builtin.inventory_hostnames', ansible_limit)
+             if ansible_limit is defined and not ansible_limit.startswith('@')
+             else query('ansible.builtin.inventory_hostnames', 'all:localhost') }}
+        matched: "{{ query('ansible.builtin.inventory_hostnames', pattern) | intersect(in_limit) }}"
+        limited: "{{ ' within --limit ' ~ ansible_limit if ansible_limit is defined else '' }}"
+      # Under the free strategy run_once may not hold, which only repeats the
+      # same controller-side check per host.
+      run_once: true  # noqa: run-once[task]
+      delegate_to: localhost
+      tags:
+        - always
+
 - name: LinuxVitals postcheck health check (post-maintenance)
-  hosts: linux_servers
+  # Any group or pattern in your inventory: -e linux_vitals_hosts=all. Read
+  # from extra vars only; inventory and group vars are not loaded yet here.
+  hosts: "{{ linux_vitals_hosts | default('linux_servers') }}"
   gather_facts: true
   vars:
     linux_vitals_phase: "postcheck"

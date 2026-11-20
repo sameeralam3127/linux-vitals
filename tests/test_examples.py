@@ -87,8 +87,9 @@ def test_the_example_inventories_parse_as_ini_inventories() -> None:
     for inventory in (EXAMPLES / "inventory").glob("*.ini"):
         text = inventory.read_text(encoding="utf-8")
         assert "[linux_servers]" in text, f"{inventory.name} has no linux_servers group"
-        # The shipped playbooks all target `hosts: linux_servers`, so an
-        # example inventory using a different group name would not run at all.
+        # The shipped playbooks target `linux_servers` unless
+        # linux_vitals_hosts says otherwise, so the examples use that group
+        # and run with no -e at all.
         assert re.search(r"^\[linux_servers(:vars)?\]$", text, re.MULTILINE)
 
 

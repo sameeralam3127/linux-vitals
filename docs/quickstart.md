@@ -3,11 +3,29 @@
 This walks through the fastest path to a first HTML dashboard, then to a
 full pre-maintenance / post-maintenance comparison.
 
-## 1. Install and set up an inventory
+## 1. Install and point it at your hosts
 
 ```bash
 ansible-galaxy collection install sameeralam3127.linux_vitals
 ansible-galaxy collection install -r requirements.yml   # community.general, for email notifications
+```
+
+**Already have an inventory?** Use it as it is, and name the group or
+pattern to scan with `linux_vitals_hosts`:
+
+```bash
+ansible-playbook -i /path/to/your/inventory sameeralam3127.linux_vitals.healthcheck \
+  -e linux_vitals_hosts=all          # or a group: -e linux_vitals_hosts=webservers
+```
+
+Without it, the playbooks scan a group called `linux_servers`. If the
+pattern matches no host, the run fails at once and says so, rather than
+scanning nothing.
+
+**Starting from scratch?** Copy the example inventory, which already uses
+that group:
+
+```bash
 cp examples/inventory/hosts.example.ini inventory.ini
 ```
 
