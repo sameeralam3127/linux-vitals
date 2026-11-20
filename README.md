@@ -5,14 +5,76 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Tested on](https://img.shields.io/badge/tested%20on-Ubuntu%20%7C%20Debian%20%7C%20Rocky%20%7C%20Fedora%20%7C%20Amazon%20Linux%20%7C%20openSUSE-informational)](docs/testing.md)
 
-**Agentless health checks for a mixed Linux fleet.** Scan every host over SSH,
-get one self-contained HTML dashboard and a JSON report, and optionally let it
-restart what it can fix.
+**Prove a patch window broke nothing.** LinuxVitals checks every Linux host
+before maintenance and again after it, then reports, host by host, what got
+worse: a service that stopped, a reboot still pending, a default boot entry
+that no longer selects the newest kernel, a filesystem or `/boot` running out
+of space. You get one self-contained HTML report to attach to the change
+ticket, and an exit code a pipeline can stop on.
 
-Nothing is installed on managed hosts. Every check is read-only unless you
-explicitly opt in to remediation.
+It is an Ansible collection. Nothing is installed on managed hosts, every
+check is read-only, and it runs against the inventory you already have. The
+same checks work as a one-off health check of a whole fleet.
 
 Collection: `sameeralam3127.linux_vitals` · [Browse a sample dashboard](https://sameeralam3127.github.io/linux-vitals/) · [Ansible Galaxy](https://galaxy.ansible.com/ui/repo/published/sameeralam3127/linux_vitals/)
+
+[![A postcheck report: one host's change against its pre-maintenance baseline](docs/images/dashboard-comparison.png)](docs/images/dashboard-comparison.png)
+
+*A postcheck report. This host was already failing before the window, and
+**Change vs. baseline** shows what the window added: low space on `/boot`, a
+reboot now required, and RAM up 1.9 points. **Regressed**, **Improved** and
+**New** filter the fleet to the hosts that changed.*
+
+---
+
+## Validate a patch window
+
+Three commands around your maintenance, against your existing inventory:
+
+```bash
+ansible-galaxy collection install sameeralam3127.linux_vitals
+MAINT_ID="$(date +%Y-%m-%d)-patch-window"
+
+# 1. Before: record each host's state
+ansible-playbook -i inventory.ini sameeralam3127.linux_vitals.baseline \
+  -e linux_vitals_hosts=all -e linux_vitals_maintenance_id="$MAINT_ID"
+
+# 2. Patch, reboot, change config: however you already do it
+
+# 3. After: check again, compare, and exit non-zero if a host regressed
+ansible-playbook -i inventory.ini sameeralam3127.linux_vitals.postcheck \
+  -e linux_vitals_hosts=all -e linux_vitals_maintenance_id="$MAINT_ID" \
+  -e linux_vitals_fail_on_status=regression
+```
+
+Open `reports/linux_vitals_report.html`, next to your inventory. For each
+host it shows the pass/fail status before and after, kernel and
+reboot-required changes, the RAM delta, and the findings the window added or
+cleared. With `linux_vitals_fail_on_status=regression`, the postcheck exits
+non-zero when a host that passed before the window fails after it, or when a
+host that had a baseline does not answer at all; that host is listed as not
+checked rather than left out. A host with no baseline is marked **New** and
+does not fail the run. Findings added to a host that was already failing are
+shown, but do not count as a regression.
+
+`linux_vitals_hosts` is any group or pattern in your inventory (`all`,
+`webservers`, `web:&prod`). Leave it out and the playbooks scan a group
+called `linux_servers`. If it matches no host, the run stops and says so
+instead of scanning nothing. More on the workflow, including snapshot age
+and large fleets: [Maintenance windows in detail](#maintenance-windows-in-detail).
+
+---
+
+## When not to use this
+
+LinuxVitals is not continuous monitoring. It runs when you run it: before
+and after a change, on a schedule, or for an audit. It keeps no time series:
+each run is a snapshot, the only comparison it makes is a postcheck against
+its baseline, and nothing watches the hosts between runs. For metrics over
+time and alerting, use a monitoring stack such as Prometheus with
+`node_exporter` and Alertmanager, Netdata, Zabbix or Checkmk. LinuxVitals sits beside one: it can
+write each run's results as Prometheus metrics
+([Metrics and CSV exports](#metrics-and-csv-exports-opt-in)).
 
 ---
 
@@ -29,9 +91,7 @@ open it from a laptop or attach it to a change ticket. Search, filter, and sort
 the fleet; expand any host for its findings, kernel and bootloader state, boot
 space, and self-healing outcome.
 
-| Expanded host detail | Baseline vs. postcheck |
-| --- | --- |
-| [![Expanded host detail](docs/images/dashboard-host-detail.png)](docs/images/dashboard-host-detail.png) | [![Before and after comparison](docs/images/dashboard-comparison.png)](docs/images/dashboard-comparison.png) |
+[![Expanded host detail](docs/images/dashboard-host-detail.png)](docs/images/dashboard-host-detail.png)
 
 Full tour, JSON schema, and every finding it can raise: **[Report Guide](docs/report-guide.md)**.
 
@@ -57,7 +117,7 @@ memory threshold breach. Needs only Docker and `ansible-core`.
 
 ---
 
-## Run it against your own fleet
+## Run a one-off health check
 
 ### 1. Install
 
@@ -70,10 +130,16 @@ If the control node runs ansible-core 2.16, install both collections with a
 `community.general` `<12` constraint instead; see the
 [2.16 installation instructions](docs/installation.md#requirements).
 
-### 2. Point it at your hosts
+### 2. Run it against your inventory
 
-Create `inventory.ini` — the shipped playbooks all target a group called
-`linux_servers`:
+```bash
+ansible-playbook -i inventory.ini sameeralam3127.linux_vitals.healthcheck \
+  -e linux_vitals_hosts=all
+```
+
+`linux_vitals_hosts` takes any group or pattern from your inventory. No
+inventory yet? Create one with a `linux_servers` group, which the playbooks
+scan when `linux_vitals_hosts` is not set:
 
 ```ini
 [linux_servers]
@@ -88,13 +154,7 @@ ansible_become=true
 A fuller starting point, with key paths and a mixed fleet, is in
 [examples/inventory/hosts.example.ini](examples/inventory/hosts.example.ini).
 
-### 3. Run
-
-```bash
-ansible-playbook -i inventory.ini sameeralam3127.linux_vitals.healthcheck
-```
-
-### 4. Open the report
+### 3. Open the report
 
 ```
 reports/linux_vitals_report.html
@@ -352,22 +412,12 @@ need exact strings back.
 
 ---
 
-## Maintenance windows: before/after comparison
+## Maintenance windows in detail
 
-Run the same maintenance id before and after a change window to get an
-automatic comparison:
-
-```bash
-MAINT_ID="$(date +%Y-%m-%d)-patch-window"
-
-ansible-playbook -i inventory.ini sameeralam3127.linux_vitals.baseline \
-  -e linux_vitals_maintenance_id="$MAINT_ID"
-
-# ... do your maintenance ...
-
-ansible-playbook -i inventory.ini sameeralam3127.linux_vitals.postcheck \
-  -e linux_vitals_maintenance_id="$MAINT_ID"
-```
+The three commands are under [Validate a patch window](#validate-a-patch-window).
+The baseline and the postcheck must use the same `linux_vitals_maintenance_id`;
+the postcheck finds each host's baseline by that id and the host's inventory
+name.
 
 The postcheck dashboard gains Regressed / Improved / New filters and a per-host
 before/after panel. Hosts with no matching baseline are marked **New** rather

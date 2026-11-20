@@ -8,6 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **The README and the Galaxy description lead with patch-window validation**
+  ([#193](https://github.com/sameeralam3127/linux-vitals/issues/193)):
+  baseline, patch, postcheck, and a per-host before/after report, with the
+  three commands on the first screen and a "When not to use this" section
+  that names continuous monitoring as out of scope. Galaxy tags gain
+  `patching` and `changemanagement`, and drop `observability`.
+
 - **The shipped playbooks scan any inventory, and fail when they would scan
   nothing** ([#194](https://github.com/sameeralam3127/linux-vitals/issues/194)).
   `healthcheck`, `baseline` and `postcheck` hardcoded `hosts: linux_servers`,

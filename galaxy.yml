@@ -6,9 +6,10 @@ authors:
   - Sameer Alam <sameeralam3127@gmail.com>
 
 description: >-
-  Agentless Linux fleet health checks for RHEL, Fedora, Ubuntu, and SUSE:
-  baseline and post-maintenance snapshots, before/after comparison, one-shot
-  self-healing, and a self-contained HTML dashboard for hundreds of servers.
+  Prove a patch window broke nothing: check every Linux host (RHEL, Fedora,
+  Ubuntu, Debian, SUSE) before and after maintenance, and get a per-host
+  before/after report for the change ticket and an exit code a pipeline can
+  gate on. Agentless and read-only; also runs one-off fleet health checks.
 
 license:
   - MIT
@@ -22,8 +23,9 @@ tags:
   - dashboard
   - infrastructure
   - sysadmin
-  - observability
   - selfhealing
+  - patching
+  - changemanagement
 
 repository: https://github.com/sameeralam3127/linux-vitals
 documentation: https://github.com/sameeralam3127/linux-vitals/tree/main/docs
