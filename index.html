@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LinuxVitals — Continuous vitals for your Linux fleet</title>
-<meta name="description" content="LinuxVitals is an agentless Ansible collection that scans, heals, and reports on Linux fleets — with per-distro reboot and kernel detection, a baseline/postcheck comparison built for real maintenance windows, and a self-contained HTML dashboard.">
+<title>LinuxVitals — Prove a patch window broke nothing</title>
+<meta name="description" content="LinuxVitals checks every Linux host before and after a maintenance window and reports, per host, what got worse: one self-contained HTML report for the change ticket and an exit code a pipeline can gate on. An agentless, read-only Ansible collection.">
 <link rel="canonical" href="https://sameeralam3127.github.io/linux-vitals/">
 <meta property="og:type" content="website">
-<meta property="og:title" content="LinuxVitals — Continuous vitals for your Linux fleet">
-<meta property="og:description" content="Agentless Ansible collection for Linux fleet health checks across Ubuntu, Debian, Rocky, Fedora, Amazon Linux, and openSUSE. Tested on six distributions with real systemd containers on every push.">
+<meta property="og:title" content="LinuxVitals — Prove a patch window broke nothing">
+<meta property="og:description" content="Check every Linux host before and after maintenance and get a per-host before/after report. Agentless Ansible collection for Ubuntu, Debian, Rocky, Fedora, Amazon Linux, and openSUSE, tested on all six with real systemd containers on every push.">
 <meta property="og:url" content="https://sameeralam3127.github.io/linux-vitals/">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="color-scheme" content="dark light">
@@ -68,11 +68,12 @@
   <div class="wrap hero-grid">
     <div class="hero-copy">
     <span class="eyebrow"><span class="dot"></span> sameeralam3127.linux_vitals · Ansible Galaxy collection</span>
-    <h1>Your Linux fleet has a pulse. <span class="grad">Now you can see it.</span></h1>
+    <h1>Prove a patch window broke nothing. <span class="grad">Host by host.</span></h1>
     <p class="lede">
-      LinuxVitals is an agentless Ansible collection that scans, opt-in self-heals, and reports on your
-      Linux servers — severity-ranked findings, per-distro reboot and kernel detection, a baseline → postcheck
-      comparison for real maintenance windows, and one self-contained HTML dashboard at the end of it.
+      Check every Linux host before maintenance and again after it. LinuxVitals reports, per host, what got
+      worse — a stopped service, a pending reboot, a boot entry that misses the new kernel, a filling disk — in
+      one self-contained HTML report for the change ticket, with an exit code your pipeline can gate on.
+      Agentless, read-only, and it runs against the inventory you already have.
     </p>
 
     <div class="cta-row">
