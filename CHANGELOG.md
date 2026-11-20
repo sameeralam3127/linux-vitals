@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **The shipped playbooks scan any inventory, and fail when they would scan
+  nothing** ([#194](https://github.com/sameeralam3127/linux-vitals/issues/194)).
+  `healthcheck`, `baseline` and `postcheck` hardcoded `hosts: linux_servers`,
+  so a first run against an existing inventory without that group matched no
+  host, ran nothing, and exited 0, which read as a clean run. They now target
+  `linux_vitals_hosts`, an extra var that takes any group or pattern:
+  `-e linux_vitals_hosts=all`. Without it they still target `linux_servers`,
+  so existing setups are unchanged. When the pattern matches no host, after
+  any `--limit`, each playbook now fails before scanning, with a message
+  naming the variable. That last part is the one behaviour change: a run that
+  used to exit 0 having scanned nothing now exits non-zero.
+
 ### Security
 
 - **A host's `inventory_hostname` is validated before it becomes a snapshot

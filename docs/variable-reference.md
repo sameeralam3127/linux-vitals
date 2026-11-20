@@ -5,6 +5,16 @@ defines it. All three roles share one flat namespace by design -- see
 [architecture.md](architecture.md#why-three-roles-one-variable-namespace).
 Override any of these in inventory, `group_vars`, or `-e` extra vars.
 
+## Playbook variables -- extra vars only
+
+Read by the shipped playbooks (`healthcheck`, `baseline`, `postcheck`), not
+by a role, so they have no `defaults/main.yml` entry. Pass them with `-e`:
+a play's `hosts:` is resolved before inventory and group vars are loaded.
+
+| Variable | Default | Description |
+|---|---|---|
+| `linux_vitals_hosts` | `linux_servers` | The inventory group or host pattern to scan: `all`, a group, or any pattern Ansible accepts (`web:db`, `web:&prod`, `web*`). Lets an existing inventory run with no file edits: `-e linux_vitals_hosts=all`. When it matches no host (after any `--limit`), the playbook fails before scanning, naming this variable, rather than matching nothing and exiting 0 ([#194](https://github.com/sameeralam3127/linux-vitals/issues/194)). |
+
 ## `vitals_scan` -- thresholds and windows
 
 | Variable | Default | Description |
