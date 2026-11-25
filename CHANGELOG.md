@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Documentation
+
+- List tested distribution images, ansible-core floor coverage and container limits.
+
 ### Security
 
 - **A host's `inventory_hostname` is validated before it becomes a snapshot
