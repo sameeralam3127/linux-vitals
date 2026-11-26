@@ -3,14 +3,47 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LinuxVitals — Ansible health checks for every patch window</title>
-<meta name="description" content="LinuxVitals is an agentless Ansible collection that scans, heals, and reports on Linux fleets — with per-distro reboot and kernel detection, a baseline/postcheck comparison built for real maintenance windows, and a self-contained HTML dashboard.">
+<title>LinuxVitals — Ansible health checks for Linux patch windows</title>
+<meta name="description" content="Agentless Ansible health checks for Linux fleets. Compare every host before and after patching and get one HTML report. Install it free from Ansible Galaxy.">
 <link rel="canonical" href="https://sameeralam3127.github.io/linux-vitals/">
 <meta property="og:type" content="website">
-<meta property="og:title" content="LinuxVitals — Continuous vitals for your Linux fleet">
-<meta property="og:description" content="Agentless Ansible collection for Linux fleet health checks across Ubuntu, Debian, Rocky, Fedora, Amazon Linux, and openSUSE. Tested on six distributions with real systemd containers on every push.">
+<meta property="og:title" content="LinuxVitals — Ansible health checks for Linux patch windows">
+<meta property="og:description" content="Agentless Ansible health checks for Linux fleets. Compare every host before and after patching and get one HTML report. Install it free from Ansible Galaxy.">
 <meta property="og:url" content="https://sameeralam3127.github.io/linux-vitals/">
+<meta property="og:image" content="https://sameeralam3127.github.io/linux-vitals/assets/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="LinuxVitals: a postcheck run listing each Linux host as Pass or Fail, with the fleet health score">
+<meta property="og:site_name" content="LinuxVitals">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="LinuxVitals — Ansible health checks for Linux patch windows">
+<meta name="twitter:description" content="Agentless Ansible health checks for Linux fleets. Compare every host before and after patching and get one HTML report. Install it free from Ansible Galaxy.">
+<meta name="twitter:image" content="https://sameeralam3127.github.io/linux-vitals/assets/og-image.png">
+<meta name="twitter:image:alt" content="LinuxVitals: a postcheck run listing each Linux host as Pass or Fail, with the fleet health score">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareSourceCode",
+  "name": "LinuxVitals",
+  "alternateName": "sameeralam3127.linux_vitals",
+  "description": "Agentless Ansible health checks for Linux fleets. Compare every host before and after patching and get one HTML report. Install it free from Ansible Galaxy.",
+  "url": "https://sameeralam3127.github.io/linux-vitals/",
+  "image": "https://sameeralam3127.github.io/linux-vitals/assets/og-image.png",
+  "codeRepository": "https://github.com/sameeralam3127/linux-vitals",
+  "programmingLanguage": "Ansible",
+  "runtimePlatform": "ansible-core 2.16 or later",
+  "license": "https://opensource.org/licenses/MIT",
+  "author": {
+    "@type": "Person",
+    "name": "Sameer Alam",
+    "url": "https://github.com/sameeralam3127"
+  },
+  "keywords": "Ansible, Ansible collection, Linux health check, patch management, maintenance window, reboot required, fleet monitoring, Ubuntu, Debian, Rocky Linux, Fedora, Amazon Linux, openSUSE",
+  "sameAs": [
+    "https://galaxy.ansible.com/ui/repo/published/sameeralam3127/linux_vitals/"
+  ]
+}
+</script>
 <meta name="color-scheme" content="dark light">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%235cc8c2'/%3E%3Cpath d='M6 16h5l3-8 4 16 3-8h5' fill='none' stroke='%23062120' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <meta name="theme-color" content="#0f1d2b">
@@ -66,7 +99,7 @@
 
 <section class="hero">
   <div class="wrap">
-    <h1>Know what your patch window changed.</h1>
+    <h1>Know what your patch window changed.<span class="sr-only"> Agentless Linux health checks with Ansible.</span></h1>
     <div class="hero-grid">
       <div class="hero-copy">
         <p class="lede">
@@ -135,7 +168,7 @@
 
 <section id="features">
   <div class="wrap">
-    <h2 class="task"><span class="t-kw" aria-hidden="true">TASK [</span><span class="t-name">Check deep OS posture, not just uptime</span><span class="t-kw" aria-hidden="true">]</span><span class="t-stars" aria-hidden="true"></span></h2>
+    <h2 class="task"><span class="t-kw" data-kw="TASK [" aria-hidden="true"></span><span class="t-name">Check deep OS posture, not just uptime</span><span class="t-kw" data-kw="]" aria-hidden="true"></span><span class="t-stars" aria-hidden="true"></span></h2>
     <p class="sub">Four roles, each with one job. Nothing is installed on managed hosts.</p>
 
     <div class="roles">
@@ -176,7 +209,7 @@
 
 <section id="demo" class="tint">
   <div class="wrap">
-    <h2 class="task"><span class="t-kw" aria-hidden="true">TASK [</span><span class="t-name">Open the actual dashboard</span><span class="t-kw" aria-hidden="true">]</span><span class="t-stars" aria-hidden="true"></span></h2>
+    <h2 class="task"><span class="t-kw" data-kw="TASK [" aria-hidden="true"></span><span class="t-name">Open the actual dashboard</span><span class="t-kw" data-kw="]" aria-hidden="true"></span><span class="t-stars" aria-hidden="true"></span></h2>
     <p class="sub">Rendered by the real <code>vitals_report</code> role from the collection's own golden scan fixtures: a baseline run, a patch window, and a postcheck with the same maintenance id. Search a hostname, sort a column, expand a host.</p>
 
     <div class="browser">
@@ -199,7 +232,7 @@
 
 <section id="triage">
   <div class="wrap">
-    <h2 class="task"><span class="t-kw" aria-hidden="true">TASK [</span><span class="t-name">Tune what fails a host</span><span class="t-kw" aria-hidden="true">]</span><span class="t-stars" aria-hidden="true"></span></h2>
+    <h2 class="task"><span class="t-kw" data-kw="TASK [" aria-hidden="true"></span><span class="t-name">Tune what fails a host</span><span class="t-kw" data-kw="]" aria-hidden="true"></span><span class="t-stars" aria-hidden="true"></span></h2>
     <p class="sub">The same fleet as the dashboard above, re-scored live in your browser with the collection's own rules. Change the threshold, retune a finding, set a pipeline gate — and watch which hosts fail, what the health score does, and whether the run would exit non-zero.</p>
 
     <div class="tp">
@@ -264,7 +297,7 @@
 
 <section id="detection" class="tint">
   <div class="wrap">
-    <h2 class="task"><span class="t-kw" aria-hidden="true">TASK [</span><span class="t-name">Ask each distro if it needs a reboot</span><span class="t-kw" aria-hidden="true">]</span><span class="t-stars" aria-hidden="true"></span></h2>
+    <h2 class="task"><span class="t-kw" data-kw="TASK [" aria-hidden="true"></span><span class="t-name">Ask each distro if it needs a reboot</span><span class="t-kw" data-kw="]" aria-hidden="true"></span><span class="t-stars" aria-hidden="true"></span></h2>
     <p class="sub">
       Every distro family answers this differently, so LinuxVitals asks each one in its own language, reports which source produced the answer, and never
       reads a broken check as "all clear". Pick a family to watch the probe run.
@@ -291,7 +324,7 @@
 
 <section id="workflow">
   <div class="wrap">
-    <h2 class="task"><span class="t-kw" aria-hidden="true">PLAY [</span><span class="t-name">Run it around a maintenance window</span><span class="t-kw" aria-hidden="true">]</span><span class="t-stars" aria-hidden="true"></span></h2>
+    <h2 class="task"><span class="t-kw" data-kw="PLAY [" aria-hidden="true"></span><span class="t-name">Run it around a maintenance window</span><span class="t-kw" data-kw="]" aria-hidden="true"></span><span class="t-stars" aria-hidden="true"></span></h2>
     <p class="sub">Three playbooks, one shared maintenance id. Click a step to replay it.</p>
 
     <div class="steps" id="wf-steps">
@@ -328,7 +361,7 @@
 
 <section id="install" class="tint">
   <div class="wrap">
-    <h2 class="task"><span class="t-kw" aria-hidden="true">TASK [</span><span class="t-name">Install and run it</span><span class="t-kw" aria-hidden="true">]</span><span class="t-stars" aria-hidden="true"></span></h2>
+    <h2 class="task"><span class="t-kw" data-kw="TASK [" aria-hidden="true"></span><span class="t-name">Install and run it</span><span class="t-kw" data-kw="]" aria-hidden="true"></span><span class="t-stars" aria-hidden="true"></span></h2>
     <p class="sub">No agents, no daemons, no database — just SSH and Ansible. Python 3.10+ and ansible-core 2.16+ on the control node.</p>
 
     <div>
@@ -384,7 +417,7 @@ cd linux-vitals/demo &amp;&amp; ./run.sh
 
 <section id="builder">
   <div class="wrap">
-    <h2 class="task"><span class="t-kw" aria-hidden="true">TASK [</span><span class="t-name">Build the exact command</span><span class="t-kw" aria-hidden="true">]</span><span class="t-stars" aria-hidden="true"></span></h2>
+    <h2 class="task"><span class="t-kw" data-kw="TASK [" aria-hidden="true"></span><span class="t-name">Build the exact command</span><span class="t-kw" data-kw="]" aria-hidden="true"></span><span class="t-stars" aria-hidden="true"></span></h2>
     <p class="sub" id="cb-intro">Every option below is generated from the collection's own <code>meta/argument_specs.yml</code>, with the real defaults. Change what you need; only what differs from a default ends up in the output — and <strong>Share</strong> gives you a link that reopens this exact configuration.</p>
 
     <div class="cb">
@@ -453,7 +486,7 @@ cd linux-vitals/demo &amp;&amp; ./run.sh
 
 <section id="releases" class="tint">
   <div class="wrap">
-    <h2 class="task"><span class="t-kw" aria-hidden="true">TASK [</span><span class="t-name">See what shipped</span><span class="t-kw" aria-hidden="true">]</span><span class="t-stars" aria-hidden="true"></span></h2>
+    <h2 class="task"><span class="t-kw" data-kw="TASK [" aria-hidden="true"></span><span class="t-name">See what shipped</span><span class="t-kw" data-kw="]" aria-hidden="true"></span><span class="t-stars" aria-hidden="true"></span></h2>
     <p class="sub">Pulled live from GitHub releases and the commit log, with a built-in copy for when the API is out of reach.</p>
 
     <div class="cols">
@@ -474,7 +507,7 @@ cd linux-vitals/demo &amp;&amp; ./run.sh
 
 <section id="roadmap">
   <div class="wrap">
-    <h2 class="task"><span class="t-kw" aria-hidden="true">TASK [</span><span class="t-name">See what's next</span><span class="t-kw" aria-hidden="true">]</span><span class="t-stars" aria-hidden="true"></span></h2>
+    <h2 class="task"><span class="t-kw" data-kw="TASK [" aria-hidden="true"></span><span class="t-name">See what's next</span><span class="t-kw" data-kw="]" aria-hidden="true"></span><span class="t-stars" aria-hidden="true"></span></h2>
     <p class="sub">
       Release milestones, with live progress from the issues in each. Nothing here is a commitment —
       the reasoning lives in <a href="https://github.com/sameeralam3127/linux-vitals/blob/main/docs/roadmap.md">docs/roadmap.md</a>,
