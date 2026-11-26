@@ -23,7 +23,10 @@ permissions:
 
 jobs:
   molecule:
-    name: ${{ matrix.name }}
+    # A job skipped by `if` never expands its matrix, so GitHub shows its name
+    # unevaluated. The fallback is what a pull request shows when some other
+    # label was added.
+    name: ${{ matrix.name || 'molecule (add the run-molecule label to run)' }}
     # Any other label added to a pull request skips the run.
     if: github.event_name != 'pull_request' || github.event.label.name == 'run-molecule'
     runs-on: ubuntu-latest
