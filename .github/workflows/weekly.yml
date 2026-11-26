@@ -1,0 +1,53 @@
+name: Weekly
+
+# Pull requests run lint and pytest only (ci.yml), and nothing re-runs on
+# merge. Once a week this re-tests main as a whole -- the full CI suite and
+# every Molecule scenario -- which also catches drift nobody committed: a new
+# container image, ansible-core release or collection version (#201 was one).
+# Nothing waits on it. A failure opens an issue, or comments on the one still
+# open.
+#
+# GitHub disables a schedule after 60 days without activity in a public
+# repository; re-enable it from the Actions tab.
+on:
+  schedule:
+    - cron: "17 3 * * 6"   # Saturday 03:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  molecule:
+    uses: ./.github/workflows/molecule.yml
+
+  report-failure:
+    name: Open an issue on failure
+    needs: [ci, molecule]
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update the weekly-failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHA: ${{ github.sha }}
+        run: |
+          title="Weekly test run failed on main"
+          existing=$(gh issue list --state open --search "\"$title\" in:title" --json number,title \
+            --jq "map(select(.title == \"$title\")) | .[0].number // empty")
+          body="The weekly run failed on \`${SHA}\`: ${RUN_URL}"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body
+
+          Close this issue once main passes again."
+          fi

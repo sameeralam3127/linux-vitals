@@ -20,6 +20,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 MOLECULE_DIR = REPO_ROOT / "molecule"
 RESOURCES_DIR = MOLECULE_DIR / "resources"
 CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
+MOLECULE_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "molecule.yml"
+RELEASE_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "release.yml"
 
 # Every host_vars key molecule/resources/verify.yml or prepare.yml reads from
 # a scenario's inventory.
@@ -59,7 +61,7 @@ def _ci_matrix_scenarios(tooling: str = "latest") -> list[str]:
     # The matrix is a list of explicit legs, one per (scenario, ansible-core
     # target) -- see docs/testing.md. The latest core sweeps every
     # distribution; the floor runs a subset.
-    workflow = _load_yaml(CI_WORKFLOW)
+    workflow = _load_yaml(MOLECULE_WORKFLOW)
     legs = workflow["jobs"]["molecule"]["strategy"]["matrix"]["include"]
     return [leg["scenario"] for leg in legs if leg["tooling"] == tooling]
 
@@ -85,18 +87,21 @@ def test_ci_floor_legs_name_real_scenarios() -> None:
     assert set(floor) <= scenario_names
 
 
-def test_validate_job_lints_the_molecule_directory() -> None:
+def test_pr_ci_lints_the_molecule_directory() -> None:
+    # Molecule itself no longer runs on every pull request, so its playbooks
+    # must at least be linted there.
     workflow = _load_yaml(CI_WORKFLOW)
-    steps = workflow["jobs"]["validate"]["steps"]
+    steps = workflow["jobs"]["checks"]["steps"]
     lint_step = next(step for step in steps if step.get("name") == "Run ansible-lint")
 
     assert "molecule/" in lint_step["run"]
 
 
-def test_molecule_job_depends_on_the_validate_job() -> None:
-    workflow = _load_yaml(CI_WORKFLOW)
+def test_release_waits_for_the_molecule_scenarios() -> None:
+    workflow = _load_yaml(RELEASE_WORKFLOW)
+    needs = workflow["jobs"]["publish"]["needs"]
 
-    assert workflow["jobs"]["molecule"]["needs"] == "validate"
+    assert "molecule" in ([needs] if isinstance(needs, str) else needs)
 
 
 @pytest.mark.parametrize("scenario_dir", _scenario_dirs(), ids=lambda p: p.name)

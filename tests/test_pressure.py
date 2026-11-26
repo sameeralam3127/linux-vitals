@@ -10,8 +10,6 @@ swap rate that was not sampled.
 from __future__ import annotations
 
 import subprocess
-import threading
-import time
 from pathlib import Path
 
 import pytest
@@ -62,10 +60,13 @@ def _proc(tmp_path: Path, *, psi: str | None = "file", swap_in: int = 1000, swap
     return proc
 
 
-def _probe(proc: Path, interval: int = 0) -> tuple[list[tuple[str, str]], subprocess.CompletedProcess]:
+def _probe(
+    proc: Path, interval: int = 0, *, bin_dir: Path | None = None
+) -> tuple[list[tuple[str, str]], subprocess.CompletedProcess]:
+    path = "/usr/bin:/bin" if bin_dir is None else f"{bin_dir}:/usr/bin:/bin"
     run = subprocess.run(
         ["sh", "-c", _script(), "linux-vitals-pressure", str(interval), str(proc)],
-        capture_output=True, text=True, check=False, timeout=30, env={"LC_ALL": "C", "PATH": "/usr/bin:/bin"},
+        capture_output=True, text=True, check=False, timeout=30, env={"LC_ALL": "C", "PATH": path},
     )
     pairs = [tuple(line.split("=", 1)) for line in run.stdout.splitlines()]
     return pairs, run
@@ -109,15 +110,19 @@ def test_sampling_off_measures_no_rate(tmp_path: Path) -> None:
 
 def test_the_swap_rate_is_the_change_between_two_reads(tmp_path: Path) -> None:
     proc = _proc(tmp_path, swap_in=1000, swap_out=500)
+    # The probe reads /proc/vmstat, runs `sleep "$interval"`, and reads it
+    # again. A stand-in `sleep` pages out in between, so the second read sees
+    # the new counters however slowly the probe starts -- a writer thread on a
+    # timer raced the first read on a loaded machine (pytest -n auto).
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fake_sleep = bin_dir / "sleep"
+    fake_sleep.write_text(
+        f"#!/bin/sh\nprintf 'pgfault 9\\npswpin 1600\\npswpout 900\\n' > '{proc / 'vmstat'}'\n"
+    )
+    fake_sleep.chmod(0o755)
 
-    def page_out() -> None:
-        time.sleep(0.4)
-        (proc / "vmstat").write_text("pgfault 9\npswpin 1600\npswpout 900\n")
-
-    writer = threading.Thread(target=page_out)
-    writer.start()
-    values = dict(_probe(proc, interval=1)[0])
-    writer.join()
+    values = dict(_probe(proc, interval=1, bin_dir=bin_dir)[0])
     assert values["swap_sample_seconds"] == "1"
     assert (values["swap_in_per_sec"], values["swap_out_per_sec"]) == ("600", "400")
 

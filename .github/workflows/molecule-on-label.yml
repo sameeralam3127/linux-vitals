@@ -1,0 +1,25 @@
+name: Molecule on label
+
+# A maintainer adds the `run-molecule` label to a pull request to run every
+# Molecule scenario against it -- typically one that changes self-healing,
+# journal, reboot or discovery code. Nothing waits on the result.
+#
+# This is a plain `pull_request` event, never `pull_request_target`: a fork's
+# code gets a read-only token and no secrets, exactly as in ci.yml. Only
+# people with triage access can add labels.
+#
+# The label check lives here, in a job with a fixed name, rather than in
+# molecule.yml: a matrix job skipped by `if` shows its name unevaluated
+# ("matrix.name"), and a bot labels every pull request.
+on:
+  pull_request:
+    types: [labeled]
+
+permissions:
+  contents: read
+
+jobs:
+  molecule:
+    name: run-molecule label
+    if: github.event.label.name == 'run-molecule'
+    uses: ./.github/workflows/molecule.yml

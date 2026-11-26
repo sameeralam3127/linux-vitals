@@ -1,7 +1,6 @@
 # Testing
 
-LinuxVitals has two layers of automated tests, both run by CI on every push
-and pull request:
+LinuxVitals has two layers of automated tests:
 
 | Layer | Command | What it proves |
 | --- | --- | --- |
@@ -10,6 +9,40 @@ and pull request:
 
 Plus `ansible-lint roles/ playbooks/ molecule/ demo/` and
 `ansible-playbook playbooks/healthcheck.yml --syntax-check`.
+
+## When tests run
+
+| When | Workflow | What runs | Blocks |
+| --- | --- | --- | --- |
+| Every push to a pull request, forks included | `ci.yml` | Syntax check, ansible-lint and pytest, on the latest ansible-core and on 2.16 | Merging: `validate` is the required check |
+| A maintainer adds the `run-molecule` label to a pull request | `molecule-on-label.yml`, which calls `molecule.yml` | Every Molecule scenario against that pull request | Nothing; the maintainer reads the result |
+| Saturday 03:17 UTC, on `main` | `weekly.yml` | All of `ci.yml` and `molecule.yml` | Nothing; a failure opens an issue |
+| A `v*` tag | `release.yml` | Every Molecule scenario, then the fast checks, against the tagged commit | Publishing to Galaxy |
+| Before each release, by the maintainer | none (local) | The roles against real VMs ([#156](https://github.com/sameeralam3127/linux-vitals/issues/156)) | The release |
+
+A push to a branch with no pull request runs nothing, and merging does not
+re-run what the pull request already ran. Each push to a pull request
+cancels the run it replaces. `ci.yml`, `molecule.yml` and `weekly.yml` can
+also be started by hand from the Actions tab, or with
+`gh workflow run <file> --ref <branch>` for a branch in this repository.
+
+**Why Molecule is not on every pull request.** It made every pull request wait
+an extra 4 minutes. In 100 CI runs its failures were container artefacts,
+one stale assertion in `verify.yml` and one HTTP 504. None of them was the only
+sign of a bug in the pull request. pytest and the 2.16 leg are what caught bugs
+before merge, so they stay blocking. `tests/test_molecule_scenarios.py` still
+checks every scenario's configuration on each pull request, and ansible-lint
+still lints `molecule/`.
+
+**Pull requests from forks** run `ci.yml` under the `pull_request` event, with a
+read-only token and no secrets. A first-time contributor's run waits for a
+maintainer to approve it. Molecule, by label or by hand, runs the same way.
+Nothing in this repository uses `pull_request_target`.
+
+**`validate` is a gate.** It needs both lint-and-test legs and fails unless
+both succeeded. A job whose dependency failed would otherwise be skipped, and
+branch protection treats a skipped check as passed.
+`tests/test_ci_floor.py` pins these rules.
 
 ## Distribution coverage
 
@@ -38,7 +71,7 @@ Real-VM coverage is tracked in [#156](https://github.com/sameeralam3127/linux-vi
 
 When changing a Molecule image or the CI scenario matrix, update this table
 in the same pull request. Before each release, compare it with
-`molecule/*/molecule.yml` and `.github/workflows/ci.yml`.
+`molecule/*/molecule.yml` and `.github/workflows/molecule.yml`.
 
 ## Golden-file tests
 
@@ -176,13 +209,13 @@ first time the suite did.
 
 | Job | ansible-core | Python | Collections |
 | --- | --- | --- | --- |
-| `validate` | latest (`requirements-dev.txt`) | 3.12 | `requirements.yml` |
-| `validate (ansible-core 2.16)` | 2.16.x | 3.10 | `.github/constraints/collections-floor.yml` |
-| `molecule (ubuntu \| rocky \| fedora \| opensuse)` | latest | 3.12 | `requirements.yml` + `molecule/collections.yml` |
+| `lint and test (latest ansible-core)` | latest (`requirements-dev.txt`) | 3.12 | `requirements.yml` |
+| `lint and test (ansible-core 2.16)` | 2.16.x | 3.10 | `.github/constraints/collections-floor.yml` |
+| `molecule (<scenario>)`, all six | latest | 3.12 | `requirements.yml` + `molecule/collections.yml` |
 | `molecule (rocky, ansible-core 2.16)` | 2.16.x | 3.10 | `.github/constraints/collections-floor.yml` |
 
-The floor runs the full validate job (syntax check, ansible-lint, pytest) but
-Molecule on one distribution only. Every 2.16 failure so far has been a core
+The floor runs the whole pull-request check (syntax check, ansible-lint,
+pytest) but Molecule on one distribution only. Every 2.16 failure so far has been a core
 failure rather than a distribution one, so one scenario catches that class,
 and Rocky stands in for the RHEL estates most likely to sit on an older core.
 Python 3.10 is the oldest Python the README supports, so the floor job tests
@@ -203,9 +236,10 @@ still support 2.16 (`collections-floor.yml`). See
 means for users on 2.16.
 
 **Raising the floor** is a change to `meta/runtime.yml` and
-`ansible-core-floor.txt` together, plus the job names in `ci.yml`.
-`tests/test_ci_floor.py` fails if the constraint and `meta/runtime.yml`
-disagree, or if a latest-core job loses the name branch protection requires.
+`ansible-core-floor.txt` together, plus the floor job names in `ci.yml` and
+`molecule.yml`. `tests/test_ci_floor.py` fails if the constraint and
+`meta/runtime.yml` disagree, or if `validate`, the check branch protection
+requires, disappears.
 
 ### Running the floor locally
 
@@ -230,13 +264,15 @@ switch back afterwards with
 
 ## Molecule scenarios
 
-One scenario per supported distribution family:
+One scenario per supported distribution:
 
 | Scenario | Image | Stands in for |
 | --- | --- | --- |
-| `ubuntu` | `geerlingguy/docker-ubuntu2404-ansible` | Debian family (Ubuntu, Debian) |
+| `ubuntu` | `geerlingguy/docker-ubuntu2404-ansible` | Ubuntu |
+| `debian` | `geerlingguy/docker-debian12-ansible` | Debian |
 | `rocky` | `geerlingguy/docker-rockylinux9-ansible` | RHEL-compatible (RHEL, AlmaLinux, CentOS Stream) |
 | `fedora` | `geerlingguy/docker-fedora42-ansible` | Fedora, and the newest dnf5/systemd behaviour ahead of RHEL |
+| `amazonlinux` | `geerlingguy/docker-amazonlinux2023-ansible` | Amazon Linux 2023 |
 | `opensuse` | `dokken/opensuse-leap-15` | SUSE family (openSUSE Leap, SLES) |
 
 Each one boots a container with **systemd as PID 1** (privileged, host cgroup
@@ -317,7 +353,7 @@ scenario's ephemeral directory (`molecule converge` prints the path; it is
      (`molecule/resources/tasks/journal_bound.yml`).
 
 Each distribution reaches reboot detection by a different route, which is the
-point of running all four:
+point of running all six:
 
 | Scenario | `reboot_required_source` |
 | --- | --- |

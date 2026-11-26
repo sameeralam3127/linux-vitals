@@ -9,12 +9,13 @@
 
 ## How it was verified
 
-<!-- Delete what does not apply. CI runs all of these, but say what you ran
-     locally and against what. -->
+<!-- Delete what does not apply. CI runs the first three on every push to
+     this PR; say what you ran locally and against what. Molecule runs
+     weekly and before releases, not on every PR. -->
 
 - [ ] `ansible-lint roles/ playbooks/ molecule/`
 - [ ] `ansible-playbook playbooks/healthcheck.yml --syntax-check`
-- [ ] `pytest -q`
+- [ ] `pytest -q -n auto`
 - [ ] `molecule test -s <scenario>` (which distributions?)
 - [ ] Ran against a real host / fleet (which distributions?)
 
