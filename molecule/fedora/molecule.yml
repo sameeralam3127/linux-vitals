@@ -22,7 +22,7 @@ driver:
 
 platforms:
   - name: linux-vitals-fedora
-    image: geerlingguy/docker-fedora42-ansible:latest
+    image: geerlingguy/docker-fedora44-ansible:latest
 
 provisioner:
   name: ansible

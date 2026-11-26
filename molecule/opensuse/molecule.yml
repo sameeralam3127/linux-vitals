@@ -1,5 +1,5 @@
 ---
-# openSUSE Leap 15. There is no maintained systemd+Ansible image from the same
+# openSUSE Leap 16.0. There is no maintained systemd+Ansible image from the same
 # publisher as the others, so this scenario uses the Chef dokken image (systemd as
 # PID 1, no Python) and bootstraps Python in prepare.yml -- see docs/testing.md.
 # Molecule's prerun installer would try to install this collection into the
@@ -24,7 +24,7 @@ driver:
 
 platforms:
   - name: linux-vitals-opensuse
-    image: dokken/opensuse-leap-15:latest
+    image: dokken/opensuse-leap-16.0:latest
 
 provisioner:
   name: ansible
@@ -41,9 +41,9 @@ provisioner:
   inventory:
     host_vars:
       linux-vitals-opensuse:
-        ansible_python_interpreter: /usr/bin/python3.11
-        vitals_python_interpreter: /usr/bin/python3.11
-        vitals_python_package: python311
+        ansible_python_interpreter: /usr/bin/python3.13
+        vitals_python_interpreter: /usr/bin/python3.13
+        vitals_python_package: python313
         vitals_expected_os_family: Suse
         vitals_expected_package_manager: zypper
         vitals_expected_reboot_sources:
