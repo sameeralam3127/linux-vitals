@@ -492,6 +492,9 @@ Full schema and every field: **[Report Guide](docs/report-guide.md#json-report)*
 
 ## Requirements
 
+See the [tested distribution matrix](docs/testing.md#distribution-coverage) for
+CI image versions, ansible-core floor coverage and container limitations.
+
 | | |
 | --- | --- |
 | **Control node** | Python 3.10+, `ansible-core` 2.16+, and the `community.general` collection (use 9.x–11.x with ansible-core 2.16; see [installation](docs/installation.md#requirements)) |

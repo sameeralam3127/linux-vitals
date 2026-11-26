@@ -11,6 +11,35 @@ and pull request:
 Plus `ansible-lint roles/ playbooks/ molecule/ demo/` and
 `ansible-playbook playbooks/healthcheck.yml --syntax-check`.
 
+## Distribution coverage
+
+The Molecule scenarios exercise these container images in CI:
+
+| Scenario | Distribution in the image | Image |
+| --- | --- | --- |
+| ubuntu | Ubuntu 24.04 | `geerlingguy/docker-ubuntu2404-ansible:latest` |
+| debian | Debian 12 | `geerlingguy/docker-debian12-ansible:latest` |
+| rocky | Rocky Linux 9 | `geerlingguy/docker-rockylinux9-ansible:latest` |
+| fedora | Fedora 42 | `geerlingguy/docker-fedora42-ansible:latest` |
+| amazonlinux | Amazon Linux 2023 | `geerlingguy/docker-amazonlinux2023-ansible:latest` |
+| opensuse | openSUSE Leap 15 image series | `dokken/opensuse-leap-15:latest` |
+
+The image tags are mutable. The Leap image name identifies the 15 series,
+without pinning a minor release. Other distribution versions, including
+Ubuntu 22.04, Debian 11, RHEL/AlmaLinux 8 and SLES 15, have no coverage
+in this matrix.
+
+The oldest supported ansible-core (2.16) runs the **rocky** scenario only.
+The other scenarios use the current development toolchain.
+
+Containers share the runner's kernel. These runs cannot validate a real
+kernel upgrade, bootloader state or a host's actual `/boot` filesystem.
+Real-VM coverage is tracked in [#156](https://github.com/sameeralam3127/linux-vitals/issues/156).
+
+When changing a Molecule image or the CI scenario matrix, update this table
+in the same pull request. Before each release, compare it with
+`molecule/*/molecule.yml` and `.github/workflows/ci.yml`.
+
 ## Golden-file tests
 
 `tests/test_golden_findings.py` is the regression net for what the scan
