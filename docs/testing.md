@@ -53,14 +53,14 @@ The Molecule scenarios exercise these container images in CI:
 | ubuntu | Ubuntu 24.04 | `geerlingguy/docker-ubuntu2404-ansible:latest` |
 | debian | Debian 12 | `geerlingguy/docker-debian12-ansible:latest` |
 | rocky | Rocky Linux 9 | `geerlingguy/docker-rockylinux9-ansible:latest` |
-| fedora | Fedora 42 | `geerlingguy/docker-fedora42-ansible:latest` |
+| fedora | Fedora 44 | `geerlingguy/docker-fedora44-ansible:latest` |
 | amazonlinux | Amazon Linux 2023 | `geerlingguy/docker-amazonlinux2023-ansible:latest` |
-| opensuse | openSUSE Leap 15 image series | `dokken/opensuse-leap-15:latest` |
+| opensuse | openSUSE Leap 16.0 | `dokken/opensuse-leap-16.0:latest` |
 
-The image tags are mutable. The Leap image name identifies the 15 series,
-without pinning a minor release. Other distribution versions, including
-Ubuntu 22.04, Debian 11, RHEL/AlmaLinux 8 and SLES 15, have no coverage
-in this matrix.
+The image tags are mutable. Other distribution versions, including
+Ubuntu 22.04, Debian 11, RHEL/AlmaLinux 8, openSUSE Leap 15 and SLES 15, have
+no coverage in this matrix. Fedora 42 and Leap 15.6 were replaced in November
+2026, after both reached end of life.
 
 The oldest supported ansible-core (2.16) runs the **rocky** scenario only.
 The other scenarios use the current development toolchain.
@@ -271,9 +271,9 @@ One scenario per supported distribution:
 | `ubuntu` | `geerlingguy/docker-ubuntu2404-ansible` | Ubuntu |
 | `debian` | `geerlingguy/docker-debian12-ansible` | Debian |
 | `rocky` | `geerlingguy/docker-rockylinux9-ansible` | RHEL-compatible (RHEL, AlmaLinux, CentOS Stream) |
-| `fedora` | `geerlingguy/docker-fedora42-ansible` | Fedora, and the newest dnf5/systemd behaviour ahead of RHEL |
+| `fedora` | `geerlingguy/docker-fedora44-ansible` | Fedora, and the newest dnf5/systemd behaviour ahead of RHEL |
 | `amazonlinux` | `geerlingguy/docker-amazonlinux2023-ansible` | Amazon Linux 2023 |
-| `opensuse` | `dokken/opensuse-leap-15` | SUSE family (openSUSE Leap, SLES) |
+| `opensuse` | `dokken/opensuse-leap-16.0` | SUSE family (openSUSE Leap, SLES) |
 
 Each one boots a container with **systemd as PID 1** (privileged, host cgroup
 namespace) -- `vitals_scan` reads `service_facts` and `journalctl`, so a
@@ -367,18 +367,18 @@ point of running all six:
 ### The SUSE image (fallback strategy)
 
 There is no systemd + Ansible-ready openSUSE image from the same publisher as
-the other three, so the SUSE scenario uses Chef's `dokken/opensuse-leap-15`,
-which runs systemd as PID 1 but ships **no Python at all**. Leap 15.6's default
-`python3` is 3.6, which ansible-core cannot use, so the scenario installs
-`python311` over `raw` and pins `ansible_python_interpreter` to
-`/usr/bin/python3.11`. This is per-scenario configuration
+the others, so the SUSE scenario uses Chef's `dokken/opensuse-leap-16.0`,
+which runs systemd as PID 1 but does not promise a Python interpreter.
+`prepare.yml` installs `python313`, Leap 16.0's system Python, over `raw` when
+`/usr/bin/python3.13` is missing, and the scenario pins
+`ansible_python_interpreter` to that path. This is per-scenario configuration
 (`vitals_python_package` / `vitals_python_interpreter` in
 `molecule/opensuse/molecule.yml`), so swapping in a different SUSE image later
 means changing two lines.
 
 If the dokken image ever becomes unavailable, the fallbacks in order of
-preference are: build a small `Dockerfile` from `opensuse/leap:15.6` that
-installs `systemd` and `python311`; or drop to `opensuse/tumbleweed`, accepting
+preference are: build a small `Dockerfile` from `opensuse/leap:16.0` that
+installs `systemd` and `python313`; or drop to `opensuse/tumbleweed`, accepting
 that it tracks a rolling release rather than the SLES-aligned Leap.
 
 ### What containers cannot prove

@@ -9,6 +9,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Documentation
 
 - List tested distribution images, ansible-core floor coverage and container limits.
+- The Molecule scenarios test Fedora 44 and openSUSE Leap 16.0 in place of
+  Fedora 42 and Leap 15.6, which reached end of life in 2026.
 
 ### Security
 
