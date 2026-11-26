@@ -8,13 +8,10 @@ name: Molecule
 # - every weekend on main, called by weekly.yml;
 # - before every release, called by release.yml, which publishes only if it
 #   passes;
-# - on a pull request when a maintainer adds the `run-molecule` label. That
-#   is a plain `pull_request` event: a fork's code gets a read-only token and
-#   no secrets, exactly as in ci.yml;
+# - on a pull request when a maintainer adds the `run-molecule` label, called
+#   by molecule-on-label.yml;
 # - by hand, from the Actions tab or `gh workflow run molecule.yml --ref <branch>`.
 on:
-  pull_request:
-    types: [labeled]
   workflow_dispatch:
   workflow_call:
 
@@ -23,12 +20,7 @@ permissions:
 
 jobs:
   molecule:
-    # A job skipped by `if` never expands its matrix, so GitHub shows its name
-    # unevaluated. The fallback is what a pull request shows when some other
-    # label was added.
-    name: ${{ matrix.name || 'molecule (add the run-molecule label to run)' }}
-    # Any other label added to a pull request skips the run.
-    if: github.event_name != 'pull_request' || github.event.label.name == 'run-molecule'
+    name: ${{ matrix.name }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     strategy:

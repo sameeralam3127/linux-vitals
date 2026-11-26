@@ -28,6 +28,7 @@ CI_WORKFLOW = WORKFLOWS / "ci.yml"
 MOLECULE_WORKFLOW = WORKFLOWS / "molecule.yml"
 RELEASE_WORKFLOW = WORKFLOWS / "release.yml"
 WEEKLY_WORKFLOW = WORKFLOWS / "weekly.yml"
+MOLECULE_ON_LABEL_WORKFLOW = WORKFLOWS / "molecule-on-label.yml"
 FLOOR_CONSTRAINTS = REPO_ROOT / ".github" / "constraints" / "ansible-core-floor.txt"
 
 # The contexts branch protection on `main` requires. Changing a job name means
@@ -145,15 +146,21 @@ def test_no_molecule_job_left_in_pr_ci() -> None:
 
 
 def test_molecule_on_a_pull_request_runs_only_for_its_label() -> None:
-    triggers = _triggers(MOLECULE_WORKFLOW)
-    job = _workflow(MOLECULE_WORKFLOW)["jobs"]["molecule"]
+    triggers = _triggers(MOLECULE_ON_LABEL_WORKFLOW)
+    job = _workflow(MOLECULE_ON_LABEL_WORKFLOW)["jobs"]["molecule"]
 
-    assert triggers["pull_request"] == {"types": ["labeled"]}
-    assert "pull_request_target" not in triggers, (
-        "pull_request_target would run fork code with a write token"
+    assert triggers == {"pull_request": {"types": ["labeled"]}}, (
+        "pull_request only: pull_request_target would run fork code with a write token"
     )
-    assert "run-molecule" in job["if"]
-    assert "workflow_call" in triggers
+    assert job["if"] == "github.event.label.name == 'run-molecule'"
+    assert job["uses"] == "./.github/workflows/molecule.yml"
+    assert "${{" not in job["name"], "a skipped job shows an expression name unevaluated"
+    assert "workflow_call" in _triggers(MOLECULE_WORKFLOW)
+
+
+def test_no_workflow_uses_pull_request_target() -> None:
+    for path in WORKFLOWS.glob("*.yml"):
+        assert "pull_request_target" not in _triggers(path), path.name
 
 
 def test_release_publishes_only_after_molecule_passes() -> None:

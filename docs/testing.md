@@ -15,7 +15,7 @@ Plus `ansible-lint roles/ playbooks/ molecule/ demo/` and
 | When | Workflow | What runs | Blocks |
 | --- | --- | --- | --- |
 | Every push to a pull request, forks included | `ci.yml` | Syntax check, ansible-lint and pytest, on the latest ansible-core and on 2.16 | Merging: `validate` is the required check |
-| A maintainer adds the `run-molecule` label to a pull request | `molecule.yml` | Every Molecule scenario against that pull request | Nothing; the maintainer reads the result |
+| A maintainer adds the `run-molecule` label to a pull request | `molecule-on-label.yml`, which calls `molecule.yml` | Every Molecule scenario against that pull request | Nothing; the maintainer reads the result |
 | Saturday 03:17 UTC, on `main` | `weekly.yml` | All of `ci.yml` and `molecule.yml` | Nothing; a failure opens an issue |
 | A `v*` tag | `release.yml` | Every Molecule scenario, then the fast checks, against the tagged commit | Publishing to Galaxy |
 | Before each release, by the maintainer | none (local) | The roles against real VMs ([#156](https://github.com/sameeralam3127/linux-vitals/issues/156)) | The release |
