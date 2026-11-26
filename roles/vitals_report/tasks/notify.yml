@@ -76,6 +76,65 @@
     - reporting
     - notifications
 
+# The email has templates of its own (#145): an HTML body by default, a
+# plain-text one for linux_vitals_email_format: text, and a subject that carries
+# the result. The Slack plain-text fallback above stays what the generic
+# webhook's `message` field documents. Both are rendered here, outside the
+# no_log send, so a template error names its line instead of being censored.
+#
+# The dashboard is attached only if this run actually wrote it. A dashboard
+# that is missing (or is not a regular file) leaves the email without one, and
+# the body then points at the path rather than claiming an attachment. It is
+# also never attached with linux_vitals_slack_include_host_breakdown off: that
+# is the documented switch for keeping per-host detail out of notifications,
+# and the dashboard is all of it.
+- name: Check that the dashboard the email attaches exists
+  ansible.builtin.stat:
+    path: "{{ linux_vitals_output_path }}"
+    get_checksum: false
+  register: linux_vitals_email_dashboard
+  delegate_to: localhost
+  run_once: true
+  when:
+    - linux_vitals_email_enabled
+    - linux_vitals_email_to | length > 0
+    - linux_vitals_email_attach_report | bool
+  tags:
+    - reporting
+    - notifications
+
+- name: Decide whether the email carries the dashboard
+  ansible.builtin.set_fact:
+    linux_vitals_email_attach_report_effective: >-
+      {{
+        (linux_vitals_email_attach_report | bool)
+        and (linux_vitals_slack_include_host_breakdown | bool)
+        and (linux_vitals_email_dashboard.stat.isreg | default(false))
+      }}
+  delegate_to: localhost
+  run_once: true
+  when:
+    - linux_vitals_email_enabled
+    - linux_vitals_email_to | length > 0
+  tags:
+    - reporting
+    - notifications
+
+- name: Render the email subject and body
+  ansible.builtin.set_fact:
+    linux_vitals_email_rendered_subject: "{{ lookup('ansible.builtin.template', 'email_subject.txt.j2') | trim }}"
+    linux_vitals_email_body: >-
+      {{ lookup('ansible.builtin.template',
+                'email_message.txt.j2' if linux_vitals_email_format == 'text' else 'email_message.html.j2') }}
+  delegate_to: localhost
+  run_once: true
+  when:
+    - linux_vitals_email_enabled
+    - linux_vitals_email_to | length > 0
+  tags:
+    - reporting
+    - notifications
+
 - name: Send email maintenance summary
   community.general.mail:
     host: "{{ linux_vitals_effective_email_host }}"
@@ -86,8 +145,10 @@
     to: "{{ linux_vitals_email_to }}"
     cc: "{{ linux_vitals_email_cc if linux_vitals_email_cc | length > 0 else omit }}"
     from: "{{ linux_vitals_email_from }}"
-    subject: "{{ linux_vitals_email_subject }}"
-    body: "{{ linux_vitals_notification_message }}"
+    subject: "{{ linux_vitals_email_rendered_subject }}"
+    body: "{{ linux_vitals_email_body }}"
+    subtype: "{{ 'plain' if linux_vitals_email_format == 'text' else 'html' }}"
+    attach: "{{ [linux_vitals_output_path] if linux_vitals_email_attach_report_effective | bool else omit }}"
   register: linux_vitals_email_delivery
   no_log: true
   failed_when: false

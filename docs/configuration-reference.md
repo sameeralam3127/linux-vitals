@@ -305,6 +305,17 @@ EMAIL_SMTP_USERNAME="smtp-user"
 EMAIL_SMTP_PASSWORD="smtp-password"
 ```
 
+The email is HTML, with the dashboard attached and a subject that carries the
+result. For a plain-text body, no attachment, or a fixed subject:
+
+```yaml
+linux_vitals_email_format: "text"
+linux_vitals_email_attach_report: false
+linux_vitals_email_subject: "Fleet health check"
+```
+
+[report-guide.md](report-guide.md#email) describes what the email contains.
+
 Email requires `community.general` (`ansible-galaxy collection install -r
 requirements.yml`).
 

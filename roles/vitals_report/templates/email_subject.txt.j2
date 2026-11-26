@@ -1,0 +1,31 @@
+{#-
+  Subject line of the summary email (#145).
+
+  It carries the result, so an inbox can tell PASS from FAIL and a baseline
+  from a postcheck without opening anything:
+
+    [LinuxVitals] FAIL · 7 hosts · 2 failing · 1 critical · postcheck lab-2026-10-16
+
+  linux_vitals_email_subject, when set, replaces it. Either way the value goes
+  into a mail header, so control characters -- a newline above all, which
+  would start a new header -- are replaced with spaces.
+-#}
+{%- set override = linux_vitals_email_subject | default('', true) | string | trim -%}
+{%- if override -%}
+{%- set subject = override -%}
+{%- else -%}
+{%- set hbs = linux_vitals_summary.hosts_by_severity | default({}) -%}
+{%- set failing = linux_vitals_summary.critical_error_count | default(0) | int -%}
+{%- set checked = linux_vitals_summary.servers_checked | default(0) | int -%}
+{%- set unreported = linux_vitals_summary.unreported_hosts | default([]) | length -%}
+{%- set status_word = linux_vitals_summary.overall_status | default('PASS' if failing == 0 and unreported == 0 else 'FAIL', true) -%}
+{%- set parts = ['[LinuxVitals] ' ~ status_word, checked ~ (' host' if checked == 1 else ' hosts')] -%}
+{%- if failing > 0 -%}{%- set _ = parts.append(failing ~ ' failing') -%}{%- endif -%}
+{%- if (hbs.get('critical', 0) | int) > 0 -%}{%- set _ = parts.append((hbs.get('critical', 0) | int) ~ ' critical') -%}{%- endif -%}
+{%- if unreported > 0 -%}{%- set _ = parts.append(unreported ~ ' not checked') -%}{%- endif -%}
+{%- set phase = linux_vitals_phase | default('adhoc', true) | string -%}
+{%- set maintenance_id = linux_vitals_maintenance_id | default('', true) | string | trim -%}
+{%- set _ = parts.append((phase ~ ' ' ~ maintenance_id) | trim) -%}
+{%- set subject = parts | join(' · ') -%}
+{%- endif -%}
+{{ subject | regex_replace('[\\x00-\\x1f\\x7f-\\x9f]+', ' ') | regex_replace(' {2,}', ' ') | trim }}

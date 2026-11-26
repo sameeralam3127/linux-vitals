@@ -29,10 +29,12 @@
     linux_vitals_report_title: "LinuxVitals Delivery Fixture"
     linux_vitals_slack_message_header: "LinuxVitals Delivery Fixture"
     linux_vitals_slack_message_footer: "Sent by the delivery fixture"
-    linux_vitals_slack_include_host_breakdown: true
+    linux_vitals_slack_include_host_breakdown: "{{ lv_host_breakdown | default(true) }}"
     linux_vitals_slack_max_hosts: 20
     linux_vitals_email_from: "linux-vitals-fixture@example.com"
-    linux_vitals_email_subject: "LinuxVitals delivery fixture: {{ inventory_hostname }}"
+    # The dashboard the email attaches. Each scenario writes its own below,
+    # unless it sets lv_skip_dashboard to test a dashboard that is missing.
+    linux_vitals_output_path: "{{ lookup('ansible.builtin.env', 'TEST_OUTPUT_DIR') }}/{{ inventory_hostname }}-dashboard.html"
     linux_vitals_summary:
       servers_checked: 1
       auto_fixed_count: 0
@@ -80,6 +82,13 @@
               status: "fail"
               message: "RAM usage is elevated"
 
+    - name: Write the dashboard the email attaches
+      ansible.builtin.copy:
+        dest: "{{ linux_vitals_output_path }}"
+        mode: "0600"
+        content: "<html><body>dashboard for {{ inventory_hostname }}</body></html>\n"
+      when: not (lv_skip_dashboard | default(false))
+
     - name: Resolve, render and send this scenario's notifications
       block:
         - name: Resolve the notification configuration
@@ -98,7 +107,17 @@
               slack: "{{ lookup('ansible.builtin.template', lv_templates_dir ~ '/slack_message.json.j2') }}"
               webhook: "{{ lookup('ansible.builtin.template', lv_templates_dir ~ '/generic_webhook_payload.json.j2') }}"
               message: "{{ linux_vitals_notification_message }}"
+              email_html: "{{ lookup('ansible.builtin.template', lv_templates_dir ~ '/email_message.html.j2') }}"
+              email_text: "{{ lookup('ansible.builtin.template', lv_templates_dir ~ '/email_message.txt.j2') }}"
+              email_subject: "{{ lookup('ansible.builtin.template', lv_templates_dir ~ '/email_subject.txt.j2') | trim }}"
           vars:
+            # The role defaults, stated here because include_role does not
+            # expose them to the tasks after it. Inventory still overrides.
+            linux_vitals_email_subject: "{{ hostvars[inventory_hostname].linux_vitals_email_subject | default('') }}"
+            linux_vitals_email_attach_report_effective: >-
+              {{ (hostvars[inventory_hostname].linux_vitals_email_attach_report | default(true) | bool)
+                 and (lv_host_breakdown | default(true) | bool)
+                 and not (lv_skip_dashboard | default(false)) }}
             linux_vitals_notification_message: >-
               {{ lookup('ansible.builtin.template', lv_templates_dir ~ '/slack_message.txt.j2') }}
 

@@ -769,9 +769,49 @@ characters, and it rejects it with a bare HTTP 400 that names no cause, which
 time regardless of what the variable is set to.
 
 **The plain-text message still exists.** `slack_message.txt.j2` is unchanged
-and is still what the email body and the generic webhook's `message` field
-carry. It is no longer sent to Slack, because Slack would render it above the
-card.
+and is still what the generic webhook's `message` field carries. It is no
+longer sent to Slack, because Slack would render it above the card, and the
+email has its own templates (below).
+
+## Email
+
+The email has templates of its own
+([#145](https://github.com/sameeralam3127/linux-vitals/issues/145)):
+`email_message.html.j2`, an inline-styled HTML body that is the default, and
+`email_message.txt.j2`, the same content as plain text for
+`linux_vitals_email_format: text`. Top to bottom:
+
+1. the verdict and the counts, once;
+2. **Not checked** -- targeted hosts that produced no result, with the reason;
+3. **Needs attention** -- every host that failed, has a critical or warning
+   finding, or has a check that could not run. Worst first, as in Slack, and
+   each with the findings that put it there: severity and message, and for a
+   check that could not run, the reason;
+4. **Since the baseline**, on a postcheck -- hosts that regressed (with their
+   new findings), improved (with their resolved findings), or had no baseline;
+5. **All hosts** -- inventory name, address, status, severity, kernel and
+   reboot, worst first. Left out when
+   `linux_vitals_slack_include_host_breakdown` is `false`.
+
+The HTML uses no `<style>` block and no `<script>`: several mail clients strip
+the first and none run the second. Every value from a host is escaped.
+
+The subject carries the result, so an inbox can tell PASS from FAIL and a
+baseline from a postcheck:
+
+```text
+[LinuxVitals] FAIL · 7 hosts · 2 failing · 1 critical · postcheck lab-2026-10-16
+```
+
+`linux_vitals_email_subject` replaces it when set.
+
+The HTML dashboard is attached by default
+(`linux_vitals_email_attach_report: true`), as the file at
+`linux_vitals_output_path`. It is not attached when that file does not exist
+or when `linux_vitals_slack_include_host_breakdown` is `false`; the body then
+names the dashboard's path on the controller instead. `community.general.mail`
+sends the attachment as `application/octet-stream`; mail clients open it by
+its `.html` name.
 
 ## Generic webhook payload
 

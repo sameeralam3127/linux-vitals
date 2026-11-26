@@ -1,0 +1,228 @@
+{#-
+  HTML body of the summary email (#145).
+
+  Built for mail clients, not browsers:
+    - every style is inline. Several clients strip <style> blocks, and none
+      run <script>, so neither is used;
+    - layout is nested tables, the one structure Outlook's Word engine lays
+      out reliably; colours are also given as bgcolor for the same reason;
+    - every value from a host is escaped. Finding messages and reasons can
+      quote a probe's output.
+
+  Order, top to bottom: verdict and counts (once), hosts nobody could check,
+  hosts that need attention -- worst first, each with the findings that put
+  it there -- then, on a postcheck, what changed since the baseline, and
+  last a compact table of every host. The full detail is the dashboard,
+  attached when linux_vitals_email_attach_report is true.
+
+  linux_vitals_slack_include_host_breakdown: false drops the table (and
+  notify.yml drops the attachment), as it drops the Slack breakdown.
+
+  The Slack plain-text fallback (slack_message.txt.j2) is a separate
+  template on purpose: the generic webhook's `message` field carries it and
+  is a documented payload, so changing the email must not change it.
+-#}
+{%- macro pill(level, label=none) -%}
+{%- set palette = {
+  'critical': ['#b42318', '#fee4e2'],
+  'warning': ['#b54708', '#fef0c7'],
+  'info': ['#175cd3', '#d1e9ff'],
+  'none': ['#067647', '#dcfae6'],
+  'pass': ['#067647', '#dcfae6'],
+  'fail': ['#b42318', '#fee4e2'],
+  'unknown': ['#475467', '#eaecf0'],
+} -%}
+{%- set colours = palette.get(level | string | lower, palette['unknown']) -%}
+<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;line-height:16px;font-weight:600;letter-spacing:0.3px;text-transform:uppercase;white-space:nowrap;color:{{ colours[0] }};background-color:{{ colours[1] }};">{{ (label if label is not none else ('ok' if level == 'none' else level)) | string | e }}</span>
+{%- endmacro -%}
+{%- set font = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" -%}
+{%- set mono = "SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace" -%}
+{%- set severity_order = ['critical', 'warning', 'info', 'none'] -%}
+{%- set hbs = linux_vitals_summary.hosts_by_severity | default({}) -%}
+{%- set fbs = linux_vitals_summary.findings_by_severity | default({}) -%}
+{%- set failing = linux_vitals_summary.critical_error_count | default(0) | int -%}
+{%- set unreported = linux_vitals_summary.unreported_hosts | default([]) -%}
+{%- set status_word = linux_vitals_summary.overall_status | default('PASS' if failing == 0 and unreported | length == 0 else 'FAIL', true) -%}
+{%- if status_word == 'FAIL' or (hbs.get('critical', 0) | int) > 0 -%}
+{%- set banner = ['#b42318', '#fef3f2'] -%}
+{%- elif (hbs.get('warning', 0) | int) > 0 -%}
+{%- set banner = ['#b54708', '#fffaeb'] -%}
+{%- else -%}
+{%- set banner = ['#067647', '#ecfdf3'] -%}
+{%- endif -%}
+{%- set phase = linux_vitals_phase | default('adhoc', true) | string -%}
+{%- set maintenance_id = linux_vitals_maintenance_id | default('', true) | string | trim -%}
+{%- set attached = linux_vitals_email_attach_report_effective | default(linux_vitals_email_attach_report | default(false)) | bool -%}
+{#- Hosts worst-first, by severity bucket and then inventory name, as the
+    Slack card orders them. A severity outside the known set is appended
+    rather than dropped: a host missing from an alert is the worst outcome. -#}
+{%- set ns = namespace(entries=[], ordered=[]) -%}
+{%- for host in linux_vitals_reporting_hosts | default(ansible_play_hosts_all) -%}
+{%- set _ = ns.entries.append({'name': host, 'r': hostvars[host]['linux_vitals_result']}) -%}
+{%- endfor -%}
+{%- set by_name = ns.entries | sort(attribute='name') -%}
+{%- for level in severity_order -%}
+{%- for entry in by_name if (entry.r.severity | default('none')) == level -%}
+{%- set _ = ns.ordered.append(entry) -%}
+{%- endfor -%}
+{%- endfor -%}
+{%- for entry in by_name if entry not in ns.ordered -%}
+{%- set _ = ns.ordered.append(entry) -%}
+{%- endfor -%}
+{%- set attention = [] -%}
+{%- for entry in ns.ordered -%}
+{%- set unknowns = entry.r.findings | default([]) | select('mapping') | selectattr('status', 'defined') | selectattr('status', 'equalto', 'unknown') | list -%}
+{%- if entry.r.final_status | default('') == 'Fail' or (entry.r.severity | default('none')) in ['critical', 'warning'] or unknowns -%}
+{%- set _ = attention.append(entry) -%}
+{%- endif -%}
+{%- endfor -%}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>{{ linux_vitals_slack_message_header | default('LinuxVitals Health Check') | e }}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f2f4f7;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">{{ status_word | e }} · {{ failing }} of {{ linux_vitals_summary.servers_checked | int }} hosts failing{% if unreported %} · {{ unreported | length }} not checked{% endif %}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f2f4f7" style="background-color:#f2f4f7;">
+<tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:640px;font-family:{{ font }};color:#101828;">
+
+<tr><td bgcolor="{{ banner[1] }}" style="background-color:{{ banner[1] }};border-top:4px solid {{ banner[0] }};border-radius:8px 8px 0 0;padding:20px 24px;">
+<div style="font-size:13px;color:#475467;">{{ linux_vitals_slack_message_header | default('LinuxVitals Health Check') | e }}{% if phase != 'adhoc' %} · {{ phase | e }}{% if maintenance_id %} {{ maintenance_id | e }}{% endif %}{% endif %}</div>
+<div style="font-size:26px;line-height:32px;font-weight:700;color:{{ banner[0] }};margin-top:4px;">{{ status_word | e }}</div>
+<div style="font-size:14px;color:#344054;margin-top:4px;">{{ failing }} of {{ linux_vitals_summary.servers_checked | int }} host{{ '' if (linux_vitals_summary.servers_checked | int) == 1 else 's' }} failing{% if unreported %}, {{ unreported | length }} not checked{% endif %}</div>
+</td></tr>
+
+<tr><td bgcolor="#ffffff" style="background-color:#ffffff;padding:16px 24px 8px 24px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+{%- set tiles = [
+  ['Servers checked', linux_vitals_summary.servers_checked | int],
+  ['Failing hosts', failing],
+  ['Auto-fixed', linux_vitals_summary.auto_fixed_count | default(0) | int],
+  ['Health score', (linux_vitals_summary.health_score_pct | default(0)) ~ '%'],
+] + ([['Not checked', unreported | length]] if unreported else []) %}
+{%- for tile in tiles %}
+<td valign="top" style="padding:8px 8px 8px 0;">
+<div style="font-size:11px;text-transform:uppercase;letter-spacing:0.4px;color:#667085;">{{ tile[0] }}</div>
+<div style="font-size:20px;font-weight:700;color:#101828;">{{ tile[1] | string | e }}</div>
+</td>
+{%- endfor %}
+</tr>
+</table>
+<div style="font-size:13px;color:#475467;padding:4px 0 8px 0;">Findings: {{ fbs.get('critical', 0) | int }} critical · {{ fbs.get('warning', 0) | int }} warning · {{ fbs.get('info', 0) | int }} info{% if linux_vitals_summary.unknown_host_count | default(0) | int > 0 %} · {{ linux_vitals_summary.unknown_host_count | int }} host(s) with checks that could not run{% endif %}</div>
+</td></tr>
+
+{%- if unreported %}
+<tr><td bgcolor="#ffffff" style="background-color:#ffffff;padding:8px 24px;">
+<div style="font-size:15px;font-weight:700;color:#b42318;padding-bottom:6px;">Not checked</div>
+<div style="font-size:13px;color:#475467;padding-bottom:8px;">Targeted, but no health result: unreachable, or the play failed on them. Nothing else in this email covers these hosts.</div>
+{%- for entry in unreported %}
+<div style="font-size:14px;padding:4px 0;"><strong>{{ entry.inventory_name | e }}</strong> <span style="color:#667085;">— {{ entry.reason | default('no result') | e }}{% if entry.baseline_available | default(false) %} (a baseline exists, so its postcheck outcome is unknown){% endif %}</span></div>
+{%- endfor %}
+</td></tr>
+{%- endif %}
+
+{%- if attention %}
+<tr><td bgcolor="#ffffff" style="background-color:#ffffff;padding:12px 24px 4px 24px;">
+<div style="font-size:15px;font-weight:700;color:#101828;">Needs attention</div>
+</td></tr>
+{%- for entry in attention %}
+{%- set r = entry.r %}
+{%- set level = r.severity | default('none') %}
+{%- set edge = {'critical': '#d92d20', 'warning': '#f79009', 'info': '#2e90fa'}.get(level, '#98a2b3') %}
+<tr><td bgcolor="#ffffff" style="background-color:#ffffff;padding:6px 24px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #eaecf0;border-left:4px solid {{ edge }};border-radius:6px;">
+<tr><td style="padding:10px 14px;">
+<div style="font-size:15px;font-weight:700;color:#101828;">{{ entry.name | e }} <span style="font-weight:400;font-size:13px;color:#667085;font-family:{{ mono }};">{{ r.ip_address | default('') | e }}</span></div>
+<div style="padding:4px 0 6px 0;">{{ pill(r.final_status | default('unknown') | lower, r.final_status | default('unknown')) }} {{ pill(level) }}{% if r.reboot_required | default(false) | bool %} {{ pill('warning', 'reboot required') }}{% endif %}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+{%- set findings = r.findings | default([]) | select('mapping') | list %}
+{%- for sev in ['critical', 'warning', 'info'] %}
+{%- for finding in findings if finding.status | default('fail') != 'unknown' and finding.severity | default('info') == sev %}
+<tr><td valign="top" width="86" style="padding:3px 8px 3px 0;width:86px;">{{ pill(sev) }}</td><td style="padding:3px 0;font-size:14px;color:#344054;">{{ finding.message | default(finding.id) | e }}{% if finding.subject | default('', true) and finding.subject not in finding.message | default('') %} <span style="color:#667085;font-family:{{ mono }};font-size:12px;">{{ finding.subject | e }}</span>{% endif %}</td></tr>
+{%- endfor %}
+{%- endfor %}
+{%- for finding in findings if finding.status | default('fail') == 'unknown' %}
+<tr><td valign="top" width="86" style="padding:3px 8px 3px 0;width:86px;">{{ pill('unknown') }}</td><td style="padding:3px 0;font-size:14px;color:#344054;">{{ finding.message | default(finding.id) | e }}{% if finding.reason | default('', true) %}<br><span style="color:#667085;font-size:12px;">Could not check: {{ finding.reason | e }}</span>{% endif %}</td></tr>
+{%- endfor %}
+{%- if not findings %}
+<tr><td style="padding:3px 0;font-size:14px;color:#667085;">No individual finding recorded; see the dashboard.</td></tr>
+{%- endif %}
+</table>
+</td></tr>
+</table>
+</td></tr>
+{%- endfor %}
+{%- endif %}
+
+{%- if linux_vitals_summary.comparison_active | default(false) | bool %}
+{%- set regressed = [] %}{%- set improved = [] %}{%- set fresh = [] %}
+{%- for entry in ns.ordered %}
+{%- set cmp = entry.r.comparison | default({}) %}
+{%- if not cmp.baseline_available | default(false) | bool %}{%- set _ = fresh.append(entry) %}
+{%- elif cmp.status_regressed | default(false) | bool %}{%- set _ = regressed.append(entry) %}
+{%- elif cmp.status_improved | default(false) | bool %}{%- set _ = improved.append(entry) %}
+{%- endif %}
+{%- endfor %}
+<tr><td bgcolor="#ffffff" style="background-color:#ffffff;padding:16px 24px 4px 24px;">
+<div style="font-size:15px;font-weight:700;color:#101828;padding-bottom:6px;">Since the baseline</div>
+{%- if not (regressed or improved or fresh) %}
+<div style="font-size:14px;color:#475467;">No host changed status.</div>
+{%- endif %}
+{%- for group in [['Regressed', regressed, 'critical', 'new_findings', 'New'], ['Improved', improved, 'none', 'resolved_findings', 'Resolved']] if group[1] %}
+<div style="padding:4px 0;">{{ pill(group[2], group[0] ~ ' (' ~ (group[1] | length) ~ ')') }}</div>
+{%- for entry in group[1] %}
+{%- set cmp = entry.r.comparison %}
+{%- set changed = cmp[group[3]] | default([]) | select('mapping') | map(attribute='id') | list %}
+<div style="font-size:14px;padding:2px 0 2px 12px;color:#344054;"><strong>{{ entry.name | e }}</strong> {{ cmp.status_before | default('?') | e }} → {{ cmp.status_after | default('?') | e }}{% if changed %} <span style="color:#667085;">· {{ group[4] }}: {{ changed | join(', ') | e }}</span>{% endif %}</div>
+{%- endfor %}
+{%- endfor %}
+{%- if fresh %}
+<div style="padding:4px 0;">{{ pill('unknown', 'No baseline (' ~ (fresh | length) ~ ')') }}</div>
+<div style="font-size:14px;padding:2px 0 2px 12px;color:#344054;">{{ fresh | map(attribute='name') | join(', ') | e }}</div>
+{%- endif %}
+</td></tr>
+{%- endif %}
+
+{%- if linux_vitals_slack_include_host_breakdown | default(true) | bool %}
+<tr><td bgcolor="#ffffff" style="background-color:#ffffff;padding:16px 24px 20px 24px;border-radius:0 0 8px 8px;">
+<div style="font-size:15px;font-weight:700;color:#101828;padding-bottom:8px;">All hosts</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:13px;border-collapse:collapse;">
+<tr>
+{%- for heading in ['Host', 'Address', 'Status', 'Severity', 'Kernel', 'Reboot'] %}
+<th align="left" style="padding:6px 8px 6px 0;border-bottom:1px solid #eaecf0;font-size:11px;text-transform:uppercase;letter-spacing:0.4px;color:#667085;font-weight:600;">{{ heading }}</th>
+{%- endfor %}
+</tr>
+{%- for entry in ns.ordered %}
+{%- set r = entry.r %}
+<tr>
+<td style="padding:6px 8px 6px 0;border-bottom:1px solid #f2f4f7;font-weight:600;">{{ entry.name | e }}</td>
+<td style="padding:6px 8px 6px 0;border-bottom:1px solid #f2f4f7;font-family:{{ mono }};font-size:12px;color:#475467;">{{ r.ip_address | default('') | e }}</td>
+<td style="padding:6px 8px 6px 0;border-bottom:1px solid #f2f4f7;">{{ pill(r.final_status | default('unknown') | lower, r.final_status | default('unknown')) }}</td>
+<td style="padding:6px 8px 6px 0;border-bottom:1px solid #f2f4f7;">{{ pill(r.severity | default('none')) }}</td>
+<td style="padding:6px 8px 6px 0;border-bottom:1px solid #f2f4f7;font-family:{{ mono }};font-size:12px;color:#475467;">{{ r.running_kernel | default('unknown') | e }}</td>
+<td style="padding:6px 0;border-bottom:1px solid #f2f4f7;">{{ 'Required' if r.reboot_required | default(false) | bool else 'No' }}</td>
+</tr>
+{%- endfor %}
+</table>
+</td></tr>
+{%- endif %}
+
+<tr><td style="padding:16px 24px;font-size:12px;line-height:18px;color:#667085;">
+{%- if attached %}
+Full details for every host are in the attached dashboard, {{ linux_vitals_output_path | basename | e }}. Open it in a browser.
+{%- else %}
+Full details for every host are in the dashboard on the controller: <span style="font-family:{{ mono }};">{{ linux_vitals_output_path | default('') | e }}</span>
+{%- endif %}
+<br>Sent by LinuxVitals{% if linux_vitals_slack_message_footer | default('') | trim %} · {{ linux_vitals_slack_message_footer | e }}{% endif %}
+</td></tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>

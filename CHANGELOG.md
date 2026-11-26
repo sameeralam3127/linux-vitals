@@ -136,6 +136,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   file in place for the operator to remove. CSV text formula prefixes are
   escaped with an apostrophe.
 
+### Changed
+
+- **The email is an email now, not the Slack plain-text fallback**
+  ([#145](https://github.com/sameeralam3127/linux-vitals/issues/145)). It was
+  `slack_message.txt.j2` sent as plain text: one long `|`-separated line per
+  host, hosts in inventory order, no reason given for a host that failed on a
+  warning, and the same subject on every run. It has templates of its own:
+  - an **HTML body by default**, inline-styled, with the verdict and counts
+    once, hosts that need attention worst-first with the findings that failed
+    them (and the reason for any check that could not run), what changed since
+    the baseline on a postcheck, and a compact table of every host by inventory
+    name. `linux_vitals_email_format: text` sends the same content as plain
+    text, one short block per host;
+  - a **subject that carries the result**, e.g.
+    `[LinuxVitals] FAIL · 7 hosts · 2 failing · 1 critical · postcheck lab-2026-10-16`.
+    `linux_vitals_email_subject` now defaults to `""`; any value set still
+    replaces the generated subject;
+  - the **HTML dashboard attached** (`linux_vitals_email_attach_report`,
+    default `true`). It puts every host's details into recipients' mailboxes;
+    set it to `false` where that is not wanted, see `docs/threat-model.md`. It
+    is never attached when `linux_vitals_slack_include_host_breakdown` is
+    `false`.
+
+  Anyone filtering mail on the old subject, `LinuxVitals Health Check
+  Summary`, should match `[LinuxVitals]` instead or set
+  `linux_vitals_email_subject` back to it. The Slack plain-text fallback and
+  the generic webhook's `message` field are unchanged.
+
 ### Fixed
 
 - **A focused `--tags` run stops before scanning and names the command that
