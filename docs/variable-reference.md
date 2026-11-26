@@ -104,7 +104,7 @@ Override any of these in inventory, `group_vars`, or `-e` extra vars.
 | `linux_vitals_slack_webhook_url` | `""` | Slack incoming webhook URL. Falls back to `.env`'s `SLACK_WEBHOOK_URL` if blank. Empty means Slack is skipped. |
 | `linux_vitals_slack_message_header` | `"LinuxVitals Health Check"` | Heading at the top of the Slack message. The footer names LinuxVitals regardless, so the message stays identifiable when this is customised. |
 | `linux_vitals_slack_message_footer` | `""` | Optional last line of the Slack message. |
-| `linux_vitals_slack_include_host_breakdown` | `true` | Include the per-host breakdown table in the Slack message. |
+| `linux_vitals_slack_include_host_breakdown` | `true` | Include the per-host breakdown table in the Slack message and the email. `false` also stops the email attaching the dashboard. |
 | `linux_vitals_slack_max_hosts` | `20` | Maximum rows in the Slack host-breakdown table. Hosts are ordered worst-first, so the cap drops the least interesting ones and the message gains a `+ N more host(s) not shown` note. Clamped to 25 at render time: the table is one text object and Slack caps those at 3000 characters. |
 
 ## `vitals_report` -- email
@@ -120,7 +120,9 @@ Override any of these in inventory, `group_vars`, or `-e` extra vars.
 | `linux_vitals_email_secure` | `"never"` | `community.general.mail`'s `secure` mode (`never`, `starttls`, `always`). |
 | `linux_vitals_email_username` | `""` | SMTP username. Falls back to `.env`'s `EMAIL_SMTP_USERNAME`. |
 | `linux_vitals_email_password` | `""` | SMTP password. Falls back to `.env`'s `EMAIL_SMTP_PASSWORD`. |
-| `linux_vitals_email_subject` | `"LinuxVitals Health Check Summary"` | Email subject line. |
+| `linux_vitals_email_subject` | `""` | Email subject line. Empty generates one that carries the result, for example `[LinuxVitals] FAIL · 7 hosts · 2 failing · 1 critical · postcheck lab-2026-10-16`. Any other value replaces it. Control characters, newlines among them, become spaces either way. |
+| `linux_vitals_email_format` | `"html"` | `html` sends an inline-styled HTML body; `text` sends a plain-text body with the same content, one short block per host. |
+| `linux_vitals_email_attach_report` | `true` | Attach the HTML dashboard (`linux_vitals_output_path`) to the email. Skipped when the dashboard file does not exist, and when `linux_vitals_slack_include_host_breakdown` is `false`. The dashboard is every host's detail, so this puts it in every recipient's mailbox; see [threat-model.md](threat-model.md#what-leaves-your-network). |
 
 ## `vitals_report` -- generic webhook
 

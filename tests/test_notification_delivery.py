@@ -332,7 +332,8 @@ def _main_scenarios(base: str, decoy: str) -> list[Scenario]:
                 "linux_vitals_generic_webhook_enabled": True,
                 "linux_vitals_generic_webhook_url": _url(base, "inventory-wins", "inventory", "webhook"),
                 "linux_vitals_generic_webhook_headers": {"Authorization": "Bearer inventory-wins.token"},
-                **_email("inventory-wins"),
+                # An operator's subject replaces the generated one (#145).
+                **_email("inventory-wins", linux_vitals_email_subject="LinuxVitals delivery fixture: inventory-wins"),
             },
             _dotenv(base, "inventory-wins", smtp_host="localhost"),
         ),
@@ -341,7 +342,16 @@ def _main_scenarios(base: str, decoy: str) -> list[Scenario]:
         # and a trailing comment, as people actually write them.
         Scenario(
             "dotenv-fallback",
-            {"linux_vitals_generic_webhook_enabled": True, **_email("dotenv-fallback", None)},
+            {
+                "linux_vitals_generic_webhook_enabled": True,
+                # The plain-text body, with no attachment and the generated subject (#145).
+                **_email(
+                    "dotenv-fallback",
+                    None,
+                    linux_vitals_email_format="text",
+                    linux_vitals_email_attach_report=False,
+                ),
+            },
             (
                 f'SLACK_WEBHOOK_URL="{_url(base, "dotenv-fallback", "dotenv", "slack")}"\n'
                 f"GENERIC_WEBHOOK_URL='{_url(base, 'dotenv-fallback', 'dotenv', 'webhook')}'  # ops bot\n"
@@ -373,6 +383,28 @@ def _main_scenarios(base: str, decoy: str) -> list[Scenario]:
             + f"\n# SLACK_WEBHOOK_URL={decoy}/decoy/slack\n"
             + f"OLD_GENERIC_WEBHOOK_URL={decoy}/decoy/webhook\n"
             + "#EMAIL_SMTP_USERNAME=decoy-user\n",
+        ),
+        # The attachment is asked for but the dashboard was never written: the
+        # mail still goes, without it, and does not claim one is attached.
+        Scenario(
+            "email-no-dashboard",
+            {
+                "lv_skip_dashboard": True,
+                **no_webhook,
+                **_email("email-no-dashboard", linux_vitals_email_host="127.0.0.1"),
+            },
+            None,
+        ),
+        # The host breakdown switched off: the dashboard is not attached even
+        # though the attachment is on, because it is every host's detail.
+        Scenario(
+            "email-no-breakdown",
+            {
+                "lv_host_breakdown": False,
+                **no_webhook,
+                **_email("email-no-breakdown", linux_vitals_email_host="127.0.0.1"),
+            },
+            None,
         ),
         # One scenario per skip condition. Everything except the gate is
         # configured, and another channel sends in the same scenario, so
@@ -844,20 +876,70 @@ def test_the_generic_webhook_sends_the_configured_headers(delivery: Delivery) ->
     assert "authorization" not in without.headers
 
 
-@pytest.mark.parametrize("scenario", SENDING)
-def test_email_carries_the_rendered_summary(delivery: Delivery, scenario: str) -> None:
-    result = delivery[scenario]
+def test_email_is_html_by_default_with_the_dashboard_attached(delivery: Delivery) -> None:
+    result = delivery["inventory-wins"]
     (session,) = result.received("email")
 
     assert session.mail_from == MAIL_FROM
-    assert session.rcpt_to == [f"{scenario}@example.com"]
+    assert session.rcpt_to == ["inventory-wins@example.com"]
     message = session.message
-    assert message["Subject"] == f"LinuxVitals delivery fixture: {scenario}"
-    assert message["To"] == f"{scenario}@example.com"
-    body = message.get_body(preferencelist=("plain",)).get_content()
-    assert _normalise(body) == _normalise(result.expected_text("message"))
-    assert body.startswith(f"{HEADER}\nOverall Status: PASS\n")
-    assert f"- {scenario} (127.0.0.1) | Status: Pass" in body
+    assert message["Subject"] == "LinuxVitals delivery fixture: inventory-wins"
+    assert message["To"] == "inventory-wins@example.com"
+    body = message.get_body(preferencelist=("html", "plain"))
+    assert body.get_content_type() == "text/html"
+    html = body.get_content()
+    assert _normalise(html) == _normalise(result.expected_text("email_html"))
+    # Anchors that do not depend on the expected render.
+    assert html.lstrip().startswith("<!DOCTYPE html>")
+    assert "inventory-wins" in html
+    assert "RAM usage is elevated" in html  # the finding behind the warning
+    assert "attached dashboard" in html
+
+    (attachment,) = list(message.iter_attachments())
+    assert attachment.get_filename() == "inventory-wins-dashboard.html"
+    # community.general.mail sends every attachment as application/octet-stream;
+    # mail clients open it by its .html name.
+    assert b"dashboard for inventory-wins" in attachment.get_payload(decode=True)
+
+
+def test_email_can_be_plain_text_without_an_attachment(delivery: Delivery) -> None:
+    result = delivery["dotenv-fallback"]
+    (session,) = result.received("email")
+
+    message = session.message
+    # No override set: the subject is generated from the result.
+    assert message["Subject"] == "[LinuxVitals] PASS · 1 host · adhoc"
+    assert message["Subject"] == result.expected_text("email_subject")
+    body = message.get_body(preferencelist=("html", "plain"))
+    assert body.get_content_type() == "text/plain"
+    text = body.get_content()
+    assert _normalise(text) == _normalise(result.expected_text("email_text"))
+    assert text.startswith(f"{HEADER}: PASS\n")
+    assert "  [WARNING]  RAM usage is elevated" in text
+    assert list(message.iter_attachments()) == []
+
+
+def test_a_missing_dashboard_is_not_attached_or_claimed(delivery: Delivery) -> None:
+    result = delivery["email-no-dashboard"]
+    (session,) = result.received("email")
+
+    message = session.message
+    assert list(message.iter_attachments()) == []
+    html = message.get_body(preferencelist=("html",)).get_content()
+    assert "attached dashboard" not in html
+    assert "dashboard on the controller" in html
+    assert result.record["email"]["msg"] == "Mail sent successfully"
+
+
+def test_the_dashboard_is_not_attached_when_the_host_breakdown_is_off(delivery: Delivery) -> None:
+    result = delivery["email-no-breakdown"]
+    (session,) = result.received("email")
+
+    message = session.message
+    assert list(message.iter_attachments()) == []
+    html = message.get_body(preferencelist=("html",)).get_content()
+    assert "attached dashboard" not in html
+    assert "All hosts" not in html
 
 
 @pytest.mark.parametrize("scenario", SENDING)

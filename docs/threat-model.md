@@ -410,8 +410,23 @@ score, overall status -- and, when
 `linux_vitals_slack_include_host_breakdown` is `true` (the default), a
 per-host breakdown including hostnames and statuses.
 
-If your hostnames are themselves sensitive, set it to `false`. The report
-itself is never attached or uploaded to any channel.
+If your hostnames are themselves sensitive, set it to `false`.
+
+**The email attaches the HTML dashboard by default**
+(`linux_vitals_email_attach_report: true`). That is every host's detail --
+addresses, kernels, findings and their messages, failed logins, log excerpts
+-- copied into every recipient's mailbox, where it is kept, forwarded and
+indexed under the mail system's rules, not yours. Set
+`linux_vitals_email_attach_report: false` if that detail must not sit in
+mailboxes. `linux_vitals_slack_include_host_breakdown: false` also stops the
+attachment, as well as the email's host table. The email body itself names
+each host that needs attention with its findings and address, whatever either
+setting says. No other channel attaches or uploads the report.
+
+The email subject is generated from the run's result, or taken from
+`linux_vitals_email_subject`. Either way control characters are replaced with
+spaces before it reaches the mail header, so a maintenance id or an override
+cannot start a new header.
 
 **Paging is the exception to "only the run summary".** A PagerDuty event or
 Opsgenie alert is per host, and carries the inventory name, hostname, IP

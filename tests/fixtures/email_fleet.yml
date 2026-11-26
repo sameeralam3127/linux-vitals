@@ -1,0 +1,183 @@
+---
+# A small mixed fleet for the email templates (#145).
+#
+# Inventory order is deliberately not worst-first: the only critical host,
+# debian12, is created third, so a template that lists hosts in play order
+# fails the ordering test. Each host's `hostname` differs from its inventory
+# name, so the tests can tell which one the email shows.
+#
+# -e fixture_phase=postcheck adds the baseline comparison: db-02 regressed,
+# app-04 improved, mail-05 has no baseline.
+- name: Build a synthetic mixed fleet
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    output_dir: "{{ lookup('ansible.builtin.env', 'TEST_OUTPUT_DIR') }}"
+  tasks:
+    - name: Ensure temporary test output directory exists
+      ansible.builtin.file:
+        path: "{{ output_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Create synthetic fleet hosts
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        groups: email_fleet
+      loop: [web-01, db-02, debian12, app-04, mail-05]
+      changed_when: false
+
+- name: Render the email templates for the synthetic fleet
+  hosts: email_fleet
+  connection: local
+  gather_facts: false
+  vars:
+    output_dir: "{{ lookup('ansible.builtin.env', 'TEST_OUTPUT_DIR') }}"
+    templates_dir: "{{ playbook_dir }}/../../roles/vitals_report/templates"
+    postcheck: "{{ (fixture_phase | default('adhoc')) == 'postcheck' }}"
+    linux_vitals_reporting_hosts: "{{ ansible_play_hosts }}"
+    linux_vitals_phase: "{{ fixture_phase | default('adhoc') }}"
+    linux_vitals_maintenance_id: "{{ 'lab-2026-10-16' if postcheck else '' }}"
+    linux_vitals_report_title: "LinuxVitals Health Check Dashboard"
+    linux_vitals_slack_message_header: "LinuxVitals Health Check"
+    linux_vitals_slack_message_footer: ""
+    linux_vitals_slack_include_host_breakdown: true
+    linux_vitals_slack_max_hosts: 20
+    linux_vitals_email_subject: ""
+    linux_vitals_email_attach_report: true
+    linux_vitals_output_path: "/srv/reports/linux_vitals_report.html"
+    linux_vitals_summary:
+      overall_status: "FAIL"
+      servers_checked: 5
+      auto_fixed_count: 1
+      critical_error_count: 2
+      failing_host_count: 2
+      health_score_pct: 71.0
+      health_score_band: "Fair"
+      hosts_by_severity: {none: 2, info: 1, warning: 1, critical: 1}
+      findings_by_severity: {info: 1, warning: 3, critical: 1}
+      unknown_host_count: 2
+      fail_on_severity: "warning"
+      comparison_active: "{{ postcheck }}"
+      regressed_count: "{{ 1 if postcheck else 0 }}"
+      improved_count: "{{ 1 if postcheck else 0 }}"
+      new_hosts_count: "{{ 1 if postcheck else 0 }}"
+      snippet: "5 Servers Checked, 1 Auto-Fixed, 2 Failing Hosts"
+      unreported_host_count: 1
+      unreported_hosts:
+        - inventory_name: "lost-06"
+          reason: "unreachable"
+          baseline_available: false
+    fleet:
+      web-01:
+        severity: none
+        final_status: Pass
+        findings: []
+        comparison: {baseline_available: true, status_before: Pass, status_after: Pass}
+      db-02:
+        severity: warning
+        final_status: Fail
+        reboot_required: true
+        findings:
+          - {id: time_sync_inactive, subject: "", severity: warning, status: fail, message: "Time synchronisation is not active"}
+          - {id: sssd_inactive, subject: sssd.service, severity: warning, status: fail, message: "sssd is not running"}
+          - id: failed_logins
+            subject: ""
+            severity: info
+            status: unknown
+            message: "Failed logins could not be counted"
+            reason: "lastb exited 1: permission denied"
+        comparison:
+          baseline_available: true
+          status_before: Pass
+          status_after: Fail
+          status_regressed: true
+          new_findings:
+            - {id: time_sync_inactive, subject: "", severity: warning, status: fail, message: "Time synchronisation is not active"}
+      debian12:
+        severity: critical
+        final_status: Fail
+        findings:
+          - {id: ram_status, subject: "", severity: critical, status: fail, message: "RAM usage is critical"}
+          - {id: boot_space_low, subject: /boot, severity: warning, status: fail, message: "Boot partition </boot> is low on space & needs attention"}
+        comparison: {baseline_available: true, status_before: Fail, status_after: Fail}
+      app-04:
+        severity: info
+        final_status: Pass
+        findings:
+          - {id: log_errors, subject: "", severity: info, status: fail, message: "Recent logs contain error entries"}
+        comparison:
+          baseline_available: true
+          status_before: Fail
+          status_after: Pass
+          status_improved: true
+          resolved_findings:
+            - {id: ram_status, subject: "", severity: critical, status: fail, message: "RAM usage is critical"}
+      mail-05:
+        severity: none
+        final_status: Pass
+        findings:
+          - id: kernel_install_failures
+            subject: ""
+            severity: warning
+            status: unknown
+            message: "Kernel install history could not be read"
+            reason: "journal not readable"
+        comparison: {baseline_available: false}
+  tasks:
+    - name: Populate a per-host health result
+      ansible.builtin.set_fact:
+        linux_vitals_result:
+          hostname: "{{ inventory_hostname }}.lab.example"
+          ip_address: "10.0.0.{{ ansible_play_hosts_all.index(inventory_hostname) + 11 }}"
+          platform_type: "Virtual Machine"
+          uptime: "3d 4h 5m"
+          running_kernel: "6.1.0-{{ ansible_play_hosts_all.index(inventory_hostname) + 20 }}-amd64"
+          latest_installed_kernel: "6.1.0-25-amd64"
+          latest_kernel_selected: true
+          bootloader_default_status: "resolved"
+          bootloader_default_kernel: "6.1.0-25-amd64"
+          bootloader_default_matches_latest: true
+          reboot_required: "{{ fleet[inventory_hostname].reboot_required | default(false) }}"
+          reboot_required_source: "/run/reboot-required"
+          boot_space_status: "Healthy"
+          failed_login_count: 0
+          final_status: "{{ fleet[inventory_hostname].final_status }}"
+          severity: "{{ fleet[inventory_hostname].severity }}"
+          unknown_count: "{{ fleet[inventory_hostname].findings | selectattr('status', 'equalto', 'unknown') | list | length }}"
+          findings: "{{ fleet[inventory_hostname].findings }}"
+          comparison: "{{ fleet[inventory_hostname].comparison }}"
+
+    - name: Render the email bodies, the subject, and the Slack plain-text fallback
+      ansible.builtin.template:
+        src: "{{ templates_dir }}/{{ item.src }}"
+        dest: "{{ output_dir }}/{{ item.dest }}"
+        mode: "0644"
+      loop:
+        - {src: email_message.html.j2, dest: email.html}
+        - {src: email_message.txt.j2, dest: email.txt}
+        - {src: email_subject.txt.j2, dest: subject.txt}
+        - {src: slack_message.txt.j2, dest: slack.txt}
+      delegate_to: localhost
+      run_once: true  # noqa: run-once[task]
+
+    - name: Render the HTML body with the host breakdown switched off
+      ansible.builtin.template:
+        src: "{{ templates_dir }}/email_message.html.j2"
+        dest: "{{ output_dir }}/email_no_breakdown.html"
+        mode: "0644"
+      vars:
+        linux_vitals_slack_include_host_breakdown: false
+      delegate_to: localhost
+      run_once: true  # noqa: run-once[task]
+
+    - name: Render the subject with an operator override
+      ansible.builtin.template:
+        src: "{{ templates_dir }}/email_subject.txt.j2"
+        dest: "{{ output_dir }}/subject_override.txt"
+        mode: "0644"
+      vars:
+        linux_vitals_email_subject: "Weekly patching {{ '\n' }}Bcc: someone@example.com"
+      delegate_to: localhost
+      run_once: true  # noqa: run-once[task]

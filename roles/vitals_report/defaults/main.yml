@@ -47,7 +47,17 @@ linux_vitals_email_port: 25
 linux_vitals_email_secure: "never"
 linux_vitals_email_username: ""
 linux_vitals_email_password: ""
-linux_vitals_email_subject: "LinuxVitals Health Check Summary"
+# Empty: the subject is generated from the result, e.g.
+# "[LinuxVitals] FAIL · 7 hosts · 2 failing · 1 critical · postcheck lab-2026-10-16".
+# Any other value replaces it.
+linux_vitals_email_subject: ""
+# html: an inline-styled HTML body. text: a plain-text body, for mail systems
+# that strip or distrust HTML.
+linux_vitals_email_format: "html"
+# Attach the HTML dashboard (linux_vitals_output_path) to the email. It holds
+# every host's details, so it puts them into every recipient's mailbox; see
+# docs/threat-model.md.
+linux_vitals_email_attach_report: true
 linux_vitals_generic_webhook_enabled: false
 linux_vitals_generic_webhook_url: ""
 linux_vitals_generic_webhook_headers: {}

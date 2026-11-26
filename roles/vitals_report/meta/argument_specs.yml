@@ -273,9 +273,29 @@ argument_specs:
             variable, never in inventory committed to git.
       linux_vitals_email_subject:
         type: str
-        default: LinuxVitals Health Check Summary
+        default: ""
         description:
-          - Subject line of the summary email.
+          - Subject line of the summary email. Empty generates one that carries
+            the result, for example
+            C([LinuxVitals] FAIL · 7 hosts · 2 failing · 1 critical · postcheck lab-2026-10-16).
+          - Any other value replaces the generated subject. Control characters,
+            newlines among them, are replaced with spaces either way.
+      linux_vitals_email_format:
+        type: str
+        default: html
+        choices: [html, text]
+        description:
+          - C(html) sends an inline-styled HTML body. C(text) sends a plain-text
+            body with the same content, one short block per host.
+      linux_vitals_email_attach_report:
+        type: bool
+        default: true
+        description:
+          - Attach the HTML dashboard (C(linux_vitals_output_path)) to the
+            email. Skipped, and the body names the path instead, when the
+            dashboard file does not exist.
+          - The dashboard holds every host's details, so this puts them into
+            every recipient's mailbox. Set C(false) where that is not wanted.
       linux_vitals_generic_webhook_enabled:
         type: bool
         default: false
