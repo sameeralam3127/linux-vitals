@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LinuxVitals — Continuous vitals for your Linux fleet</title>
+<title>LinuxVitals — Ansible health checks for every patch window</title>
 <meta name="description" content="LinuxVitals is an agentless Ansible collection that scans, heals, and reports on Linux fleets — with per-distro reboot and kernel detection, a baseline/postcheck comparison built for real maintenance windows, and a self-contained HTML dashboard.">
 <link rel="canonical" href="https://sameeralam3127.github.io/linux-vitals/">
 <meta property="og:type" content="website">
@@ -12,11 +12,11 @@
 <meta property="og:url" content="https://sameeralam3127.github.io/linux-vitals/">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="color-scheme" content="dark light">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%23ee0000'/%3E%3Cpath d='M7 16h4l3-8 4 16 3-8h4' fill='none' stroke='%23fff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
-<meta name="theme-color" content="#ee0000">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%235cc8c2'/%3E%3Cpath d='M6 16h5l3-8 4 16 3-8h5' fill='none' stroke='%23062120' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<meta name="theme-color" content="#0f1d2b">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@500;700;800&family=Red+Hat+Mono:wght@400;500;600&family=Red+Hat+Text:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/site.css">
 <link rel="stylesheet" href="assets/command-builder.css">
 <script>
@@ -65,183 +65,121 @@
 <div id="top"></div>
 
 <section class="hero">
-  <div class="wrap hero-grid">
-    <div class="hero-copy">
-    <span class="eyebrow"><span class="dot"></span> sameeralam3127.linux_vitals · Ansible Galaxy collection</span>
-    <h1>Your Linux fleet has a pulse. <span class="grad">Now you can see it.</span></h1>
-    <p class="lede">
-      LinuxVitals is an agentless Ansible collection that scans, opt-in self-heals, and reports on your
-      Linux servers — severity-ranked findings, per-distro reboot and kernel detection, a baseline → postcheck
-      comparison for real maintenance windows, and one self-contained HTML dashboard at the end of it.
-    </p>
+  <div class="wrap">
+    <h1>Know what your patch window changed.</h1>
+    <div class="hero-grid">
+      <div class="hero-copy">
+        <p class="lede">
+          LinuxVitals is an agentless Ansible collection. Run <strong>baseline</strong> before maintenance and
+          <strong>postcheck</strong> after, and get one HTML report of every host that improved, regressed,
+          or still needs a reboot. Nothing is installed on your servers, and nothing changes unless you opt in.
+        </p>
 
-    <div class="cta-row">
-      <a class="btn btn-primary" href="#demo">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l14 9-14 9V3z"/></svg>
-        See the live dashboard
-      </a>
-      <a class="btn btn-ghost" href="#triage">Try the triage playground</a>
-    </div>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="#demo">See the real dashboard</a>
+          <a class="btn btn-ghost" href="#install">Install the collection</a>
+        </div>
 
-    <div class="cmd">
-      <span class="prompt">$</span>
-      <code id="install-cmd">ansible-galaxy collection install sameeralam3127.linux_vitals</code>
-      <button class="copy" data-copy="#install-cmd" type="button">Copy</button>
-    </div>
+        <div class="cmd">
+          <span class="prompt">$</span>
+          <code id="install-cmd">ansible-galaxy collection install sameeralam3127.linux_vitals</code>
+          <button class="copy" data-copy="#install-cmd" type="button">Copy</button>
+        </div>
 
-    <div class="stats">
-      <div class="stat" data-live="pending" id="stat-version">
-        <span class="live-dot" aria-hidden="true"></span>
-        <span class="k" id="k-version" data-lv-version>2.2.0</span>
-        <span class="v" id="v-version">latest release</span>
-      </div>
-      <div class="stat" data-live="pending" id="stat-ci">
-        <span class="live-dot" aria-hidden="true"></span>
-        <span class="k" id="k-ci">6 distros</span>
-        <span class="v" id="v-ci">tested every push</span>
-      </div>
-      <div class="stat" data-live="pending" id="stat-stars">
-        <span class="live-dot" aria-hidden="true"></span>
-        <span class="k" id="k-stars">MIT</span>
-        <span class="v" id="v-stars">open source</span>
-      </div>
-      <div class="stat" data-live="pending" id="stat-updated">
-        <span class="live-dot" aria-hidden="true"></span>
-        <span class="k" id="k-updated">4 roles</span>
-        <span class="v" id="v-updated">scan · heal · certs · report</span>
-      </div>
-    </div>
-    </div>
-
-    <aside class="viz" aria-label="Replay of a sample fleet scan">
-      <div class="viz-head"><span class="beat"></span> <span id="viz-title">sample fleet · postcheck replay</span></div>
-
-      <div class="viz-top">
-        <div class="ring" id="viz-ring" style="--pct: 0"><span id="viz-pct">0%</span></div>
-        <div>
-          <p class="viz-score" id="viz-score">Scanning…</p>
-          <p class="viz-sub" id="viz-sub">0 hosts checked</p>
+        <div class="stats">
+          <div class="stat" data-live="pending" id="stat-version">
+            <span class="live-dot" aria-hidden="true"></span>
+            <span class="k" id="k-version" data-lv-version>2.2.0</span>
+            <span class="v" id="v-version">latest release</span>
+          </div>
+          <div class="stat" data-live="pending" id="stat-ci">
+            <span class="live-dot" aria-hidden="true"></span>
+            <span class="k" id="k-ci">6 distros</span>
+            <span class="v" id="v-ci">tested every push</span>
+          </div>
+          <div class="stat" data-live="pending" id="stat-stars">
+            <span class="live-dot" aria-hidden="true"></span>
+            <span class="k" id="k-stars">MIT</span>
+            <span class="v" id="v-stars">open source</span>
+          </div>
+          <div class="stat" data-live="pending" id="stat-updated">
+            <span class="live-dot" aria-hidden="true"></span>
+            <span class="k" id="k-updated">4 roles</span>
+            <span class="v" id="v-updated">scan, heal, certs, report</span>
+          </div>
         </div>
       </div>
 
-      <svg class="ecg" viewBox="0 0 340 58" preserveAspectRatio="none" aria-hidden="true">
-        <path d="M0 34 H52 l7 -18 l7 30 l6 -22 l8 10 H140 l7 -14 l7 26 l6 -20 l8 8 H240 l7 -16 l7 28 l6 -20 l8 8 H340"/>
-      </svg>
-
-      <div class="viz-rows" id="viz-rows" aria-live="off"></div>
-      <div class="viz-foot"><span id="viz-foot">real report.json · golden scan fixtures</span><button class="viz-replay" id="viz-replay" type="button">↻ replay</button></div>
-    </aside>
+      <figure class="term run" aria-label="Replay of a postcheck run against the sample fleet">
+        <div class="term-bar"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span>control-node: ~/ops</span><button type="button" id="run-replay">Replay</button></div>
+        <pre id="run-log" aria-live="off"></pre>
+        <figcaption class="run-foot"><span id="run-caption">Replay of the sample fleet's postcheck</span><a href="#demo">Open its dashboard</a></figcaption>
+      </figure>
+    </div>
   </div>
 </section>
 
 <div class="strip">
   <div class="wrap strip-inner">
-    <span class="strip-label">Verified on every push against real systemd containers</span>
+    <span class="strip-label">Tested on every push in real systemd containers</span>
     <div class="distros">
-      <span class="distro"><span class="tick">✓</span> Ubuntu 24.04</span>
-      <span class="distro"><span class="tick">✓</span> Debian 12</span>
-      <span class="distro"><span class="tick">✓</span> Rocky Linux 9</span>
-      <span class="distro"><span class="tick">✓</span> Fedora 42</span>
-      <span class="distro"><span class="tick">✓</span> Amazon Linux 2023</span>
-      <span class="distro"><span class="tick">✓</span> openSUSE Leap 15</span>
+      <span class="distro"><span class="tick">ok:</span> [Ubuntu 24.04]</span>
+      <span class="distro"><span class="tick">ok:</span> [Debian 12]</span>
+      <span class="distro"><span class="tick">ok:</span> [Rocky Linux 9]</span>
+      <span class="distro"><span class="tick">ok:</span> [Fedora 42]</span>
+      <span class="distro"><span class="tick">ok:</span> [Amazon Linux 2023]</span>
+      <span class="distro"><span class="tick">ok:</span> [openSUSE Leap 15]</span>
     </div>
   </div>
 </div>
 
 <section id="features">
   <div class="wrap">
-    <span class="kicker reveal">What it does</span>
-    <h2 class="reveal">Deep OS posture, not just uptime pings</h2>
-    <p class="sub reveal">Nothing is installed on managed hosts, and every check is read-only unless you explicitly opt in.</p>
+    <h2 class="task"><span class="t-kw" aria-hidden="true">TASK [</span><span class="t-name">Check deep OS posture, not just uptime</span><span class="t-kw" aria-hidden="true">]</span><span class="t-stars" aria-hidden="true"></span></h2>
+    <p class="sub">Four roles, each with one job. Nothing is installed on managed hosts.</p>
 
-    <div class="grid grid-3">
-      <article class="card reveal">
-        <div class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div>
-        <h3>Read-only scan</h3>
-        <p>Kernel &amp; bootloader validation, reboot-required per distro, <code>/boot</code> space, SELinux/AppArmor, failed logins, journal errors, memory pressure, core services — plus every enabled unit systemd reports as failed.</p>
-        <span class="tag">vitals_scan</span>
-      </article>
-
-      <article class="card reveal">
-        <div class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg></div>
-        <h3>Every mount, space and inodes</h3>
-        <p>Used space <em>and</em> used inodes on every real filesystem, not just <code>/boot</code> — plus a mount that unexpectedly went read-only, which is usually the kernel reacting to an I/O error.</p>
-        <span class="tag">filesystem_space_low</span>
-      </article>
-
-      <article class="card reveal">
-        <div class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
-        <h3>Saturation, not just free RAM</h3>
-        <p>5-minute load <em>per CPU</em>, PSI stall percentages for CPU, memory and I/O, and the swap paging rate — so a host thrashing with free RAM stops reading as healthy.</p>
-        <span class="tag">pressure_stall_high</span>
-      </article>
-
-      <article class="card reveal">
-        <div class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></div>
-        <h3>Severity-based triage</h3>
-        <p>Every finding is <code>info</code>, <code>warning</code> or <code>critical</code>. Raise <code>linux_vitals_fail_on_severity</code> and only what matters fails a host — everything is still reported.</p>
-        <span class="tag">fail_on_severity</span>
-      </article>
-
-      <article class="card reveal">
-        <div class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/></svg></div>
-        <h3>Never a false "all clear"</h3>
-        <p>A check that could not run — journal unreadable, tool missing — raises an <code>unknown</code> finding with the reason, and that host never counts as healthy.</p>
-        <span class="tag">status: unknown</span>
-      </article>
-
-      <article class="card reveal">
-        <div class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4.1 12.6a1 1 0 0 0 .8 1.6H11l-1 8 8.9-10.6a1 1 0 0 0-.8-1.6H12l1-8z"/></svg></div>
-        <h3>Opt-in self-healing</h3>
-        <p>One restart attempt per enabled, failed systemd unit — and the report says whether it worked. Off by default; it never enables, installs, or masks a unit.</p>
-        <span class="tag">vitals_heal</span>
-      </article>
-
-      <article class="card reveal">
-        <div class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>
-        <h3>TLS certificate checks</h3>
-        <p>Opt-in expiry, weak-signature, and obsolete-protocol checks — on disk and over the wire, including a served cert that no longer matches the file.</p>
-        <span class="tag">vitals_certs</span>
-      </article>
-
-      <article class="card reveal">
-        <div class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg></div>
-        <h3>Baseline → postcheck diff</h3>
-        <p>Snapshot before a maintenance window, snapshot after, correlated by a maintenance id: improved and regressed hosts, RAM deltas, kernel changes, new and resolved findings.</p>
-        <span class="tag">vitals_report</span>
-      </article>
-
-      <article class="card reveal">
-        <div class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg></div>
-        <h3>Self-contained dashboard</h3>
-        <p>One HTML file plus a versioned JSON report. No CDN, no server — search, sort, filter, and expand any host, offline, forever.</p>
-        <span class="tag">dashboard.html.j2</span>
-      </article>
-
-      <article class="card reveal">
-        <div class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg></div>
-        <h3>Notifications</h3>
-        <p>Slack Block Kit, email, and a generic webhook — each independent, with credentials kept in <code>.env</code> or vault, never on the command line.</p>
-        <span class="tag">vitals_report</span>
-      </article>
-
-      <article class="card reveal">
-        <div class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg></div>
-        <h3>A gate for your pipeline</h3>
-        <p><code>linux_vitals_fail_on_status</code> fails the run on failing or regressed hosts — after reports and notifications are written, so the evidence always exists.</p>
-        <span class="tag">fail_on_status</span>
-      </article>
+    <div class="roles">
+    <div class="role">
+      <div class="role-head"><code>vitals_scan</code><p>Reads every host. Changes nothing.</p></div>
+      <ul class="role-tasks">
+        <li><h3>Read-only scan</h3><p>Kernel &amp; bootloader validation, reboot-required per distro, <code>/boot</code> space, SELinux/AppArmor, failed logins, journal errors, memory pressure, core services — plus every enabled unit systemd reports as failed.</p></li>
+        <li><h3>Every mount, space and inodes</h3><p>Used space <em>and</em> used inodes on every real filesystem, not just <code>/boot</code> — plus a mount that unexpectedly went read-only, which is usually the kernel reacting to an I/O error.</p><span class="tag">filesystem_space_low</span></li>
+        <li><h3>Saturation, not just free RAM</h3><p>5-minute load <em>per CPU</em>, PSI stall percentages for CPU, memory and I/O, and the swap paging rate — so a host thrashing with free RAM stops reading as healthy.</p><span class="tag">pressure_stall_high</span></li>
+        <li><h3>Severity-based triage</h3><p>Every finding is <code>info</code>, <code>warning</code> or <code>critical</code>. Raise <code>linux_vitals_fail_on_severity</code> and only what matters fails a host — everything is still reported.</p><span class="tag">fail_on_severity</span></li>
+        <li><h3>Never a false "all clear"</h3><p>A check that could not run — journal unreadable, tool missing — raises an <code>unknown</code> finding with the reason, and that host never counts as healthy.</p><span class="tag">status: unknown</span></li>
+      </ul>
+    </div>
+    <div class="role">
+      <div class="role-head"><code>vitals_heal</code><p>Off unless you turn it on.</p></div>
+      <ul class="role-tasks">
+        <li><h3>Opt-in self-healing</h3><p>One restart attempt per enabled, failed systemd unit — and the report says whether it worked. Off by default; it never enables, installs, or masks a unit.</p></li>
+      </ul>
+    </div>
+    <div class="role">
+      <div class="role-head"><code>vitals_certs</code><p>Opt-in, on disk and over the wire.</p></div>
+      <ul class="role-tasks">
+        <li><h3>TLS certificate checks</h3><p>Opt-in expiry, weak-signature, and obsolete-protocol checks — on disk and over the wire, including a served cert that no longer matches the file.</p></li>
+      </ul>
+    </div>
+    <div class="role">
+      <div class="role-head"><code>vitals_report</code><p>Runs once, on the control node.</p></div>
+      <ul class="role-tasks">
+        <li><h3>Baseline → postcheck diff</h3><p>Snapshot before a maintenance window, snapshot after, correlated by a maintenance id: improved and regressed hosts, RAM deltas, kernel changes, new and resolved findings.</p></li>
+        <li><h3>Self-contained dashboard</h3><p>One HTML file plus a versioned JSON report. No CDN, no server — search, sort, filter, and expand any host, offline, forever.</p><span class="tag">dashboard.html.j2</span></li>
+        <li><h3>Notifications</h3><p>Slack Block Kit, email, and a generic webhook — each independent, with credentials kept in <code>.env</code> or vault, never on the command line.</p></li>
+        <li><h3>A gate for your pipeline</h3><p><code>linux_vitals_fail_on_status</code> fails the run on failing or regressed hosts — after reports and notifications are written, so the evidence always exists.</p><span class="tag">fail_on_status</span></li>
+      </ul>
+    </div>
     </div>
   </div>
 </section>
 
-<section id="demo" style="background: var(--bg-alt); border-block: 1px solid var(--line);">
+<section id="demo" class="tint">
   <div class="wrap">
-    <span class="kicker reveal">Not a mockup</span>
-    <h2 class="reveal">This is the actual dashboard</h2>
-    <p class="sub reveal">Rendered by the real <code>vitals_report</code> role from the collection's own golden scan fixtures: a baseline run, a patch window, and a postcheck with the same maintenance id. Search a hostname, sort a column, expand a host.</p>
+    <h2 class="task"><span class="t-kw" aria-hidden="true">TASK [</span><span class="t-name">Open the actual dashboard</span><span class="t-kw" aria-hidden="true">]</span><span class="t-stars" aria-hidden="true"></span></h2>
+    <p class="sub">Rendered by the real <code>vitals_report</code> role from the collection's own golden scan fixtures: a baseline run, a patch window, and a postcheck with the same maintenance id. Search a hostname, sort a column, expand a host.</p>
 
-    <div class="browser reveal">
+    <div class="browser">
       <div class="browser-bar">
         <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
         <span class="browser-url">reports / linux_vitals_report.html</span>
@@ -250,22 +188,21 @@
       <iframe id="dashboard-frame" title="LinuxVitals dashboard demo" loading="lazy" src="assets/demo-dashboard.html"></iframe>
     </div>
 
-    <div class="demo-notes reveal" id="demo-notes">
-      <span class="note">Health-score ring &amp; KPI row</span>
-      <span class="note">Improved / Regressed filters</span>
-      <span class="note">Unknown checks, with reasons</span>
-      <span class="note">Light &amp; dark themes</span>
-    </div>
+    <ul class="demo-notes" id="demo-notes">
+      <li class="note">Health-score ring &amp; KPI row</li>
+      <li class="note">Improved / Regressed filters</li>
+      <li class="note">Unknown checks, with reasons</li>
+      <li class="note">Light &amp; dark themes</li>
+    </ul>
   </div>
 </section>
 
 <section id="triage">
   <div class="wrap">
-    <span class="kicker reveal">Interactive</span>
-    <h2 class="reveal">Triage playground</h2>
-    <p class="sub reveal">The same fleet as the dashboard above, re-scored live in your browser with the collection's own rules. Change the threshold, retune a finding, set a pipeline gate — and watch which hosts fail, what the health score does, and whether the run would exit non-zero.</p>
+    <h2 class="task"><span class="t-kw" aria-hidden="true">TASK [</span><span class="t-name">Tune what fails a host</span><span class="t-kw" aria-hidden="true">]</span><span class="t-stars" aria-hidden="true"></span></h2>
+    <p class="sub">The same fleet as the dashboard above, re-scored live in your browser with the collection's own rules. Change the threshold, retune a finding, set a pipeline gate — and watch which hosts fail, what the health score does, and whether the run would exit non-zero.</p>
 
-    <div class="tp reveal">
+    <div class="tp">
       <div>
         <div class="tp-panel">
           <span class="tp-label">Fail a host at <code>linux_vitals_fail_on_severity</code></span>
@@ -325,16 +262,15 @@
   </div>
 </section>
 
-<section id="detection" style="background: var(--bg-alt); border-block: 1px solid var(--line);">
+<section id="detection" class="tint">
   <div class="wrap">
-    <span class="kicker reveal">Distro-aware by design</span>
-    <h2 class="reveal">Every family answers "do I need a reboot?" differently</h2>
-    <p class="sub reveal">
-      So LinuxVitals asks each one in its own language, reports which source produced the answer, and never
+    <h2 class="task"><span class="t-kw" aria-hidden="true">TASK [</span><span class="t-name">Ask each distro if it needs a reboot</span><span class="t-kw" aria-hidden="true">]</span><span class="t-stars" aria-hidden="true"></span></h2>
+    <p class="sub">
+      Every distro family answers this differently, so LinuxVitals asks each one in its own language, reports which source produced the answer, and never
       reads a broken check as "all clear". Pick a family to watch the probe run.
     </p>
 
-    <div class="dx reveal">
+    <div class="dx">
       <div class="dx-list" id="dx-list" role="tablist" aria-label="Distribution family"></div>
       <div>
         <div class="term">
@@ -345,59 +281,57 @@
       </div>
     </div>
 
-    <p class="sub reveal" style="margin-top: 22px;">
+    <p class="aside">
       The bootloader gets the same care: <code>grubby</code>, <code>grubenv</code>, <code>GRUB_DEFAULT</code>, BLS entries and
       systemd-boot are all resolved, so a host with the newest kernel installed but an older one set to boot is flagged before it reboots into a surprise.
-      <a href="https://github.com/sameeralam3127/linux-vitals/blob/main/docs/kernel-reboot-detection.md" style="color: var(--accent);">Read the detection docs ↗</a>
+      <a href="https://github.com/sameeralam3127/linux-vitals/blob/main/docs/kernel-reboot-detection.md">Read the detection docs ↗</a>
     </p>
   </div>
 </section>
 
 <section id="workflow">
   <div class="wrap">
-    <span class="kicker reveal">The workflow</span>
-    <h2 class="reveal">Built around real maintenance windows</h2>
-    <p class="sub reveal">Three playbooks, one shared maintenance id. Click a step to replay it.</p>
+    <h2 class="task"><span class="t-kw" aria-hidden="true">PLAY [</span><span class="t-name">Run it around a maintenance window</span><span class="t-kw" aria-hidden="true">]</span><span class="t-stars" aria-hidden="true"></span></h2>
+    <p class="sub">Three playbooks, one shared maintenance id. Click a step to replay it.</p>
 
     <div class="steps" id="wf-steps">
-      <div class="step reveal" role="button" tabindex="0" aria-pressed="true" data-step="baseline">
-        <span class="num">01 / Before</span>
+      <div class="step" role="button" tabindex="0" aria-pressed="true" data-step="baseline">
+        <span class="num">PLAY [baseline]</span>
         <h3>Capture a baseline</h3>
         <p>Run <code>…linux_vitals.baseline</code> with a <code>linux_vitals_maintenance_id</code> before your window opens. Full posture, snapshotted per host.</p>
       </div>
-      <div class="step reveal" role="button" tabindex="0" aria-pressed="false" data-step="patch">
-        <span class="num">02 / During</span>
+      <div class="step" role="button" tabindex="0" aria-pressed="false" data-step="patch">
+        <span class="num">your change</span>
         <h3>Do your maintenance</h3>
         <p>Patch, reboot, reconfigure — however you normally do it. LinuxVitals stays out of the way.</p>
       </div>
-      <div class="step reveal" role="button" tabindex="0" aria-pressed="false" data-step="postcheck">
-        <span class="num">03 / After</span>
+      <div class="step" role="button" tabindex="0" aria-pressed="false" data-step="postcheck">
+        <span class="num">PLAY [postcheck]</span>
         <h3>Run postcheck, get the diff</h3>
         <p>Run <code>…linux_vitals.postcheck</code> with the same id. The dashboard shows exactly what changed — per host, per finding.</p>
       </div>
     </div>
 
-    <div class="term wf-term reveal">
+    <div class="term wf-term">
       <div class="term-bar"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span id="wf-title">control node</span><button type="button" id="wf-replay">↻ replay</button></div>
       <pre id="wf-term" aria-live="off"></pre>
     </div>
 
-    <p class="sub reveal" style="margin-top: 22px;">
+    <p class="aside">
       Too many hosts for one run? Shard the fleet: every shard keeps the window's maintenance id, and from the next release
       each one sets its own <code>linux_vitals_snapshot_shard</code>, so a shard id reused for a different set of hosts is refused
       instead of silently merged into the comparison.
-      <a href="https://github.com/sameeralam3127/linux-vitals/blob/main/docs/performance.md#sharding-a-large-fleet" style="color: var(--accent);">Sharding a large fleet ↗</a>
+      <a href="https://github.com/sameeralam3127/linux-vitals/blob/main/docs/performance.md#sharding-a-large-fleet">Sharding a large fleet ↗</a>
     </p>
   </div>
 </section>
 
-<section id="install" style="background: var(--bg-alt); border-block: 1px solid var(--line);">
+<section id="install" class="tint">
   <div class="wrap">
-    <span class="kicker reveal">Get started</span>
-    <h2 class="reveal">Point it at an inventory, get a dashboard</h2>
-    <p class="sub reveal">No agents, no daemons, no database — just SSH and Ansible. Python 3.10+ and ansible-core 2.16+ on the control node.</p>
+    <h2 class="task"><span class="t-kw" aria-hidden="true">TASK [</span><span class="t-name">Install and run it</span><span class="t-kw" aria-hidden="true">]</span><span class="t-stars" aria-hidden="true"></span></h2>
+    <p class="sub">No agents, no daemons, no database — just SSH and Ansible. Python 3.10+ and ansible-core 2.16+ on the control node.</p>
 
-    <div class="reveal">
+    <div>
       <div class="tabs" role="tablist" aria-label="Installation methods">
         <button class="tab" role="tab" aria-selected="true" aria-controls="p-galaxy" id="t-galaxy">Ansible Galaxy</button>
         <button class="tab" role="tab" aria-selected="false" aria-controls="p-req" id="t-req">requirements.yml</button>
@@ -450,11 +384,10 @@ cd linux-vitals/demo &amp;&amp; ./run.sh
 
 <section id="builder">
   <div class="wrap">
-    <span class="kicker reveal">Command builder</span>
-    <h2 class="reveal">Build the exact command, from the real variables</h2>
-    <p class="sub reveal" id="cb-intro">Every option below is generated from the collection's own <code>meta/argument_specs.yml</code>, with the real defaults. Change what you need; only what differs from a default ends up in the output — and <strong>Share</strong> gives you a link that reopens this exact configuration.</p>
+    <h2 class="task"><span class="t-kw" aria-hidden="true">TASK [</span><span class="t-name">Build the exact command</span><span class="t-kw" aria-hidden="true">]</span><span class="t-stars" aria-hidden="true"></span></h2>
+    <p class="sub" id="cb-intro">Every option below is generated from the collection's own <code>meta/argument_specs.yml</code>, with the real defaults. Change what you need; only what differs from a default ends up in the output — and <strong>Share</strong> gives you a link that reopens this exact configuration.</p>
 
-    <div class="cb reveal">
+    <div class="cb">
       <div>
         <div class="cb-panel">
           <div class="cb-field" style="border-top:0;padding-top:0">
@@ -518,20 +451,19 @@ cd linux-vitals/demo &amp;&amp; ./run.sh
   </div>
 </section>
 
-<section id="releases" style="background: var(--bg-alt); border-block: 1px solid var(--line);">
+<section id="releases" class="tint">
   <div class="wrap">
-    <span class="kicker reveal">Release history</span>
-    <h2 class="reveal">What shipped, and what's moving</h2>
-    <p class="sub reveal">Pulled live from GitHub releases and the commit log, with a built-in copy for when the API is out of reach.</p>
+    <h2 class="task"><span class="t-kw" aria-hidden="true">TASK [</span><span class="t-name">See what shipped</span><span class="t-kw" aria-hidden="true">]</span><span class="t-stars" aria-hidden="true"></span></h2>
+    <p class="sub">Pulled live from GitHub releases and the commit log, with a built-in copy for when the API is out of reach.</p>
 
-    <div class="cols reveal">
+    <div class="cols">
       <div class="tl" id="tl"></div>
       <div>
         <div class="feed" id="feed">
           <h3><span>Latest commits on main</span><span id="feed-ci"></span></h3>
           <div id="feed-list"><a href="https://github.com/sameeralam3127/linux-vitals/commits/main">Browse the commit history ↗<span class="meta">github.com</span></a></div>
         </div>
-        <div class="feed" style="margin-top:14px">
+        <div class="feed">
           <h3><span>Contributors</span></h3>
           <div class="avatars" id="avatars"><a href="https://github.com/sameeralam3127/linux-vitals/graphs/contributors" style="font-size:.85rem;color:var(--ink-2);text-decoration:none">See everyone who has contributed ↗</a></div>
         </div>
@@ -542,27 +474,28 @@ cd linux-vitals/demo &amp;&amp; ./run.sh
 
 <section id="roadmap">
   <div class="wrap">
-    <span class="kicker reveal">What's next</span>
-    <h2 class="reveal">Roadmap</h2>
-    <p class="sub reveal">
+    <h2 class="task"><span class="t-kw" aria-hidden="true">TASK [</span><span class="t-name">See what's next</span><span class="t-kw" aria-hidden="true">]</span><span class="t-stars" aria-hidden="true"></span></h2>
+    <p class="sub">
       Release milestones, with live progress from the issues in each. Nothing here is a commitment —
-      the reasoning lives in <a href="https://github.com/sameeralam3127/linux-vitals/blob/main/docs/roadmap.md" style="color: var(--accent);">docs/roadmap.md</a>,
-      and you can <a href="https://github.com/sameeralam3127/linux-vitals/issues" style="color: var(--accent);">weigh in on any issue</a>.
+      the reasoning lives in <a href="https://github.com/sameeralam3127/linux-vitals/blob/main/docs/roadmap.md">docs/roadmap.md</a>,
+      and you can <a href="https://github.com/sameeralam3127/linux-vitals/issues">weigh in on any issue</a>.
     </p>
 
     <div class="road" id="roadmap-list"></div>
   </div>
 </section>
 
-<section class="cta-band">
+<section class="recap">
   <div class="wrap">
-    <h2 class="reveal">See what's actually going on across your fleet</h2>
-    <p class="sub reveal">Install it, point it at an inventory, and open one HTML file.</p>
-    <div class="cta-row reveal">
+    <p class="recap-line" aria-hidden="true"><b>PLAY RECAP</b> *********************************************
+<b>your-fleet</b>   : <span class="g">ok=?</span>   <span class="y">changed=?</span>   unreachable=?   <span class="r">failed=?</span>   <span class="c">skipped=?</span></p>
+    <h2>Find out what your fleet would say.</h2>
+    <p>Install the collection, point it at an inventory, and open one HTML file.</p>
+    <div class="cta-row">
       <a class="btn btn-primary" href="https://galaxy.ansible.com/ui/repo/published/sameeralam3127/linux_vitals/">Get it from Ansible Galaxy</a>
       <a class="btn btn-ghost" href="https://github.com/sameeralam3127/linux-vitals">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.8 10.9.6.1.8-.2.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.7 1.3 3.4 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.8 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11.4 11.4 0 0 1 6 0C17.5 4.7 18.5 5 18.5 5c.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.5-2.7 5.5-5.3 5.8.4.4.8 1.1.8 2.2v3.3c0 .4.2.7.8.6 4.6-1.5 7.8-5.8 7.8-10.9C23.5 5.7 18.3.5 12 .5z"/></svg>
-        View source
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.8 10.9.6.1.8-.2.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.7 1.3 3.4 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.8 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11.4 11.4 0 0 1 6 0C17.5 4.7 18.5 5 18.5 5c.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.5-2.7 5.5-5.3 5.8.4.4.8 1.1.8 2.2v3.3c0 .4.2.7.8.6 4.6-1.5 7.8-5.8 7.8-10.9C23.5 5.7 18.3.5 12 .5z"/></svg>
+        View the source
       </a>
     </div>
   </div>
@@ -605,7 +538,7 @@ cd linux-vitals/demo &amp;&amp; ./run.sh
       </div>
     </div>
     <div class="foot-bottom">
-      <span>MIT licensed · Built with Ansible</span>
+      <span>MIT licensed. Built with Ansible.</span>
       <span id="foot-updated">sameeralam3127.linux_vitals</span>
     </div>
   </div>

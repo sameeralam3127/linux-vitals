@@ -289,74 +289,69 @@
 
   (function heroReplay() {
     if (!FLEET) return;
-    var rowsHost = $("viz-rows"), ring = $("viz-ring"), pct = $("viz-pct");
-    var scoreEl = $("viz-score"), sub = $("viz-sub");
-    var hosts = FLEET.hosts, run = 0;
-    var id = (FLEET.maintenance && FLEET.maintenance.maintenance_id) || "";
-    $("viz-title").textContent = "sample fleet · postcheck " + id;
+    var pre = $("run-log");
+    if (!pre) return;
+    var hosts = FLEET.hosts;
+    var id = (FLEET.maintenance && FLEET.maintenance.maintenance_id) || "CHG-2026-1012";
+    var WIDTH = 78;
 
-    function chipFor(h) {
+    function pad(s, n) { s = String(s); while (s.length < n) s += " "; return s; }
+    function header(text) {
+      var stars = Math.max(3, WIDTH - text.length - 1);
+      return ["h", text + " " + new Array(stars + 1).join("*")];
+    }
+    function healed(h) { return (h.self_healing && h.self_healing.services_healed) || []; }
+    function verdict(h) {
       var unknown = h.findings.filter(function (f) { return f.status === "unknown"; }).length;
+      var top = h.findings.slice().sort(function (a, b) { return ORDER.indexOf(b.severity) - ORDER.indexOf(a.severity); })[0];
+      var line = pad(h.inventory_name, 10) + pad(h.os.distribution, 20);
       if (h.status === "Pass") {
-        var healed = (h.self_healing && h.self_healing.services_healed || []).length;
-        return el("span", { class: "chip pass", text: healed ? "Pass · auto-fixed " + healed : "Pass" });
+        var fixed = healed(h);
+        return ["g", line + "Pass" + (fixed.length ? "   auto-fixed " + fixed.join(", ") : "") + (unknown ? "   " + unknown + " unknown" : "")];
       }
-      if (unknown) return el("span", { class: "chip unk", text: unknown + " unknown" });
-      return el("span", { class: "chip " + (h.severity === "critical" ? "fail" : "warn"),
-        text: h.severity === "critical" ? "Critical" : h.findings.length + " finding" + (h.findings.length === 1 ? "" : "s") });
+      if (unknown && (!top || top.status === "unknown")) return ["c", line + "Fail   " + unknown + " check(s) could not run"];
+      return ["r", line + "Fail   " + (top ? top.severity + ": " + top.id : h.findings.length + " findings")];
     }
 
-    function row(h, scanning) {
-      return el("div", { class: "viz-row" }, [
-        el("span", { class: "host", text: h.inventory_name }),
-        el("span", { class: "os", text: h.os.distribution }),
-        scanning ? el("span", { class: "chip scan", text: "scanning…" }) : chipFor(h)
-      ]);
+    // The task names below are the real ones from the roles; the per-host
+    // results are the sample fleet the demo dashboard is rendered from.
+    var lines = [
+      ["$", "ansible-playbook -i inventory.ini \\"],
+      ["", "    sameeralam3127.linux_vitals.postcheck \\"],
+      ["", "    -e linux_vitals_maintenance_id=" + id],
+      ["", ""],
+      header("PLAY [LinuxVitals postcheck health check (post-maintenance)]"),
+      ["", ""],
+      header("TASK [vitals_scan : Build host health findings]")
+    ];
+    hosts.forEach(function (h) { lines.push(["g", "ok: [" + h.inventory_name + "]"]); });
+    lines.push(["", ""], header("TASK [vitals_heal : Attempt one restart for enabled failed services]"));
+    hosts.forEach(function (h) {
+      var fixed = healed(h);
+      lines.push(fixed.length ? ["y", "changed: [" + h.inventory_name + "] => (item=" + fixed[0] + ")"] : ["c", "skipping: [" + h.inventory_name + "]"]);
+    });
+    lines.push(["", ""], header("TASK [vitals_report : Generate consolidated HTML dashboard]"),
+      ["y", "changed: [" + hosts[0].inventory_name + " -> localhost]"], ["", ""],
+      ["d", "# reports/linux_vitals_report.html, compared with the baseline for " + id]);
+    hosts.forEach(function (h) { lines.push(verdict(h)); });
+    var s = FLEET.summary || {};
+    lines.push(["", ""], ["h", "Health score " + s.health_score_pct + "% (" + s.health_score_band + "), " +
+      s.failing_host_count + " failing, " + s.regressed_count + " regressed, " + s.improved_count + " improved"]);
+
+    // Keep the newest line in view, the way a terminal scrolls.
+    var term = new Terminal(pre);
+    var write = term.write;
+    term.write = function (line, text) {
+      var span = write.call(term, line, text);
+      pre.scrollTop = pre.scrollHeight;
+      return span;
+    };
+    if (window.MutationObserver) {
+      new MutationObserver(function () { pre.scrollTop = pre.scrollHeight; }).observe(pre, { childList: true, subtree: true, characterData: true });
     }
 
-    function summarise(done) {
-      var healthy = done.filter(function (h) { return h.status === "Pass" && !h.unknown_count; }).length;
-      var p = done.length ? Math.round(healthy / done.length * 1000) / 10 : 0;
-      setRing(ring, pct, p);
-      var fixed = done.reduce(function (n, h) { return n + ((h.self_healing && h.self_healing.services_healed) || []).length; }, 0);
-      var failing = done.filter(function (h) { return h.status === "Fail"; }).length;
-      scoreEl.textContent = done.length === hosts.length ? "Health score: " + band(p) : "Scanning…";
-      sub.textContent = done.length + " of " + hosts.length + " hosts · " + fixed + " auto-fixed · " + failing + " failing";
-    }
-
-    function finalState() {
-      rowsHost.innerHTML = "";
-      hosts.filter(function (h) { return h.status === "Fail"; }).slice(0, 3)
-        .concat(hosts.filter(function (h) { return h.status === "Pass"; }).slice(0, 1))
-        .forEach(function (h) { rowsHost.appendChild(row(h, false)); });
-      summarise(hosts);
-    }
-
-    function start() {
-      var mine = ++run, i = 0, done = [];
-      rowsHost.innerHTML = "";
-      summarise(done);
-      if (reduced) { finalState(); return; }
-      (function step() {
-        if (mine !== run) return;
-        if (i >= hosts.length) { setTimeout(function () { if (mine === run && !document.hidden) start(); }, 6000); return; }
-        var h = hosts[i++];
-        var r = row(h, true);
-        rowsHost.insertBefore(r, rowsHost.firstChild);
-        while (rowsHost.children.length > 4) rowsHost.removeChild(rowsHost.lastChild);
-        setTimeout(function () {
-          if (mine !== run) return;
-          r.replaceChild(chipFor(h), r.lastChild);
-          done.push(h);
-          summarise(done);
-          setTimeout(step, 520);
-        }, 650);
-      })();
-    }
-
-    $("viz-replay").addEventListener("click", start);
-    document.addEventListener("visibilitychange", function () { if (!document.hidden && !rowsHost.children.length) start(); });
-    start();
+    $("run-replay").addEventListener("click", function () { term.play(lines); });
+    term.play(lines);
   })();
 
   /* ====================================================== triage playground */
