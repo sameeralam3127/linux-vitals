@@ -34,7 +34,11 @@ def _ensure_dev_collection_symlink() -> None:
     if link.is_symlink() or link.exists():
         return
     link.parent.mkdir(parents=True, exist_ok=True)
-    link.symlink_to(REPO_ROOT, target_is_directory=True)
+    try:
+        link.symlink_to(REPO_ROOT, target_is_directory=True)
+    except FileExistsError:
+        # Another pytest-xdist worker created it between the check and here.
+        pass
 
 
 def _ansible_playbook_bin() -> str:

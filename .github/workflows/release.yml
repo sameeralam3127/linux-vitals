@@ -19,8 +19,17 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Pull requests no longer run Molecule (see ci.yml), and the weekly run tests
+  # whatever main was on Saturday, not this tag. So the release runs every
+  # scenario against the exact commit it is about to publish, and publishes
+  # only if they all pass. Galaxy versions are immutable: a failure here costs
+  # a re-tag, a bad publish costs a new version.
+  molecule:
+    uses: ./.github/workflows/molecule.yml
+
   publish:
     name: Publish to Ansible Galaxy
+    needs: molecule
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -76,12 +85,12 @@ jobs:
           ln -sfn "$GITHUB_WORKSPACE" .dev-collections/ansible_collections/sameeralam3127/linux_vitals
 
       - name: Re-run the fast checks
-        # The Molecule scenarios already ran on main; these are the cheap checks
-        # worth repeating against the exact tree being published.
+        # The molecule job above ran the scenarios against this commit; these
+        # are the cheap checks, repeated against the exact tree being published.
         run: |
           ansible-playbook playbooks/healthcheck.yml --syntax-check
           ansible-lint roles/ playbooks/ molecule/
-          pytest -q
+          pytest -q -n auto --dist loadfile
 
       - name: Build the collection
         run: ansible-galaxy collection build --force --output-path dist/

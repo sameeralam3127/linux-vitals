@@ -6,8 +6,8 @@ Thanks for considering a contribution to LinuxVitals
 ## Your first pull request
 
 You do not need Docker, a lab, or any Linux hosts to make a useful first
-change. Most of the test suite runs locally in about a minute, and CI does the
-heavy part for you.
+change. The whole test suite runs locally in a few minutes, and CI runs it
+again on the oldest ansible-core this collection supports.
 
 1. Pick an issue labelled
    [`good first issue`](https://github.com/sameeralam3127/linux-vitals/issues?q=is%3Aopen+label%3A%22good+first+issue%22).
@@ -20,16 +20,18 @@ heavy part for you.
    python3 -m venv .venv && source .venv/bin/activate
    pip install -r requirements-dev.txt
    ansible-galaxy collection install -r requirements.yml
-   pytest -q                     # ~200 tests, no hosts involved
+   pytest -q -n auto             # ~800 tests on every CPU, no hosts involved
    pre-commit run --all-files    # lint, YAML, whitespace, shellcheck
    ```
 
-3. Open the pull request. CI then runs what you could not run locally:
-   Molecule against live systemd containers for Ubuntu, Rocky, Fedora, and
-   openSUSE, and the whole suite again on the oldest ansible-core this
-   collection supports. If one of those fails and the reason is not obvious,
-   say so in the PR -- that is a normal part of review, not a failure on
-   your part.
+3. Open the pull request. CI runs lint and the whole suite on the newest
+   ansible-core and on 2.16, the oldest this collection supports, and runs
+   again on every push to the pull request. Your first run waits for a
+   maintainer to approve it. If you change self-healing, journal, reboot or
+   discovery code, a maintainer will also run the live-container Molecule
+   scenarios on your pull request. If something fails and the reason is not
+   obvious, say so in the PR -- that is a normal part of review, not a
+   failure on your part.
 
 Add a line to `CHANGELOG.md` under `[Unreleased]` for anything a user would
 notice. The rest of this document is reference for when you need it.
@@ -68,22 +70,24 @@ pytest -q
 ```
 
 All four run in CI ([.github/workflows/ci.yml](workflows/ci.yml))
-on every pull request; a change isn't done until all four pass locally.
+on every push to a pull request; a change isn't done until all four pass
+locally. A push to a branch with no pull request runs nothing.
 CI runs them twice: on the newest ansible-core, and on 2.16, the minimum
 declared in `meta/runtime.yml`. A change can pass locally on a new core and
 still break 2.16 -- see
 [docs/testing.md](../docs/testing.md#ansible-core-versions) for what that
 usually looks like and how to run the 2.16 suite yourself.
 
-On top of those, CI runs the Molecule scenarios -- one live systemd
-container per supported distribution (Ubuntu, Rocky, Fedora, openSUSE) --
-which are what prove the roles' runtime behaviour rather than just their
-syntax. They need a Docker daemon, so they are not part of the quick loop
-above:
+The Molecule scenarios -- one live systemd container per supported
+distribution (Ubuntu, Debian, Rocky, Fedora, Amazon Linux, openSUSE) -- prove
+the roles' runtime behaviour rather than just their syntax. They are too slow
+to run on every pull request, so CI runs them every weekend, before every
+release, and on a pull request a maintainer labels `run-molecule`. They need
+a Docker daemon, so they are not part of the quick loop above:
 
 ```bash
 molecule test -s ubuntu    # one distribution
-molecule test --all        # all four
+molecule test --all        # all six
 ```
 
 See [docs/testing.md](../docs/testing.md) for what each scenario covers, how to
@@ -169,8 +173,10 @@ change:
    ```
 
    The tag starts [.github/workflows/release.yml](workflows/release.yml),
-   which refuses a tag that does not match `galaxy.yml`, re-runs the fast
-   checks, builds, publishes to Galaxy, and confirms the version is live.
+   which runs every Molecule scenario against the tagged commit, refuses a
+   tag that does not match `galaxy.yml`, re-runs the fast checks, builds,
+   publishes to Galaxy, and confirms the version is live. Nothing publishes
+   unless Molecule passed.
    There is no manual `ansible-galaxy collection publish` step and no API key
    on anyone's machine; the key is the repository's `API_KEY` secret.
 

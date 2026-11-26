@@ -1,0 +1,79 @@
+name: Molecule
+
+# The roles run end to end against a live systemd container of each supported
+# distribution. Too slow to make every pull request wait for it, and in 100
+# CI runs its failures were container artefacts or infrastructure rather than
+# bugs a pull request introduced (docs/internal/testing-review.md). It runs:
+#
+# - every weekend on main, called by weekly.yml;
+# - before every release, called by release.yml, which publishes only if it
+#   passes;
+# - on a pull request when a maintainer adds the `run-molecule` label. That
+#   is a plain `pull_request` event: a fork's code gets a read-only token and
+#   no secrets, exactly as in ci.yml;
+# - by hand, from the Actions tab or `gh workflow run molecule.yml --ref <branch>`.
+on:
+  pull_request:
+    types: [labeled]
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  molecule:
+    name: ${{ matrix.name }}
+    # Any other label added to a pull request skips the run.
+    if: github.event_name != 'pull_request' || github.event.label.name == 'run-molecule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        # One scenario per supported distribution family on the latest core;
+        # see docs/testing.md. The floor runs one scenario: the 2.16 failures
+        # so far were core failures, not distribution failures, and Rocky
+        # stands in for the RHEL estates most likely to sit on an older core.
+        include:
+          - {name: "molecule (ubuntu)", scenario: ubuntu, tooling: latest, python-version: "3.12"}
+          - {name: "molecule (rocky)", scenario: rocky, tooling: latest, python-version: "3.12"}
+          - {name: "molecule (fedora)", scenario: fedora, tooling: latest, python-version: "3.12"}
+          - {name: "molecule (opensuse)", scenario: opensuse, tooling: latest, python-version: "3.12"}
+          - {name: "molecule (debian)", scenario: debian, tooling: latest, python-version: "3.12"}
+          - {name: "molecule (amazonlinux)", scenario: amazonlinux, tooling: latest, python-version: "3.12"}
+          - {name: "molecule (rocky, ansible-core 2.16)", scenario: rocky, tooling: floor, python-version: "3.10"}
+    env:
+      ANSIBLE_LOCAL_TEMP: .ansible/tmp
+      ANSIBLE_REMOTE_TEMP: .ansible/tmp
+      ANSIBLE_HOME: .ansible
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install validation tooling
+        env:
+          TOOLING: ${{ matrix.tooling }}
+        run: |
+          ./.github/scripts/install-tooling.sh "$TOOLING"
+          ./.github/scripts/install-collections.sh "$TOOLING"
+
+      - name: Symlink repository as the sameeralam3127.linux_vitals collection
+        # create.yml maintains this too, but the scenario's dependency step runs
+        # before create, and a fresh checkout has no symlink at all.
+        run: |
+          mkdir -p .dev-collections/ansible_collections/sameeralam3127
+          ln -sfn "$GITHUB_WORKSPACE" .dev-collections/ansible_collections/sameeralam3127/linux_vitals
+
+      - name: Run the ${{ matrix.scenario }} scenario
+        env:
+          SCENARIO: ${{ matrix.scenario }}
+        run: molecule test -s "$SCENARIO"
