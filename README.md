@@ -564,6 +564,18 @@ Amazon Linux 2023, openSUSE) — see [Testing](docs/testing.md) to run those loc
 
 ## Contributing
 
+Contributions are welcome, and you don't need a fleet, Docker, or Ansible
+experience to make one: `pytest -q` runs locally in about a minute, and CI runs
+the per-distro tests on your pull request.
+
+- **First contribution:** each [`good first issue`](https://github.com/sameeralam3127/linux-vitals/issues?q=is%3Aopen+label%3A%22good+first+issue%22)
+  has a comment listing the files to change and the test to add. Comment to claim one.
+- **Something bigger:** [`help wanted`](https://github.com/sameeralam3127/linux-vitals/issues?q=is%3Aopen+label%3A%22help+wanted%22)
+  issues are scoped and wanted.
+- **Ran it on your own hosts?** Say what happened, good or bad, in
+  [Show and tell](https://github.com/sameeralam3127/linux-vitals/discussions/categories/show-and-tell)
+  or an issue. A report from a real fleet is the most useful contribution there is.
+
 Setup, test suite, and the Galaxy publishing process: [CONTRIBUTING.md](.github/CONTRIBUTING.md).
 Found a security issue? Please report it privately — [SECURITY.md](.github/SECURITY.md).
 

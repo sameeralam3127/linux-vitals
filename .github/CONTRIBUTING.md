@@ -12,7 +12,11 @@ heavy part for you.
 1. Pick an issue labelled
    [`good first issue`](https://github.com/sameeralam3127/linux-vitals/issues?q=is%3Aopen+label%3A%22good+first+issue%22).
    Each one has a comment listing the files to change and the test to add.
-   Comment on the issue to claim it, and ask anything there.
+   Comment on the issue to claim it, and ask anything there. A claim with no
+   update for a week lapses, so if the last comment on a claimed issue is
+   older than that, say you are picking it up and go ahead.
+   Ready for something larger? [`help wanted`](https://github.com/sameeralam3127/linux-vitals/issues?q=is%3Aopen+label%3A%22help+wanted%22)
+   issues are scoped and wanted, just bigger.
 2. Set up and run the quick loop:
 
    ```bash
